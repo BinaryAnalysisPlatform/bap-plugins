@@ -5,12 +5,7 @@ open Format
 
 let max_exp_size = 100
 
-module Main(Env : sig
-    val bound  : mem
-    val annots : (string * string) memmap
-    module Target : Target
-  end) = struct
-  open Env
+module Main(Target : Target) = struct
   open Target.CPU
 
   let defines_stack var = is_sp var || is_bp var
@@ -35,11 +30,6 @@ module Main(Env : sig
     |> List.concat_map ~f:(fun (mem,insn) ->
         (resolve_pc mem (Insn.bil insn)))
     |> optimize
-
-  let simpl exp =
-    match optimize [Stmt.jmp exp] with
-    | [Stmt.Jmp r] -> r
-    | _ -> assert false
 
   type subst = exp Var.Map.t
 
@@ -122,7 +112,7 @@ module Main(Env : sig
     method! enter_var var r = r && defines_stack var
   end)#visit_exp exp true
 
-  let collect_unsafe blk =
+  let collect_unsafe ~bound blk =
     let bil_of_first_blk,subst =
       let bil,subst = bil_of_block blk |>
                       propogate Var.Map.empty in
@@ -142,7 +132,7 @@ module Main(Env : sig
               else addr :: unsafe
           end) (bil_of_block blk))
 
-  let modifies_sp_in_the_middle entry =
+  let modifies_sp_in_the_middle ~bound entry =
     let exits =
       Block.dfs ~bound entry |> Seq.filter ~f:(fun blk ->
           Seq.length_is_bounded_by ~max:1 (Block.dfs ~bound blk)) |>
@@ -161,26 +151,23 @@ end
 
 let main project =
   let module Target = (val target_of_arch project.arch) in
-
+  let module Main = Main(Target) in
   let blocks = Disasm.blocks project.program in
   let plt = Memmap.to_sequence project.annots |>
             Seq.find ~f:(fun (_,(tag,name)) ->
                 tag = "section" && name = ".plt") |> uw |> fst in
-  let print mem sym =
-    let module Main = Main(struct
-        let bound = mem
-        let annots = project.annots
-        module Target = Target
-      end) in
+  let annotate bound _sym annots =
     let _,entry =
-      uw (Table.find_addr blocks (Memory.min_addr mem)) in
-    match Main.collect_unsafe entry with
-    | [] when Main.modifies_sp_in_the_middle entry ->
-      printf "%s YELLOW@.%!" sym
-    | [] -> printf "%s GREEN@.%!" sym
-    | _ -> printf "%s RED@.%!" sym in
-  Table.iteri project.symbols ~f:(fun mem sym ->
-      if not (Memory.contains plt (Memory.min_addr mem))
-      then print mem sym)
+      uw (Table.find_addr blocks (Memory.min_addr bound)) in
+    match Main.collect_unsafe ~bound entry with
+    | [] when Main.modifies_sp_in_the_middle ~bound entry ->
+      Memmap.add annots bound ("staticstore", "yellow")
+    | [] -> Memmap.add annots bound ("staticstore", "green")
+    | _ -> Memmap.add annots bound ("staticstore", "red") in
+  let annots = Table.foldi project.symbols ~init:project.annots
+      ~f:(fun mem sym annots ->
+          if not (Memory.contains plt (Memory.min_addr mem))
+          then annotate mem sym annots else annots) in
+  {project with annots}
 
-let () = register' main
+let () = register main
