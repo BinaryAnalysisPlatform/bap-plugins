@@ -23,7 +23,6 @@ module Main(Target : Target) = struct
   let optimize =
     List.map ~f:Bil.fixpoint [
       Bil.fold_consts;
-      Bil.prune_unreferenced;
     ] |> List.reduce_exn ~f:Fn.compose |> Bil.fixpoint
 
   let bil_of_block blk =
@@ -104,15 +103,14 @@ module Main(Target : Target) = struct
                   List.map ~f:squash_complex_exp
               end) [stmt] in
             (stmt,subst) :: stmts, subst') bil in
-    let r = List.rev_map sps ~f:(fun (stmt,subst) ->
+    List.rev_map sps ~f:(fun (stmt,subst) ->
         Bil.map (object
           inherit Bil.mapper
           method! map_var v =
             match List.find subst ~f:(fun (lhs,_) -> Var.(v = lhs)) with
             | Some (_,rhs) -> rhs
             | _ -> Bil.var v
-        end) [stmt]) |> List.concat in
-    optimize r, esp
+        end) [stmt]) |> List.concat,esp
 
   let is_safe_index exp = (object
     inherit [bool] Bil.visitor
