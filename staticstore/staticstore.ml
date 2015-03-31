@@ -11,7 +11,8 @@ module Main(Target : Target) = struct
   let defines_stack var = is_sp var || is_bp var
 
   (** Substitute PC with its value  *)
-  let resolve_pc mem = Bil.map (object
+  let resolve_pc mem =
+    Bil.map (object
       inherit Bil.mapper as super
       method! map_var var =
         if Target.CPU.is_pc var then
@@ -31,15 +32,15 @@ module Main(Target : Target) = struct
         (resolve_pc mem (Insn.bil insn)))
     |> optimize
 
-  type subst = exp Var.Map.t
+  type subst = (var * exp) list
 
   let exp_size exp = (object
     inherit [int] Bil.visitor
     method! enter_exp _ n = n + 1
   end)#visit_exp exp 0
 
-  let squash_complex_exp exp =
-    if exp_size exp < max_exp_size then exp
+  let squash_complex_exp (var,exp) =
+    if exp_size exp < max_exp_size then var,exp
     else
       let regs = (object
         inherit [String.Set.t] Bil.visitor
@@ -47,7 +48,7 @@ module Main(Target : Target) = struct
       end)#visit_exp exp String.Set.empty in
       let desc = String.concat ~sep:", " @@
         Set.elements regs in
-      Exp.unknown desc reg32_t
+      var,Exp.unknown desc reg32_t
 
   let subst_exp u ~in_ ~to_:x = (object
     inherit Bil.mapper
@@ -72,33 +73,46 @@ module Main(Target : Target) = struct
         | exp -> super#map_exp exp
     end)#map_exp
 
-  let simpl_memory exp =
+  let simpl_memory (var,exp) =
     let rec loop exp =
       let exp' = simpl_memory exp in
       if Bil.equal exp exp' then exp
       else loop exp' in
-    loop exp
+    var,loop exp
 
   let apply_subst subst exp =
-    Map.fold subst ~init:exp ~f:(fun ~key ~data exp ->
-        subst_exp key ~in_:exp ~to_:data)
+    List.fold subst ~init:exp ~f:(fun exp (lhs,rhs) ->
+        subst_exp lhs ~in_:exp ~to_:rhs)
+
+  let use_or_def u (v,x) =
+    Var.(v = u) || (object
+      inherit [bool] Bil.visitor
+      method! enter_var v found = found || Var.(v = u)
+    end)#visit_exp x false
+  let doesn't_use_or_def u = Fn.non (use_or_def u)
 
   let propogate init bil =
-    let (sps,esp) = Bil.fold ~init:([], init)
-        (object
-          inherit [(stmt * subst) list * subst] Bil.visitor
-          method! leave_move v exp (stmts, subs) =
-            let exp = apply_subst subs exp in
-            stmts, Map.add ~key:v ~data:exp subs |>
-                   Map.map ~f:simpl_memory |>
-                   Map.map ~f:squash_complex_exp
-          method! enter_stmt stmt (stmts,subs) =
-            (stmt,subs) :: stmts, subs
-        end) bil in
-    List.rev_map sps ~f:(fun (stmt,subst) ->
-        Map.fold ~init:[stmt] subst ~f:(fun ~key ~data stmt ->
-            Bil.substitute_var key data stmt))
-    |> List.concat |> optimize, esp
+    let (sps,esp) = List.fold ~init:([], init)
+        ~f:(fun (stmts,subst) stmt ->
+            let subst' =
+              Bil.fold ~init:subst (object
+                inherit [subst] Bil.visitor
+                method! leave_move v exp subs =
+                  let exp = apply_subst subs exp in
+                  (v,exp) :: List.filter ~f:(doesn't_use_or_def v) subs |>
+                  List.map ~f:simpl_memory |>
+                  List.map ~f:squash_complex_exp
+              end) [stmt] in
+            (stmt,subst) :: stmts, subst') bil in
+    let r = List.rev_map sps ~f:(fun (stmt,subst) ->
+        Bil.map (object
+          inherit Bil.mapper
+          method! map_var v =
+            match List.find subst ~f:(fun (lhs,_) -> Var.(v = lhs)) with
+            | Some (_,rhs) -> rhs
+            | _ -> Bil.var v
+        end) [stmt]) |> List.concat in
+    optimize r, esp
 
   let is_safe_index exp = (object
     inherit [bool] Bil.visitor
@@ -115,10 +129,10 @@ module Main(Target : Target) = struct
   let collect_unsafe ~bound blk =
     let bil_of_first_blk,subst =
       let bil,subst = bil_of_block blk |>
-                      propogate Var.Map.empty in
+                      propogate [] in
       optimize bil,subst in
-    let subst = Map.filter subst ~f:(fun ~key ~data:_ ->
-        defines_stack key) in
+    let subst = List.filter subst ~f:(fun (var,_) ->
+        defines_stack var) in
     let bil_of_block blk' =
       if Block.(blk = blk') then bil_of_first_blk else
         bil_of_block blk' |> propogate subst |> fst |> optimize in
@@ -150,6 +164,7 @@ module Main(Target : Target) = struct
 end
 
 let main project =
+  Printexc.record_backtrace true;
   let module Target = (val target_of_arch project.arch) in
   let module Main = Main(Target) in
   let blocks = Disasm.blocks project.program in
@@ -163,7 +178,7 @@ let main project =
     | [] when Main.modifies_sp_in_the_middle ~bound entry ->
       Memmap.add annots bound ("staticstore", "yellow")
     | [] -> Memmap.add annots bound ("staticstore", "green")
-    | _ -> Memmap.add annots bound ("staticstore", "red") in
+    | _  -> Memmap.add annots bound ("staticstore", "red") in
   let annots = Table.foldi project.symbols ~init:project.annots
       ~f:(fun mem sym annots ->
           if not (Memory.contains plt (Memory.min_addr mem))
