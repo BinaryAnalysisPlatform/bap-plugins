@@ -14,6 +14,13 @@ it is considered unsafe. If it is defined by a constant value, but
 outside of the ENTRY or EXIT blocks, but the overall function is
 classified as green, then such function will be classified as `yellow`.
 
+# Build instructions
+
+This plugin can be built as follows:
+```
+$ bapbuild staticstore.plugin
+```
+
 # Input
 
 Should work fine on any input data. The plugin is not architecture
