@@ -162,25 +162,31 @@ module Main(Target : Target) = struct
 end
 
 let main project =
-  Printexc.record_backtrace true;
   let module Target = (val target_of_arch project.arch) in
   let module Main = Main(Target) in
   let blocks = Disasm.blocks project.program in
-  let plt = Memmap.to_sequence project.annots |>
-            Seq.find ~f:(fun (_,(tag,name)) ->
-                tag = "section" && name = ".plt") |> uw |> fst in
+  let is_plt = Memmap.to_sequence project.annots |>
+               Seq.find ~f:(fun (_,(tag,name)) ->
+                   tag = "section" && name = ".plt") |> function
+               | None -> fun _ -> false
+               | Some (mem,_) -> fun sym -> 
+                 Memory.contains mem (Memory.min_addr sym) in
   let annotate bound _sym annots =
-    let _,entry =
-      uw (Table.find_addr blocks (Memory.min_addr bound)) in
+    let _,entry = 
+      match Table.find_addr blocks (Memory.min_addr bound) with 
+      | None -> invalid_arg "A symbol without a block?"
+      | Some entry -> entry in
     match Main.collect_unsafe ~bound entry with
     | [] when Main.modifies_sp_in_the_middle ~bound entry ->
       Memmap.add annots bound ("staticstore", "yellow")
     | [] -> Memmap.add annots bound ("staticstore", "green")
     | _  -> Memmap.add annots bound ("staticstore", "red") in
   let annots = Table.foldi project.symbols ~init:project.annots
-      ~f:(fun mem sym annots ->
-          if not (Memory.contains plt (Memory.min_addr mem))
-          then annotate mem sym annots else annots) in
+      ~f:(fun mem sym annots -> 
+          if is_plt mem then annots
+          else annotate mem sym annots) in
   {project with annots}
 
 let () = register main
+
+                  
