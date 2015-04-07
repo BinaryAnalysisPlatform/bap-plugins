@@ -172,11 +172,9 @@ let main project =
                | Some (mem,_) -> fun sym -> 
                  Memory.contains mem (Memory.min_addr sym) in
   let annotate bound _sym annots =
-    let _,entry = 
-      match Table.find_addr blocks (Memory.min_addr bound) with 
-      | None -> invalid_arg "A symbol without a block?"
-      | Some entry -> entry in
-    match Main.collect_unsafe ~bound entry with
+    match Table.find_addr blocks (Memory.min_addr bound) with 
+    | None -> annots
+    | Some (_,entry) -> match Main.collect_unsafe ~bound entry with
     | [] when Main.modifies_sp_in_the_middle ~bound entry ->
       Memmap.add annots bound ("staticstore", "yellow")
     | [] -> Memmap.add annots bound ("staticstore", "green")
@@ -187,6 +185,16 @@ let main project =
           else annotate mem sym annots) in
   {project with annots}
 
+
 let () = register main
 
-                  
+(* 
+__mh_execute_header            0x100000000:64 3792
+_main                          0x100000ED0:64 134 
+sub_100000f56                  0x100000F56:64 6   
+sub_100000f5c                  0x100000F5C:64 6   
+sub_100000f62                  0x100000F62:64 6   
+
+
+
+ *)
