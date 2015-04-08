@@ -3,7 +3,96 @@ open Bap.Std
 open Program_visitor
 open Format
 
-let max_exp_size = 100
+let version = "0.2"
+let max_exp_size = ref 100
+let yellow_format = ref "$symbol YELLOW\n"
+let red_format = ref "$symbol RED\n"
+let green_format = ref "$symbol GREEN\n"
+
+let make_printer fmt sym =
+  let b = Buffer.create 16 in
+  Buffer.add_substitute b (function
+      | "symbol" -> sym
+      | s -> s) (Scanf.unescaped !fmt);
+  Buffer.contents b
+
+let yellow = make_printer yellow_format
+let red = make_printer red_format
+let green = make_printer green_format
+
+module Cmdline = struct
+  open Cmdliner
+
+  let max_size : int Term.t =
+    let doc = "Limit maximum depth of expression" in
+    Arg.(value & opt int !max_exp_size & info ["max-exp-size"] ~doc)
+
+  let print : [`green | `yellow | `red] list Term.t =
+    let variants = [
+      "green", `green;
+      "yellow", `yellow;
+      "red", `red
+    ] in
+    let doc = sprintf
+        "Print result. Accepted values are %s. Multiple variants \
+         can be specified by enumerating this option several times" @@
+      Arg.doc_alts_enum variants in
+    Arg.(value & opt_all (enum variants) [] & info ["print"] ~doc)
+
+  let format name default : string Term.t =
+    let doc = sprintf "Print %s using specified format. \
+                       Every occurence of $symbol is substituted with\
+                       a symbol name" name in
+    Arg.(value & opt string default &
+         info [sprintf "%s-format" name] ~doc)
+
+  let info =
+    let doc = "classify all functions based on memory store \
+               operations. If address of a store operation \
+               is known, then it would be classified as safe \
+               or green." in
+    let man = [
+      `S "DESCRIPTION";
+      `P "This plugin will classify all functions into three categories:";
+      `Noblank;
+      `P "- red;"; `Noblank;
+      `P "- yellow;"; `Noblank;
+      `P "- green.";
+      `P
+        "`green` functions perform all writes to memory \
+         only to a statically known offsets, i.e., a compile \
+         time constants. SP is also considered a constant \
+         iff it is only defined with constant in the ENTRY or EXIT \
+         blocks. If it is defined by a non-constant value, like \
+         `SP := SP - R0` it is considered unsafe. If it is defined \
+         by a constant value, but outside of the ENTRY or EXIT \
+         blocks, but the overall function is classified as green, \
+         then such function will be classified as `yellow`.:"
+    ] in
+    Term.info ~man ~doc "staticstore" ~version
+
+  let options size green yellow red printers =
+    max_exp_size := size;
+    List.iter [green_format; yellow_format; red_format] ~f:(fun fmt ->
+        fmt := "");
+    List.iter printers ~f:(function
+        | `green -> green_format := green;
+        | `yellow -> yellow_format := yellow;
+        | `red -> red_format := red)
+
+  let main =
+    Term.(pure options $max_size
+          $format "green" !green_format
+          $format "yellow" !yellow_format
+          $format "red" !red_format
+          $print)
+
+  let eval {argv; _} =
+    match Term.eval ~argv (main,info) with
+    | `Ok () -> ()
+    | _ -> exit 1
+
+end
 
 module Main(Target : Target) = struct
   open Target.CPU
@@ -20,7 +109,7 @@ module Main(Target : Target) = struct
         else super#map_var var
     end)
 
-  let optimize =
+  let optimize : bil -> bil =
     List.map ~f:Bil.fixpoint [
       Bil.fold_consts;
     ] |> List.reduce_exn ~f:Fn.compose |> Bil.fixpoint
@@ -39,7 +128,7 @@ module Main(Target : Target) = struct
   end)#visit_exp exp 0
 
   let squash_complex_exp (var,exp) =
-    if exp_size exp < max_exp_size then var,exp
+    if exp_size exp < !max_exp_size then var,exp
     else
       let regs = (object
         inherit [String.Set.t] Bil.visitor
@@ -47,7 +136,7 @@ module Main(Target : Target) = struct
       end)#visit_exp exp String.Set.empty in
       let desc = String.concat ~sep:", " @@
         Set.elements regs in
-      var,Exp.unknown desc reg32_t
+      var, Bil.unknown desc reg32_t
 
   let subst_exp u ~in_ ~to_:x = (object
     inherit Bil.mapper
@@ -75,7 +164,7 @@ module Main(Target : Target) = struct
   let simpl_memory (var,exp) =
     let rec loop exp =
       let exp' = simpl_memory exp in
-      if Bil.equal exp exp' then exp
+      if Exp.(exp = exp') then exp
       else loop exp' in
     var,loop exp
 
@@ -162,6 +251,7 @@ module Main(Target : Target) = struct
 end
 
 let main project =
+  Cmdline.eval project;
   let module Target = (val target_of_arch project.arch) in
   let module Main = Main(Target) in
   let blocks = Disasm.blocks project.program in
@@ -169,32 +259,25 @@ let main project =
                Seq.find ~f:(fun (_,(tag,name)) ->
                    tag = "section" && name = ".plt") |> function
                | None -> fun _ -> false
-               | Some (mem,_) -> fun sym -> 
+               | Some (mem,_) -> fun sym ->
                  Memory.contains mem (Memory.min_addr sym) in
-  let annotate bound _sym annots =
-    match Table.find_addr blocks (Memory.min_addr bound) with 
+  let annotate bound sym annots =
+    match Table.find_addr blocks (Memory.min_addr bound) with
     | None -> annots
     | Some (_,entry) -> match Main.collect_unsafe ~bound entry with
-    | [] when Main.modifies_sp_in_the_middle ~bound entry ->
-      Memmap.add annots bound ("staticstore", "yellow")
-    | [] -> Memmap.add annots bound ("staticstore", "green")
-    | _  -> Memmap.add annots bound ("staticstore", "red") in
+      | [] when Main.modifies_sp_in_the_middle ~bound entry ->
+        print_string (yellow sym);
+        Memmap.add annots bound ("staticstore", "yellow")
+      | [] ->
+        print_string (green sym);
+        Memmap.add annots bound ("staticstore", "green")
+      | _  ->
+        print_string (red sym);
+        Memmap.add annots bound ("staticstore", "red") in
   let annots = Table.foldi project.symbols ~init:project.annots
-      ~f:(fun mem sym annots -> 
+      ~f:(fun mem sym annots ->
           if is_plt mem then annots
           else annotate mem sym annots) in
   {project with annots}
 
-
 let () = register main
-
-(* 
-__mh_execute_header            0x100000000:64 3792
-_main                          0x100000ED0:64 134 
-sub_100000f56                  0x100000F56:64 6   
-sub_100000f5c                  0x100000F5C:64 6   
-sub_100000f62                  0x100000F62:64 6   
-
-
-
- *)

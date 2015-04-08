@@ -1,3 +1,4 @@
 PKG core_kernel
 PKG bap
+PKG cmdliner
 FLG -debug locate:debug,locate.log

@@ -12,7 +12,8 @@ constant iff it is only defined with constant in the ENTRY or EXIT
 blocks. If it is defined by a non-constant value, like `SP := SP - R0`
 it is considered unsafe. If it is defined by a constant value, but
 outside of the ENTRY or EXIT blocks, but the overall function is
-classified as green, then such function will be classified as `yellow`.
+classified as green, then such function will be classified as
+`yellow`.
 
 # Input
 
@@ -35,6 +36,10 @@ that will dump the results of annotations in different format:
 - toida: will transform annotations to IDA annotations, use `--emit-ida-script`
   to get the results
 
+# Compilation
+```sh
+$ bapbuild -pkg cmdliner staticstore.plugin
+```
 
 # Example
 ```sh
@@ -42,7 +47,6 @@ that will dump the results of annotations in different format:
 ```
 
 The resulting script can be loaded into IDA PRO with `Alt-F7`.
-
 
 # Implementation Details
 
