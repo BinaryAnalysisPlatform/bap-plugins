@@ -1,6 +1,6 @@
 open Core_kernel.Std
 open Bap.Std
-open Program_visitor
+open Project
 
 module Cmdline = struct
   open Cmdliner
@@ -28,7 +28,7 @@ module Cmdline = struct
        Sinks can be specified using POSIX regular expressions" in
     Term.info ~doc "callsites"
 
-  let parse {argv} =
+  let parse argv =
     Term.eval ~argv (Term.(pure process_args $sink $length), info)
     |> function
     | `Ok x -> x
@@ -111,8 +111,8 @@ let squash = function
           yield (pps p ps) (q::qs, xs)) |>
     Seq.to_list_rev
 
-let main p =
-  let is_interesting,k = Cmdline.parse p in
+let main argv p =
+  let is_interesting,k = Cmdline.parse argv in
   let rec callstrings init n history dst : CSS.Set.t =
     match Table.find_addr p.symbols (Block.addr dst) with
     | None -> Set.add init history
@@ -127,7 +127,7 @@ let main p =
 
   Table.foldi ~init:CSS.Set.empty p.symbols ~f:(fun mem sym css ->
       if is_interesting sym then
-        match Table.find (Disasm.blocks p.program) mem with
+        match Table.find (Disasm.blocks p.disasm) mem with
         | None -> css
         | Some entry ->
           let css' = callstrings css 0 [] entry  in
@@ -154,4 +154,4 @@ let main p =
       else css) |> ignore
 
 
-let () = register' main
+let () = register_plugin_with_args' main

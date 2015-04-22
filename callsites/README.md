@@ -13,5 +13,5 @@ i.e., a set of calls to other functions, that occurs before the call.
 
 # Compilation
 ```sh
-bapbuild -pks cmdliner,re.posix callsites.plugin
+bapbuild -pkgs cmdliner,re.posix callsites.plugin
 ```
