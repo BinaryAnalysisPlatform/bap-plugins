@@ -1,6 +1,6 @@
 open Core_kernel.Std
 open Bap.Std
-open Program_visitor
+open Project
 open Format
 
 let version = "0.2"
@@ -87,7 +87,7 @@ module Cmdline = struct
           $format "red" !red_format
           $print)
 
-  let eval {argv; _} =
+  let eval argv =
     match Term.eval ~argv (main,info) with
     | `Ok () -> ()
     | _ -> exit 1
@@ -250,34 +250,35 @@ module Main(Target : Target) = struct
         end) (bil_of_block blk))
 end
 
-let main project =
-  Cmdline.eval project;
+let stub_names = [".plt"; "__symbol_stub"; "__picsymbol_stub"]
+
+let main argv project =
+  Cmdline.eval argv;
   let module Target = (val target_of_arch project.arch) in
   let module Main = Main(Target) in
-  let blocks = Disasm.blocks project.program in
-  let is_plt = Memmap.to_sequence project.annots |>
-               Seq.find ~f:(fun (_,(tag,name)) ->
-                   tag = "section" && name = ".plt") |> function
-               | None -> fun _ -> false
-               | Some (mem,_) -> fun sym ->
-                 Memory.contains mem (Memory.min_addr sym) in
-  let annotate bound sym annots =
+  let blocks = Disasm.blocks project.disasm in
+  let is_plt mem =
+    Memmap.dominators project.memory mem |>
+    Seq.exists ~f:(fun (_,tag) -> match Tag.value Image.region tag with
+        | Some name -> List.mem stub_names name
+        | None -> false) in
+  let annotate bound sym annots : value memmap =
     match Table.find_addr blocks (Memory.min_addr bound) with
     | None -> annots
     | Some (_,entry) -> match Main.collect_unsafe ~bound entry with
       | [] when Main.modifies_sp_in_the_middle ~bound entry ->
         print_string (yellow sym);
-        Memmap.add annots bound ("staticstore", "yellow")
+        Memmap.add annots bound (Tag.create color `yellow)
       | [] ->
         print_string (green sym);
-        Memmap.add annots bound ("staticstore", "green")
+        Memmap.add annots bound (Tag.create color `green)
       | _  ->
         print_string (red sym);
-        Memmap.add annots bound ("staticstore", "red") in
-  let annots = Table.foldi project.symbols ~init:project.annots
+        Memmap.add annots bound (Tag.create color `red) in
+  let memory = Table.foldi project.symbols ~init:project.memory
       ~f:(fun mem sym annots ->
           if is_plt mem then annots
           else annotate mem sym annots) in
-  {project with annots}
+  {project with memory}
 
-let () = register main
+let () = register_plugin_with_args main

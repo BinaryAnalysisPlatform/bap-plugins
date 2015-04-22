@@ -2,22 +2,21 @@ open Core_kernel.Std
 open Bap.Std
 open Program_visitor
 
-
-let green = 0x99ff99
-let red   = 0xCCCCFF
-let yellow  = 0xC2FFFF
-
-let emit_insn color =
-  sprintf "SetFunctionAttr($min_addr, FUNCATTR_COLOR, 0x%x)\n" @@
-  match color with
-  | "red" -> red
-  | "green" -> green
-  | "yellow" -> yellow
-  | s -> invalid_arg s
+let code_of_color = function
+  | `green -> 0x99ff99
+  | `red -> 0xCCCCFF
+  | `yellow -> 0xC2FFFF
 
 let () = register (fun p -> {
       p with
-      annots = Memmap.map p.annots ~f:(fun (tag,value) ->
-          if tag = "staticstore" then "idapy", emit_insn value
-          else (tag,value))
+      annots = Memmap.map p.annots ~f:(fun tag ->
+          match Tag.value color tag with
+          | None -> tag
+          | Some color -> match color with
+            | `red | `green | `yellow as c ->
+              sprintf
+                "SetFunctionAttr($symbol_addr, FUNCATTR_COLOR, 0x%x)\n"
+                (code_of_color c) |>
+              Tag.create python
+            | _ -> tag)
     })
