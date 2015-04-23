@@ -50,10 +50,10 @@ $ rlwrap bap paths -lcheckpath
 
 No output means, that path is valid. If path is invalid, it will be
 printed. Possible outputs:
-
+```
 1. [FAIL]: <callsite> violates <src> -> <missed-check-point> -> <dst>
 2. [FAIL]: no such checkpoints: <point>, [<point>]
-
+```
 The second variant is printed, when requested checkpoint wasn't find
 in the file at all, but paths may exists. Although, it is not
 guaranteed the path from [src] to [dst] do exist. So this should be fixed.
