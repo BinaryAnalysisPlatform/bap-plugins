@@ -49,7 +49,15 @@ let didn't_pass src dst point =
       Addr.(point = Block.addr blk) ||
       Block.equal blk dst) |> function
   | None -> assert false (* the dst is reachable  *)
-  | Some stop -> Block.(stop = dst)
+  | Some stop -> Block.(stop = dst || stop = src)
+(* the latter clause needs some justification: since dfs starts from
+   the [src] block, including it, and the source block can be the
+   entry block of a checkpoint, then we will stop immediately. But,
+   since this entry block already touches the src, that means that
+   entry occures before src, that's imply that the control flow can't
+   visit the entry block which is the checkpoint, and that means that
+   it is missed. *)
+
 
 (** [check_route route src] if [route.dst] is reachable from [src]
     then find checkpoint that that is not visited on path from [src]
