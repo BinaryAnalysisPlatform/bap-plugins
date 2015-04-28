@@ -4,7 +4,7 @@ open Project
 open Format
 open Or_error
 
-let separators = [' '; '\t'; ','; ';' ]
+let separators = [';' ]
 
 type point = addr
 type route = {
@@ -54,7 +54,7 @@ let didn't_pass src dst point =
    the [src] block, including it, and the source block can be the
    entry block of a checkpoint, then we will stop immediately. But,
    since this entry block already touches the src, that means that
-   entry occures before src, that's imply that the control flow can't
+   entry occurs before src, that's imply that the control flow can't
    visit the entry block which is the checkpoint, and that means that
    it is missed. *)
 
@@ -65,7 +65,7 @@ let didn't_pass src dst point =
     @pre [blk] touches [route.src] *)
 let check_route route src =
   match goto src route.dst with
-  | None -> None
+  | None -> printf "[PASS]: since not reachable@."; None
   | Some dst -> List.find route.checkpoints ~f:(didn't_pass src dst)
 
 let print_unsafe_route p route blk missed =
@@ -86,52 +86,49 @@ let check p blocks route =
       then match check_route route blk with
         | Some missed ->
           print_unsafe_route p route blk missed
-        | None -> ())
+        | None -> printf "[PASS]: all checkpoints were met@.")
 
 let addr arch x =
   let width = Arch.addr_size arch |> Size.to_bits in
   Addr.of_int64 ~width x
 
-let make_point p s =
+let make_points p s =
   if s.[0] = '0'
-  then return (Some (addr p.arch (Int64.of_string s)))
-  else Table.find_mapi p.symbols ~f:(fun mem sym ->
-      Option.some_if (sym = s) (Memory.min_addr mem)) |> return
+  then return ([addr p.arch (Int64.of_string s)])
+  else
+    let matches = Re.execp (Re.compile (Re_posix.re s)) in
+    Table.to_sequence p.symbols |> Seq.filter_map ~f:(fun (mem,sym) ->
+        Option.some_if (matches sym) (Memory.min_addr mem))
+    |> Seq.to_list |> return
 
-let create_route p parts =
-  List.filter parts ~f:(fun p -> not(String.is_empty p)) |> function
+let create_routes ss cs ds =
+  List.cartesian_product ss ds |> List.map ~f:(fun (src,dst) ->
+      {src; checkpoints=cs; dst})
+
+let parse_routes p parts =
+  List.filter parts ~f:(fun p -> not(String.is_empty p)) |>
+  List.map ~f:String.strip |> function
   | [] -> errorf "empty input"
   | src :: xs -> match List.rev xs with
     | [] -> errorf "route must contain 2 or more points"
     | dst :: xs ->
-      make_point p src >>= fun src ->
-      List.map xs ~f:(make_point p) |> all >>= fun checkpoints ->
-      make_point p dst >>= fun dst ->
-      match src,checkpoints,dst with
-      | None,_,_ | _,_,None -> return `No_such_route
-      | Some src,[],Some dst -> return (`Route {src; dst; checkpoints=[]})
-      | Some src, points, Some dst ->
-        let missedpoints,checkpoints =
-          List.fold2_exn xs points ~init:([],[])
-            ~f:(fun (ms,ps) name -> function
-                | Some p -> ms,p::ps
-                | None -> name::ms,ps) in
-        match missedpoints with
-        | [] ->  return (`Route {src; checkpoints; dst})
-        | points -> return (`Missed points)
+      make_points p src >>= fun src ->
+      List.map xs ~f:(make_points p) |> all >>= fun checkpoints ->
+      make_points p dst >>= fun dst ->
+      match src,List.concat checkpoints,dst with
+      | [],_,_ | _,_,[] -> return None
+      | src, points, dst -> return (Some (create_routes src points dst))
 
 let print_prompt chan =
   if phys_equal chan stdin then
     printf "> %!"
 
 let process p blocks chan route =
-  String.split_on_chars route ~on:separators |>
-  create_route p |> function
-  | Ok `No_such_route -> eprintf "no such route@."
-  | Ok (`Route route) -> check p blocks route
-  | Ok (`Missed them) -> printf "[FAIL]: no such checkpoints: %s@."
-    @@ String.concat ~sep:", " them
+  let parts = String.split_on_chars route ~on:separators in
+  match parse_routes p parts with
   | Error err -> eprintf "Bad input: %a@." Error.pp err
+  | Ok None -> printf "[PASS]: due to inexistance of endpoints@."
+  | Ok Some routes -> List.iter routes ~f:(check p blocks)
 
 let check_routes p chan =
   let blocks = Disasm.blocks p.disasm in
