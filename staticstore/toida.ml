@@ -1,15 +1,15 @@
 open Core_kernel.Std
 open Bap.Std
-open Program_visitor
+open Project
 
 let code_of_color = function
   | `green -> 0x99ff99
   | `red -> 0xCCCCFF
   | `yellow -> 0xC2FFFF
 
-let () = register (fun p -> {
+let () = register_plugin (fun p -> {
       p with
-      annots = Memmap.map p.annots ~f:(fun tag ->
+      memory = Memmap.map p.memory ~f:(fun tag ->
           match Tag.value color tag with
           | None -> tag
           | Some color -> match color with
