@@ -259,7 +259,7 @@ let main argv project =
   let blocks = Disasm.blocks project.disasm in
   let is_plt mem =
     Memmap.dominators project.memory mem |>
-    Seq.exists ~f:(fun (_,tag) -> match Tag.value Image.region tag with
+    Seq.exists ~f:(fun (_,tag) -> match Value.get Image.region tag with
         | Some name -> List.mem stub_names name
         | None -> false) in
   let annotate bound sym annots : value memmap =
@@ -268,13 +268,13 @@ let main argv project =
     | Some (_,entry) -> match Main.collect_unsafe ~bound entry with
       | [] when Main.modifies_sp_in_the_middle ~bound entry ->
         print_string (yellow sym);
-        Memmap.add annots bound (Tag.create color `yellow)
+        Memmap.add annots bound (Value.create color `yellow)
       | [] ->
         print_string (green sym);
-        Memmap.add annots bound (Tag.create color `green)
+        Memmap.add annots bound (Value.create color `green)
       | _  ->
         print_string (red sym);
-        Memmap.add annots bound (Tag.create color `red) in
+        Memmap.add annots bound (Value.create color `red) in
   let memory = Table.foldi project.symbols ~init:project.memory
       ~f:(fun mem sym annots ->
           if is_plt mem then annots

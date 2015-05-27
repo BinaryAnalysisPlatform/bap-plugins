@@ -10,13 +10,13 @@ let code_of_color = function
 let () = register_plugin (fun p -> {
       p with
       memory = Memmap.map p.memory ~f:(fun tag ->
-          match Tag.value color tag with
+          match Value.get color tag with
           | None -> tag
           | Some color -> match color with
             | `red | `green | `yellow as c ->
               sprintf
                 "SetFunctionAttr($symbol_addr, FUNCATTR_COLOR, 0x%x)\n"
                 (code_of_color c) |>
-              Tag.create python
+              Value.create python
             | _ -> tag)
     })
