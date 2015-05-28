@@ -34,6 +34,6 @@ class custom ?image ?sym mem blk = object(self)
                                    ARM.CPU.r3; ARM.CPU.r4; ARM.CPU.r5]
       | Some _
       | None -> [] in
-    List.map vars ~f:(fun r -> sym, Bil.var r)
+    List.map vars ~f:(fun r -> None, Bil.var r)
   method! records = [[]]
 end

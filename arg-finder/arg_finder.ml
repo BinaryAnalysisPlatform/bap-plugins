@@ -127,8 +127,8 @@ module Main(Target : Target) = struct
     let res = Project.substitute proj in
     Memmap.iter res.memory ~f:(fun tag ->
         match Value.get comment tag with
-        | None -> ()
-        | Some text -> if text = ".rodata" then Format.printf "  [%s]" text)
+        | Some ".rodata" -> Format.printf "[.rodata]"
+        | _ -> ())
 
   let output_rodata project exp =
     match exp with
@@ -155,7 +155,7 @@ module Main(Target : Target) = struct
         (* if the target matches strcpy, etc., we want to find its args *)
         let abi = new Custom_arm_abi.custom ~sym:target mem dest_block in
         let args = abi#args in
-        if List.length args > 0 then
+        if args <> [] then
           begin
             let sym_name = List.hd_exn args |> fst in
             if verbose then
