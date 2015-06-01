@@ -259,7 +259,7 @@ let main argv proj =
   let syms = Project.symbols proj in
   let is_plt entry =
     Memmap.dominators (Project.memory proj) (Block.memory entry) |>
-    Seq.exists ~f:(fun (_,tag) -> match Value.get Image.region tag with
+    Seq.exists ~f:(fun (_,tag) -> match Value.get Image.section tag with
         | Some name -> List.mem stub_names name
         | None -> false) in
   let annotate fn proj : project =
