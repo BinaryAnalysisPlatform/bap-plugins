@@ -1,6 +1,5 @@
 open Core_kernel.Std
 open Bap.Std
-open Project
 open Format
 open Or_error
 
@@ -16,8 +15,9 @@ type route = {
 (** transform an address to a name of the symbol to which it
     belongs if possible, otherwise just to string *)
 let string_of_point project point =
-  Table.find_addr project.symbols point |> function
-  | Some (_,sym) -> sym
+  let symbols = Project.symbols project in
+  Symtab.find_by_start symbols point |> function
+  | Some fn -> Symtab.name_of_fn fn
   | _ -> asprintf "%a" Addr.pp point
 
 (** [touches point block] true if block ends up with a call to
@@ -94,10 +94,13 @@ let addr arch x =
 
 let make_points p s =
   if s.[0] = '0'
-  then return ([addr p.arch (Int64.of_string s)])
+  then return ([addr (Project.arch p) (Int64.of_string s)])
   else
     let matches = Re.execp (Re.compile (Re_posix.re s)) in
-    Table.to_sequence p.symbols |> Seq.filter_map ~f:(fun (mem,sym) ->
+    let symbols = Project.symbols p in
+    Symtab.to_sequence symbols |> Seq.filter_map ~f:(fun fn ->
+        let mem = Symtab.entry_of_fn fn |> Block.memory in
+        let sym = Symtab.name_of_fn fn in
         Option.some_if (matches sym) (Memory.min_addr mem))
     |> Seq.to_list |> return
 
@@ -131,7 +134,7 @@ let process p blocks chan route =
   | Ok Some routes -> List.iter routes ~f:(check p blocks)
 
 let check_routes p chan =
-  let blocks = Disasm.blocks p.disasm in
+  let blocks = Disasm.blocks (Project.disasm p) in
   print_prompt chan;
   In_channel.iter_lines chan ~f:(fun route ->
       process p blocks chan route;
@@ -139,4 +142,4 @@ let check_routes p chan =
 
 let run p = check_routes p stdin
 
-let () = register_plugin' run
+let () = Project.register_pass' "checkpath" run
