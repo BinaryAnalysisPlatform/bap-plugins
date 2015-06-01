@@ -1,22 +1,18 @@
 open Core_kernel.Std
 open Bap.Std
-open Project
 
 let code_of_color = function
   | `green -> 0x99ff99
   | `red -> 0xCCCCFF
   | `yellow -> 0xC2FFFF
+  | _ -> invalid_arg "unexpected color"
 
-let () = register_plugin (fun p -> {
-      p with
-      memory = Memmap.map p.memory ~f:(fun tag ->
-          match Value.get color tag with
-          | None -> tag
-          | Some color -> match color with
-            | `red | `green | `yellow as c ->
-              sprintf
-                "SetFunctionAttr($symbol_addr, FUNCATTR_COLOR, 0x%x)\n"
-                (code_of_color c) |>
-              Value.create python
-            | _ -> tag)
-    })
+let cmd c =
+  sprintf "SetFunctionAttr($symbol_addr, FUNCATTR_COLOR, 0x%x)\n"
+    (code_of_color c)
+
+let () = Project.register_pass ~deps:["staticstore"] "toida" (fun p ->
+    Project.memory p |> Memmap.to_sequence |>
+    Seq.fold ~init:p ~f:(fun p (mem,v) ->
+        Option.value_map ~default:p (Value.get color v)
+          ~f:(fun c -> Project.substitute p mem python (cmd c))))

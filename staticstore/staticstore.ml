@@ -1,6 +1,5 @@
 open Core_kernel.Std
 open Bap.Std
-open Project
 open Format
 
 let version = "0.2"
@@ -179,7 +178,7 @@ module Main(Target : Target) = struct
     end)#visit_exp x false
   let doesn't_use_or_def u = Fn.non (use_or_def u)
 
-  let propogate init bil =
+  let propagate init bil =
     let (sps,esp) = List.fold ~init:([], init)
         ~f:(fun (stmts,subst) stmt ->
             let subst' =
@@ -216,13 +215,13 @@ module Main(Target : Target) = struct
   let collect_unsafe ~bound blk =
     let bil_of_first_blk,subst =
       let bil,subst = bil_of_block blk |>
-                      propogate [] in
+                      propagate [] in
       optimize bil,subst in
     let subst = List.filter subst ~f:(fun (var,_) ->
         defines_stack var) in
     let bil_of_block blk' =
       if Block.(blk = blk') then bil_of_first_blk else
-        bil_of_block blk' |> propogate subst |> fst |> optimize in
+        bil_of_block blk' |> propagate subst |> fst |> optimize in
     Block.dfs ~bound blk |>
     Seq.fold ~init:[] ~f:(fun unsafe blk ->
         Bil.fold ~init:unsafe
@@ -252,33 +251,27 @@ end
 
 let stub_names = [".plt"; "__symbol_stub"; "__picsymbol_stub"]
 
-let main argv project =
+let main argv proj =
   Cmdline.eval argv;
-  let module Target = (val target_of_arch project.arch) in
+  let arch = Project.arch proj in
+  let module Target = (val target_of_arch arch) in
   let module Main = Main(Target) in
-  let blocks = Disasm.blocks project.disasm in
-  let is_plt mem =
-    Memmap.dominators project.memory mem |>
+  let syms = Project.symbols proj in
+  let is_plt entry =
+    Memmap.dominators (Project.memory proj) (Block.memory entry) |>
     Seq.exists ~f:(fun (_,tag) -> match Value.get Image.region tag with
         | Some name -> List.mem stub_names name
         | None -> false) in
-  let annotate bound sym annots : value memmap =
-    match Table.find_addr blocks (Memory.min_addr bound) with
-    | None -> annots
-    | Some (_,entry) -> match Main.collect_unsafe ~bound entry with
-      | [] when Main.modifies_sp_in_the_middle ~bound entry ->
-        print_string (yellow sym);
-        Memmap.add annots bound (Value.create color `yellow)
-      | [] ->
-        print_string (green sym);
-        Memmap.add annots bound (Value.create color `green)
-      | _  ->
-        print_string (red sym);
-        Memmap.add annots bound (Value.create color `red) in
-  let memory = Table.foldi project.symbols ~init:project.memory
-      ~f:(fun mem sym annots ->
-          if is_plt mem then annots
-          else annotate mem sym annots) in
-  {project with memory}
+  let annotate fn proj : project =
+    let bound = unstage (Symtab.create_bound syms fn) in
+    let entry = Symtab.entry_of_fn fn in
+    let mark = match Main.collect_unsafe ~bound entry with
+      | [] when Main.modifies_sp_in_the_middle ~bound entry -> `yellow
+      | [] -> `green
+      | _  -> `red in
+    Project.tag_memory proj (Block.memory entry) color mark in
+  Symtab.to_sequence syms |> Seq.fold ~init:proj ~f:(fun proj fn ->
+      if is_plt (Symtab.entry_of_fn fn) then proj
+      else annotate fn proj)
 
-let () = register_plugin_with_args main
+let () = Project.register_pass_with_args "staticstore" main

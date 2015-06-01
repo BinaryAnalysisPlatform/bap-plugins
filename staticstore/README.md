@@ -23,36 +23,32 @@ specific and should work on any first tier architecture.
 
 # Output
 
-The core plugin tags memory with appropriate color. The tagname is
-`staticstore`. The core plugin is accompanied with a helper plugins,
-that will dump the results of annotations in different format:
-
-- green: will only print green functions
-- yellow: will only print yellow functions
-- red: your guess
-- print_all: will print all functions in a format: `name color`,
-  where color is one of `yellow | red | green`
-- printstats: will print statistics
-- toida: will transform annotations to IDA annotations, use `--emit-ida-script`
-  to get the results
+The core plugin tags memory with `color` tag. The core plugin is
+accompanied with two helper plugins:
+- printstats - will output statistics, i.e., the percentage of green
+  and red functions
+- toida - will emit appropriate annotations to the project data
+  structure, that can be used to produce python script that will color
+  functions inside IDA.
 
 # Compilation
 ```sh
-$ bapbuild -pkg cmdliner staticstore.plugin
+$ make clean
+$ make
 ```
 
 # Example
 ```sh
-  bap-objdump --use-ida -L ~/bap-plugins/staticstore -lstaticstore -ltoida --emit-ida-script=color.py 1241.exe
+  bap --use-ida -L ~/bap-plugins/staticstore -ltoida --emit-ida-script=color.py 1241.exe
 ```
 
-The resulting script can be loaded into IDA PRO with `Alt-F7`.
+The resulting script can be loaded into IDA PRO with `Alt-F7` keybinding.
 
 # Implementation Details
 
-The implementation relies on a constant propogation, that is made for
+The implementation relies on a constant propagation, that is made for
 each basic block independently. The only information that is
-propogated to the input of the block, is the value of SP and/or BP,
+propagated to the input of the block, is the value of SP and/or BP,
 defined in the entry block. Actually, even this is not needed, as it is
 a part of future development of this algorithm, when we will address,
 locals and structures more accurately.
