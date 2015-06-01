@@ -1,6 +1,5 @@
 open Core_kernel.Std
 open Bap.Std
-open Project
 
 module Cmdline = struct
   open Cmdliner
@@ -58,8 +57,10 @@ let string_of_site syms cs =
 
 let sym_of_site syms cs =
   let addr = Block.addr cs in
-  match Table.find_addr syms addr with
-  | Some (mem,sym) ->
+  match Symtab.find_by_start syms addr with
+  | Some fn ->
+    let mem = Symtab.entry_of_fn fn |> Block.memory in
+    let sym = Symtab.name_of_fn fn in
     let off = Addr.(addr - Memory.min_addr mem) in
     if Addr.is_zero off then sym
     else sprintf "%s" sym
@@ -113,45 +114,46 @@ let squash = function
 
 let main argv p =
   let is_interesting,k = Cmdline.parse argv in
+  let symbols = Project.symbols p in
   let rec callstrings init n history dst : CSS.Set.t =
-    match Table.find_addr p.symbols (Block.addr dst) with
+    match Symtab.find_by_start symbols (Block.addr dst) with
     | None -> Set.add init history
-    | Some (dmem,_) ->
+    | Some fn ->
+      let bound = unstage (Symtab.create_bound symbols fn) in
       Seq.fold (Block.preds dst) ~init:(Set.add init history)
         ~f:(fun css src -> match find_starting_with css src with
             | Some cs -> Set.add css (List.rev_append cs @@ history)
             | None -> if n >= k then Set.add css history else
-                let n = if Memory.contains dmem (Block.addr src)
+                let n = if bound (Block.addr src)
                   then n else n + 1 in
                 callstrings css n (src :: history) src) in
-
-  Table.foldi ~init:CSS.Set.empty p.symbols ~f:(fun mem sym css ->
+  Symtab.to_sequence symbols |>
+  Seq.fold ~init:CSS.Set.empty  ~f:(fun css fn ->
+      let sym = Symtab.name_of_fn fn in
+      let entry = Symtab.entry_of_fn fn in
       if is_interesting sym then
-        match Table.find (Disasm.blocks p.disasm) mem with
-        | None -> css
-        | Some entry ->
-          let css' = callstrings css 0 [] entry  in
-          Set.map (Set.diff css' css) ~comparator:String.comparator
-            ~f:(fun css ->
-                sprintf "%s" @@
-                String.concat ~sep:" " @@
-                List.remove_consecutive_duplicates
-                  ~equal:String.equal @@
-                squash @@
-                List.map ~f:(List.map ~f:(sym_of_site p.symbols)) @@
-                List.map ~f:(fun blk ->
-                    match Block.dests blk |> Seq.to_list with
-                    | [`Block (call, `Jump); `Block (_,`Fall)]
-                    | [`Block (_, `Fall); `Block (call, `Jump)] ->
-                      [blk; call]
-                    | _ -> [blk]) @@
-                css) |>
-          Set.elements |>
-          List.remove_consecutive_duplicates ~equal:(fun x y ->
-              String.is_prefix y ~prefix:x) |>
-          List.iter ~f:(printf "(%s (%s))\n%!" sym);
-          css'
+        let css' = callstrings css 0 [] entry  in
+        Set.map (Set.diff css' css) ~comparator:String.comparator
+          ~f:(fun css ->
+              sprintf "%s" @@
+              String.concat ~sep:" " @@
+              List.remove_consecutive_duplicates
+                ~equal:String.equal @@
+              squash @@
+              List.map ~f:(List.map ~f:(sym_of_site symbols)) @@
+              List.map ~f:(fun blk ->
+                  match Block.dests blk |> Seq.to_list with
+                  | [`Block (call, `Jump); `Block (_,`Fall)]
+                  | [`Block (_, `Fall); `Block (call, `Jump)] ->
+                    [blk; call]
+                  | _ -> [blk]) @@
+              css) |>
+        Set.elements |>
+        List.remove_consecutive_duplicates ~equal:(fun x y ->
+            String.is_prefix y ~prefix:x) |>
+        List.iter ~f:(printf "(%s (%s))\n%!" sym);
+        css'
       else css) |> ignore
 
 
-let () = register_plugin_with_args' main
+let () = Project.register_pass_with_args' "callsites" main
