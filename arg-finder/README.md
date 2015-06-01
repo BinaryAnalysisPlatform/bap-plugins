@@ -27,10 +27,10 @@ real    3m56.215s
 user    3m17.858s
 
 # number of functions
-$ grep "_chk" fort.txt | wc -l
+$ grep "_chk" fortified.txt | wc -l
 963
 
 # number of arguments which are in rodata (there's roughly one per unique function, but some sprintf functions may have two arguments in rodata)
-$ grep "rodata" fort.txt  | wc -l
+$ grep "rodata" fortified.txt  | wc -l
 114
 ```

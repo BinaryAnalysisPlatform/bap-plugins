@@ -1,11 +1,17 @@
 #### Data dependency plugin.
 
+Running the example:
+`run.sh bin/coreutils_O1_cat`
+
+In IDA, go to an address (shortcut: `g`) corresponding to one of the addresses 
+in `in.txt`, for example: `d14c`
+
 Statements for which you want to the data dependencies are colored in yellow.
 The addresses of these statements should be put in a file (see `in.txt` for an
 example) and then passed to the plugin (see `run.sh`). The statements (data
 dependencies themselves) are colored in blue.
 
-Here is an example:
+Here is example output:
 
 ![two](screenshots/data_deps_printf_chk.png)
 
@@ -19,8 +25,8 @@ plugin on `bin/coreutils_O1_cat` for "fortified" functions such as
 
 ##### Notes
 
-This dependenc relies on a dataflow framework which generates reaching
-definitions. From these reaching definitions data dependencies are calculatted
+This plugin relies on a dataflow framework which generates reaching
+definitions. From these reaching definitions data dependencies are calculated
 using use-def changs.
 
 There are two ways to emit ida scripts. One is to use
