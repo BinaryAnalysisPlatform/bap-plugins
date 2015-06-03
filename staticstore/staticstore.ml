@@ -240,7 +240,7 @@ module Main(Target : Target) = struct
     Block.dfs ~bound entry |>
     Seq.exists ~f:(fun blk ->
         not Block.(blk = entry || Set.mem exits blk) &&
-        Bil.find (object
+        Bil.exists (object
           inherit [unit] Bil.finder
           method move var _ find =
             if defines_stack var then

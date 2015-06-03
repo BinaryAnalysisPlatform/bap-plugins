@@ -23,7 +23,7 @@ let string_of_point project point =
 (** [touches point block] true if block ends up with a call to
     [point] *)
 let touches point block =
-  Bil.find (object
+  Bil.exists (object
     inherit [unit] Bil.finder
     method enter_int target search =
       if in_jmp && target = point then
