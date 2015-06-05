@@ -1,6 +1,5 @@
 open Core_kernel.Std
 open Bap.Std
-open Project
 
 class custom ?image ?sym mem blk = object(self)
   inherit ARM.ABI.stub
