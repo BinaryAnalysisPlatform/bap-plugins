@@ -32,5 +32,5 @@ $ grep "_chk" fortified.txt | wc -l
 
 # number of arguments which are in rodata (there's roughly one per unique function, but some sprintf functions may have two arguments in rodata)
 $ grep "rodata" fortified.txt  | wc -l
-114
+182
 ```
