@@ -265,10 +265,13 @@ let main argv proj =
   let annotate fn proj : project =
     let bound = unstage (Symtab.create_bound syms fn) in
     let entry = Symtab.entry_of_fn fn in
+    let sym = Symtab.name_of_fn fn in
     let mark = match Main.collect_unsafe ~bound entry with
-      | [] when Main.modifies_sp_in_the_middle ~bound entry -> `yellow
-      | [] -> `green
-      | _  -> `red in
+      | [] when Main.modifies_sp_in_the_middle ~bound entry ->
+        print_string (yellow sym);
+        `yellow
+      | [] -> print_string (green sym); `green
+      | _  -> print_string (red sym); `red in
     Project.tag_memory proj (Block.memory entry) color mark in
   Symtab.to_sequence syms |> Seq.fold ~init:proj ~f:(fun proj fn ->
       if is_plt (Symtab.entry_of_fn fn) then proj
