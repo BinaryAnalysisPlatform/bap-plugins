@@ -1,6 +1,5 @@
 open Core_kernel.Std
 open Bap.Std
-open Project
 open Option
 open Format
 
@@ -43,7 +42,7 @@ module Cmdline = struct
     | _ -> exit 1
 end
 
-open Custom_arm_abi
+(* open Custom_arm_abi *)
 
 module Main(Target : Target) = struct
   open Target.CPU
@@ -85,9 +84,13 @@ module Main(Target : Target) = struct
       method! map_load ~mem ~addr endian scale =
         let exp = super#map_load ~mem ~addr endian scale in
         match addr with
-        | Bil.Int addr -> (match Memory.get ~scale ~addr project.base with
-            | Ok w -> Bil.int w
-            | _ -> exp)
+        | Bil.Int addr ->
+          let exp = Memmap.lookup (Project.memory project) addr |> Seq.hd |> function
+            | None -> exp
+            | Some (mem,_) -> match Memory.get ~scale ~addr mem with
+              | Ok w -> Bil.int w
+              | _ -> exp in
+          exp
         | _ -> exp
     end)
 
@@ -124,44 +127,51 @@ module Main(Target : Target) = struct
     Memory.min_addr x
 
   let output_rodata_tag proj =
-    let res = Project.substitute proj in
-    Memmap.iter res.memory ~f:(fun tag ->
+    let memory = Project.memory proj in
+    Memmap.iter memory ~f:(fun tag ->
         match Value.get comment tag with
-        | Some ".rodata" -> Format.printf "[.rodata]"
+        | Some ".rodata" -> Format.printf "  [.rodata]"
         | _ -> ())
 
   let output_rodata project exp =
     match exp with
     | Bil.Int addr ->
       begin
-        Memory.view ~from:addr project.base ~words:4 |> function
-        | Ok mem ->
-          let memory =
-            let tag = Value.create comment "$region" in
-            Memmap.add project.memory mem tag in
-          output_rodata_tag {project with memory}
-        (* this is the case where we can't dereference memory, so
-         * just return unit *)
-        | Error e -> ()
+        Memmap.lookup (Project.memory project) addr |> Seq.to_list |> function
+        | [] -> ()
+        | l ->
+          let mem = List.hd_exn l |> fst in
+          Memory.view ~from:addr mem ~words:4 |> function
+          | Ok mem ->
+            let subbed_project =
+              Project.substitute project mem comment "$section" in
+            output_rodata_tag subbed_project
+          | Error e -> ()
       end
     | _ -> ()
 
   (* Gets the ABI information of a [dest_block]. The custom ABI module
    * only returns ABI information here if it's one of the funtions we
    * are interested in, e.g. __strcpy_chk *)
-  let handle_dest block dest_block project parent_sym parent_mem acc verbose =
-    let res = Table.find_addr project.symbols @@ Block.addr dest_block in
-    Option.fold ~init:acc res ~f:(fun acc (mem, target) ->
+  let handle_dest block dest_block project parent_sym acc verbose =
+    let symbols = Project.symbols project in
+    let res = Symtab.find_by_start symbols @@ Block.addr dest_block in
+    Option.fold ~init: acc res ~f:(fun acc fn ->
         (* if the target matches strcpy, etc., we want to find its args *)
-        let abi = new Custom_arm_abi.custom ~sym:target mem dest_block in
+        let sym_name = Symtab.name_of_fn fn in
+        let abi = new Custom_arm_abi.custom ~sym:sym_name mem dest_block in
         let args = abi#args in
         if args <> [] then
           begin
-            let sym_name = List.hd_exn args |> fst in
             if verbose then
-              Format.printf "\nFunc %s\n" @@ Option.value sym_name ~default:"";
+              Format.printf "\nFunc %s\n" sym_name;
             let extract_args = List.map args ~f:snd in
             let result = get_stmts block extract_args project in
+            let find_bound f =
+              Symtab.memory_of_fn symbols fn |> f
+              |> Option.value ~default:(Word.of_int ~width:32 0) in
+            let max_mem_of_fn = find_bound Memmap.max_addr in
+            let min_mem_of_fn = find_bound Memmap.min_addr in
             List.foldi ~init:acc result ~f:(fun i acc (mem,exp) ->
                 if verbose then begin
                   let hex = Addr.to_int (min mem) |> ok_exn in
@@ -169,15 +179,16 @@ module Main(Target : Target) = struct
                   output_rodata project exp;
                   print_newline ();
                 end;
-                let st = Disasm.insn_at_addr project.disasm (min mem) in
+                let disasm = Project.disasm project in
+                let st = Disasm.insn_at_addr disasm (min mem) in
                 match st with
                 | Some (mem,insn) ->
                   (* symbol, address of the arg of interest,
                      min and max addr of this function *)
                   let res = {sym = parent_sym;
                              arg_addr = min mem;
-                             min_function_addr = min parent_mem;
-                             max_function_addr = min parent_mem} in
+                             min_function_addr = min_mem_of_fn;
+                             max_function_addr = max_mem_of_fn} in
                   res :: acc
                 | None -> acc)
           end
@@ -194,20 +205,23 @@ module Main(Target : Target) = struct
             | `Block (_, `Cond) -> acc
             | `Block (_, `Fall) -> acc
             | `Block (dest_block, `Jump) ->
-              handle_dest block dest_block project sym bound acc verbose))
+              handle_dest block dest_block project sym acc verbose))
 end
 
 let main args project =
-  let module Target = (val target_of_arch project.arch) in
+  let arch = Project.arch project in
+  let module Target = (val target_of_arch arch) in
   let module Main = Main(Target) in
   let outfile,sym_outfile,verbose = Cmdline.parse args in
+  let syms = Project.symbols project |> Symtab.to_sequence in
   let result =
-    Table.foldi ~init:[] project.symbols ~f:(fun mem sym acc ->
+    Seq.fold ~init:[] syms ~f:(fun acc fn ->
         (* find block associated with mem of sym *)
-        match Table.find (Disasm.blocks project.disasm) mem with
-        | None -> Format.eprintf "Symbol %a undefined!\n" String.pp sym; acc
-        | Some entry_block ->
-          Main.analyze sym mem entry_block project verbose @ acc) in
+        let entry_block = Symtab.entry_of_fn fn in
+        let sym_name = Symtab.name_of_fn fn in
+        let symbols = Project.symbols project in
+        let mem_bound = unstage (Symtab.create_bound symbols fn) in
+        Main.analyze sym_name mem_bound entry_block project verbose @ acc) in
   let addrs = List.map result ~f:(fun x -> x.arg_addr) in
   let sym_and_bounds = List.map result ~f:(fun x ->
       let min = x.min_function_addr |> Word.to_int |> ok_exn in
@@ -219,4 +233,4 @@ let main args project =
     Main.write_output_syms sym_and_bounds sym_outfile;
   project
 
-let () = register_plugin_with_args main
+let () = Project.register_pass_with_args "arg_finder" main

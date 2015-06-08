@@ -1,6 +1,5 @@
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_[...
 
-
 Func __printf_chk
 Arg 0 at aad0
 Arg 1 at aacc
@@ -23,7 +22,6 @@ Func __printf_chk
 Arg 0 at cfb4
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_base64...
 
-
 Func __printf_chk
 Arg 0 at 98c0
 
@@ -44,7 +42,6 @@ Arg 0 at c38c
 Func __printf_chk
 Arg 0 at c3ac
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_basename...
-
 
 Func __printf_chk
 Arg 0 at 90f0
@@ -69,7 +66,6 @@ Arg 0 at b3a0
 Func __printf_chk
 Arg 0 at b3c0
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_cat...
-
 
 Func __printf_chk
 Arg 0 at 93d8
@@ -104,7 +100,6 @@ Arg 0 at d12c
 Func __printf_chk
 Arg 0 at d14c
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_chcon...
-
 
 Func __printf_chk
 Arg 0 at 95c0
@@ -144,7 +139,6 @@ Arg 3 at 10c0c
 Arg 4 at 10c04  [.rodata]
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_chgrp...
 
-
 Func __printf_chk
 Arg 0 at 96ac
 
@@ -176,7 +170,6 @@ Arg 0 at ca7c
 Func __printf_chk
 Arg 0 at ca9c
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_chmod...
-
 
 Func __printf_chk
 Arg 0 at 94fc
@@ -211,7 +204,6 @@ Func __printf_chk
 Arg 0 at ca00
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_chown...
 
-
 Func __printf_chk
 Arg 0 at 9714
 
@@ -244,7 +236,6 @@ Func __printf_chk
 Arg 0 at cef8
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_chroot...
 
-
 Func __printf_chk
 Arg 0 at 95ec
 
@@ -265,7 +256,6 @@ Arg 0 at bcfc
 Func __printf_chk
 Arg 0 at bd1c
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_cksum...
-
 
 Func __printf_chk
 Arg 0 at 9388  [.rodata]
@@ -296,7 +286,6 @@ Func __printf_chk
 Arg 0 at b748
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_comm...
 
-
 Func __printf_chk
 Arg 0 at 9284
 
@@ -321,7 +310,6 @@ Func __printf_chk
 Arg 0 at bd78
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_cp...
 
-
 Func __printf_chk
 Arg 0 at a7bc
 Arg 1 at a7b8
@@ -341,7 +329,7 @@ Arg 0 at aee8
 Arg 1 at aee4
 
 Func __printf_chk
-Arg 0 at c988
+Arg 0 at c988  [.rodata]
 Arg 1 at c984
 
 Func __printf_chk
@@ -369,12 +357,12 @@ Arg 0 at d798
 Arg 1 at d794
 
 Func __sprintf_chk
-Arg 0 at 13ce0
+Arg 0 at 13ce0  [.rodata]
 Arg 1 at 13cdc
 Arg 2 at 13cd8
 
 Func __sprintf_chk
-Arg 0 at 13dd8
+Arg 0 at 13dd8  [.rodata]
 Arg 1 at 13dd4
 Arg 2 at 13dd0
 
@@ -385,19 +373,18 @@ Func __printf_chk
 Arg 0 at 17540
 
 Func __sprintf_chk
-Arg 0 at 1a8b4
+Arg 0 at 1a8b4  [.rodata]
 Arg 1 at 1a8b0
 Arg 2 at 1a8ac
 Arg 3 at 1a8a8
 
 Func __sprintf_chk
-Arg 0 at 1a83c
+Arg 0 at 1a83c  [.rodata]
 Arg 1 at 1a838
 Arg 2 at 1a834
 Arg 3 at 1a830
-Arg 4 at 1a828
+Arg 4 at 1a828  [.rodata]
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_csplit...
-
 
 Func __sprintf_chk
 Arg 0 at 99d8
@@ -433,7 +420,6 @@ Func __printf_chk
 Arg 0 at d8b0
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_cut...
 
-
 Func __printf_chk
 Arg 0 at 9a80
 
@@ -454,7 +440,6 @@ Arg 0 at c8c8
 Func __printf_chk
 Arg 0 at c8e8
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_date...
-
 
 Func __printf_chk
 Arg 0 at 9678
@@ -488,7 +473,6 @@ Arg 0 at 105e4
 Func __printf_chk
 Arg 0 at 10604
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_dd...
-
 
 Func __printf_chk
 Arg 0 at adb0
@@ -538,7 +522,6 @@ Func __printf_chk
 Arg 0 at fd90
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_df...
 
-
 Func __printf_chk
 Arg 0 at ab08
 
@@ -557,13 +540,13 @@ Arg 0 at ac8c
 Arg 1 at ac88
 
 Func __sprintf_chk
-Arg 0 at e4b8
+Arg 0 at e4b8  [.rodata]
 Arg 1 at e4b4
 Arg 2 at e4b0
 Arg 3 at e4ac
 
 Func __sprintf_chk
-Arg 0 at e550
+Arg 0 at e550  [.rodata]
 Arg 1 at e54c
 Arg 2 at e548
 Arg 3 at e544
@@ -575,18 +558,18 @@ Arg 2 at e924
 Arg 3 at e920
 
 Func __sprintf_chk
-Arg 0 at e3e8
+Arg 0 at e3e8  [.rodata]
 Arg 1 at e3e4
 Arg 2 at e3e0
 Arg 3 at e3dc
 
 Func __sprintf_chk
-Arg 0 at fccc
+Arg 0 at fccc  [.rodata]
 Arg 1 at fcc8
 Arg 2 at fcc4
 
 Func __sprintf_chk
-Arg 0 at fdc4
+Arg 0 at fdc4  [.rodata]
 Arg 1 at fdc0
 Arg 2 at fdbc
 
@@ -597,9 +580,8 @@ Func __printf_chk
 Arg 0 at 120ec
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_dir...
 
-
 Func __sprintf_chk
-Arg 0 at ab58
+Arg 0 at ab58  [.rodata]
 Arg 1 at ab54
 Arg 2 at ab50
 Arg 3 at ab4c
@@ -609,19 +591,19 @@ Arg 0 at c260
 Arg 1 at c25c
 
 Func __printf_chk
-Arg 0 at c360
+Arg 0 at c360  [.rodata]
 Arg 1 at c35c
 
 Func __printf_chk
-Arg 0 at d370
+Arg 0 at d370  [.rodata]
 Arg 1 at d36c
 
 Func __printf_chk
-Arg 0 at d338
+Arg 0 at d338  [.rodata]
 Arg 1 at d334
 
 Func __printf_chk
-Arg 0 at d2a8
+Arg 0 at d2a8  [.rodata]
 Arg 1 at d2a4
 
 Func __mempcpy_chk
@@ -638,19 +620,19 @@ Arg 3 at d764
 Arg 4 at d760
 
 Func __sprintf_chk
-Arg 0 at dc60
+Arg 0 at dc60  [.rodata]
 Arg 1 at dc5c
 Arg 2 at dc58
 Arg 3 at dc54
 
 Func __sprintf_chk
-Arg 0 at d9d0
+Arg 0 at d9d0  [.rodata]
 Arg 1 at d9cc
 Arg 2 at d9c8
 Arg 3 at d9c4
 
 Func __sprintf_chk
-Arg 0 at d65c
+Arg 0 at d65c  [.rodata]
 Arg 1 at d658
 Arg 2 at d654
 Arg 3 at d650
@@ -670,17 +652,17 @@ Arg 0 at f46c
 Arg 1 at f468
 
 Func __printf_chk
-Arg 0 at 1196c
+Arg 0 at 1196c  [.rodata]
 Arg 1 at 11968
 
 Func __sprintf_chk
-Arg 0 at 13dc4
+Arg 0 at 13dc4  [.rodata]
 Arg 1 at 13dc0
 Arg 2 at 13dbc
 Arg 3 at 13db8
 
 Func __sprintf_chk
-Arg 0 at 13e5c
+Arg 0 at 13e5c  [.rodata]
 Arg 1 at 13e58
 Arg 2 at 13e54
 Arg 3 at 13e50
@@ -692,7 +674,7 @@ Arg 2 at 14230
 Arg 3 at 1422c
 
 Func __sprintf_chk
-Arg 0 at 13cf4
+Arg 0 at 13cf4  [.rodata]
 Arg 1 at 13cf0
 Arg 2 at 13cec
 Arg 3 at 13ce8
@@ -703,7 +685,6 @@ Arg 0 at 18814
 Func __printf_chk
 Arg 0 at 18834
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_dircolors...
-
 
 Func __printf_chk
 Arg 0 at 9908
@@ -725,7 +706,6 @@ Arg 0 at bfa0
 Func __printf_chk
 Arg 0 at bfc0
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_dirname...
-
 
 Func __printf_chk
 Arg 0 at 8fec
@@ -751,9 +731,8 @@ Func __printf_chk
 Arg 0 at b270
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_du...
 
-
 Func __printf_chk
-Arg 0 at 9d68
+Arg 0 at 9d68  [.rodata]
 Arg 1 at 9d64
 
 Func __printf_chk
@@ -774,13 +753,13 @@ Arg 0 at 9fc4
 Arg 1 at 9fc0
 
 Func __sprintf_chk
-Arg 0 at 10278
+Arg 0 at 10278  [.rodata]
 Arg 1 at 10274
 Arg 2 at 10270
 Arg 3 at 1026c
 
 Func __sprintf_chk
-Arg 0 at 10310
+Arg 0 at 10310  [.rodata]
 Arg 1 at 1030c
 Arg 2 at 10308
 Arg 3 at 10304
@@ -792,18 +771,18 @@ Arg 2 at 106e4
 Arg 3 at 106e0
 
 Func __sprintf_chk
-Arg 0 at 101a8
+Arg 0 at 101a8  [.rodata]
 Arg 1 at 101a4
 Arg 2 at 101a0
 Arg 3 at 1019c
 
 Func __sprintf_chk
-Arg 0 at 11e00
+Arg 0 at 11e00  [.rodata]
 Arg 1 at 11dfc
 Arg 2 at 11df8
 
 Func __sprintf_chk
-Arg 0 at 11ef8
+Arg 0 at 11ef8  [.rodata]
 Arg 1 at 11ef4
 Arg 2 at 11ef0
 
@@ -813,7 +792,6 @@ Arg 0 at 14014
 Func __printf_chk
 Arg 0 at 14034
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_echo...
-
 
 Func __printf_chk
 Arg 0 at 9034
@@ -838,7 +816,6 @@ Arg 0 at b668
 Func __printf_chk
 Arg 0 at b688
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_env...
-
 
 Func __printf_chk
 Arg 0 at 90b8
@@ -865,7 +842,6 @@ Func __printf_chk
 Arg 0 at b46c
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_expand...
 
-
 Func __printf_chk
 Arg 0 at 95c4
 
@@ -887,7 +863,6 @@ Func __printf_chk
 Arg 0 at bbac
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_expr...
 
-
 Func __printf_chk
 Arg 0 at a684
 
@@ -908,7 +883,6 @@ Arg 0 at ccc0
 Func __printf_chk
 Arg 0 at cce0
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_factor...
-
 
 Func __printf_chk
 Arg 0 at bbd4  [.rodata]
@@ -955,7 +929,6 @@ Func __printf_chk
 Arg 0 at 15b24
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_false...
 
-
 Func __printf_chk
 Arg 0 at 8ee8
 
@@ -983,7 +956,6 @@ Arg 0 at af68
 Func __printf_chk
 Arg 0 at af88
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_fmt...
-
 
 Func __memmove_chk
 Arg 0 at 9940
@@ -1018,7 +990,6 @@ Func __printf_chk
 Arg 0 at c6b8
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_fold...
 
-
 Func __printf_chk
 Arg 0 at 9534
 
@@ -1039,7 +1010,6 @@ Arg 0 at b7d4
 Func __printf_chk
 Arg 0 at b7f4
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_groups...
-
 
 Func __printf_chk
 Arg 0 at 9224
@@ -1066,7 +1036,6 @@ Func __printf_chk
 Arg 0 at b798
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_head...
 
-
 Func __printf_chk
 Arg 0 at 9c28
 
@@ -1092,7 +1061,6 @@ Func __printf_chk
 Arg 0 at cffc
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_hostid...
 
-
 Func __printf_chk
 Arg 0 at 8fd4
 
@@ -1117,7 +1085,6 @@ Arg 0 at b12c
 Func __printf_chk
 Arg 0 at b14c
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_id...
-
 
 Func __printf_chk
 Arg 0 at 943c
@@ -1176,7 +1143,6 @@ Func __printf_chk
 Arg 0 at c4c8
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_install...
 
-
 Func __printf_chk
 Arg 0 at ad88
 
@@ -1192,7 +1158,7 @@ Arg 0 at af10
 Arg 1 at af0c
 
 Func __printf_chk
-Arg 0 at c718
+Arg 0 at c718  [.rodata]
 Arg 1 at c714
 
 Func __printf_chk
@@ -1226,19 +1192,18 @@ Func __printf_chk
 Arg 0 at 17028
 
 Func __sprintf_chk
-Arg 0 at 193e0
+Arg 0 at 193e0  [.rodata]
 Arg 1 at 193dc
 Arg 2 at 193d8
 Arg 3 at 193d4
 
 Func __sprintf_chk
-Arg 0 at 19368
+Arg 0 at 19368  [.rodata]
 Arg 1 at 19364
 Arg 2 at 19360
 Arg 3 at 1935c
-Arg 4 at 19354
+Arg 4 at 19354  [.rodata]
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_join...
-
 
 Func __printf_chk
 Arg 0 at 9f74
@@ -1260,7 +1225,6 @@ Arg 0 at d164
 Func __printf_chk
 Arg 0 at d184
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_kill...
-
 
 Func __printf_chk
 Arg 0 at 9178  [.rodata]
@@ -1300,7 +1264,6 @@ Arg 2 at be6c
 Arg 3 at be68
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_link...
 
-
 Func __printf_chk
 Arg 0 at 8fcc
 
@@ -1322,13 +1285,12 @@ Func __printf_chk
 Arg 0 at b250
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_ln...
 
-
 Func __printf_chk
-Arg 0 at 9c28
+Arg 0 at 9c28  [.rodata]
 Arg 1 at 9c24
 
 Func __printf_chk
-Arg 0 at 9be8
+Arg 0 at 9be8  [.rodata]
 Arg 1 at 9be4
 
 Func __printf_chk
@@ -1355,7 +1317,6 @@ Func __printf_chk
 Arg 0 at ed00
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_logname...
 
-
 Func __printf_chk
 Arg 0 at 9000
 
@@ -1377,9 +1338,8 @@ Func __printf_chk
 Arg 0 at b1b8
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_ls...
 
-
 Func __sprintf_chk
-Arg 0 at ab58
+Arg 0 at ab58  [.rodata]
 Arg 1 at ab54
 Arg 2 at ab50
 Arg 3 at ab4c
@@ -1389,19 +1349,19 @@ Arg 0 at c260
 Arg 1 at c25c
 
 Func __printf_chk
-Arg 0 at c360
+Arg 0 at c360  [.rodata]
 Arg 1 at c35c
 
 Func __printf_chk
-Arg 0 at d370
+Arg 0 at d370  [.rodata]
 Arg 1 at d36c
 
 Func __printf_chk
-Arg 0 at d338
+Arg 0 at d338  [.rodata]
 Arg 1 at d334
 
 Func __printf_chk
-Arg 0 at d2a8
+Arg 0 at d2a8  [.rodata]
 Arg 1 at d2a4
 
 Func __mempcpy_chk
@@ -1418,19 +1378,19 @@ Arg 3 at d764
 Arg 4 at d760
 
 Func __sprintf_chk
-Arg 0 at dc60
+Arg 0 at dc60  [.rodata]
 Arg 1 at dc5c
 Arg 2 at dc58
 Arg 3 at dc54
 
 Func __sprintf_chk
-Arg 0 at d9d0
+Arg 0 at d9d0  [.rodata]
 Arg 1 at d9cc
 Arg 2 at d9c8
 Arg 3 at d9c4
 
 Func __sprintf_chk
-Arg 0 at d65c
+Arg 0 at d65c  [.rodata]
 Arg 1 at d658
 Arg 2 at d654
 Arg 3 at d650
@@ -1450,17 +1410,17 @@ Arg 0 at f46c
 Arg 1 at f468
 
 Func __printf_chk
-Arg 0 at 1196c
+Arg 0 at 1196c  [.rodata]
 Arg 1 at 11968
 
 Func __sprintf_chk
-Arg 0 at 13dc4
+Arg 0 at 13dc4  [.rodata]
 Arg 1 at 13dc0
 Arg 2 at 13dbc
 Arg 3 at 13db8
 
 Func __sprintf_chk
-Arg 0 at 13e5c
+Arg 0 at 13e5c  [.rodata]
 Arg 1 at 13e58
 Arg 2 at 13e54
 Arg 3 at 13e50
@@ -1472,7 +1432,7 @@ Arg 2 at 14230
 Arg 3 at 1422c
 
 Func __sprintf_chk
-Arg 0 at 13cf4
+Arg 0 at 13cf4  [.rodata]
 Arg 1 at 13cf0
 Arg 2 at 13cec
 Arg 3 at 13ce8
@@ -1483,7 +1443,6 @@ Arg 0 at 18814
 Func __printf_chk
 Arg 0 at 18834
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_md5sum...
-
 
 Func __printf_chk
 Arg 0 at 95fc
@@ -1527,7 +1486,6 @@ Func __printf_chk
 Arg 0 at d6b4
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_mkdir...
 
-
 Func __printf_chk
 Arg 0 at 95f4
 
@@ -1549,7 +1507,6 @@ Func __printf_chk
 Arg 0 at c7cc
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_mkfifo...
 
-
 Func __printf_chk
 Arg 0 at 9064
 
@@ -1570,7 +1527,6 @@ Arg 0 at b914
 Func __printf_chk
 Arg 0 at b934
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_mknod...
-
 
 Func __printf_chk
 Arg 0 at 921c
@@ -1596,7 +1552,6 @@ Func __printf_chk
 Arg 0 at befc
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_mktemp...
 
-
 Func __printf_chk
 Arg 0 at 94c4
 
@@ -1618,7 +1573,6 @@ Func __printf_chk
 Arg 0 at bf98
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_mv...
 
-
 Func __printf_chk
 Arg 0 at a5a4
 
@@ -1638,7 +1592,7 @@ Arg 0 at afc0
 Arg 1 at afbc
 
 Func __printf_chk
-Arg 0 at c4c0
+Arg 0 at c4c0  [.rodata]
 Arg 1 at c4bc
 
 Func __printf_chk
@@ -1672,19 +1626,18 @@ Func __printf_chk
 Arg 0 at 15f14
 
 Func __sprintf_chk
-Arg 0 at 1a274
+Arg 0 at 1a274  [.rodata]
 Arg 1 at 1a270
 Arg 2 at 1a26c
 Arg 3 at 1a268
 
 Func __sprintf_chk
-Arg 0 at 1a1fc
+Arg 0 at 1a1fc  [.rodata]
 Arg 1 at 1a1f8
 Arg 2 at 1a1f4
 Arg 3 at 1a1f0
-Arg 4 at 1a1e8
+Arg 4 at 1a1e8  [.rodata]
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_nice...
-
 
 Func __printf_chk
 Arg 0 at 90d4
@@ -1717,7 +1670,6 @@ Func __printf_chk
 Arg 0 at b4b4
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_nl...
 
-
 Func __printf_chk
 Arg 0 at 9768
 Arg 1 at 974c
@@ -1742,7 +1694,6 @@ Arg 0 at c6a0
 Func __printf_chk
 Arg 0 at c6c0
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_nohup...
-
 
 Func __printf_chk
 Arg 0 at 90f4
@@ -1771,7 +1722,6 @@ Func __printf_chk
 Arg 0 at b928
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_nproc...
 
-
 Func __printf_chk
 Arg 0 at 90fc
 
@@ -1796,7 +1746,6 @@ Arg 0 at b438
 Func __printf_chk
 Arg 0 at b458
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_numfmt...
-
 
 Func __strncat_chk
 Arg 0 at aacc
@@ -1837,7 +1786,6 @@ Func __printf_chk
 Arg 0 at e690
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_od...
 
-
 Func __sprintf_chk
 Arg 0 at a10c
 Arg 1 at a104
@@ -1874,7 +1822,6 @@ Func __printf_chk
 Arg 0 at f104
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_paste...
 
-
 Func __printf_chk
 Arg 0 at 9150
 
@@ -1896,7 +1843,6 @@ Func __printf_chk
 Arg 0 at bc3c
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_pathchk...
 
-
 Func __printf_chk
 Arg 0 at 90a4
 
@@ -1917,7 +1863,6 @@ Arg 0 at b670
 Func __printf_chk
 Arg 0 at b690
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_pinky...
-
 
 Func __printf_chk
 Arg 0 at 9670
@@ -2055,7 +2000,6 @@ Func __printf_chk
 Arg 0 at c568
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_pr...
 
-
 Func __sprintf_chk
 Arg 0 at 9b2c
 Arg 1 at 9b24
@@ -2115,7 +2059,6 @@ Func __printf_chk
 Arg 0 at 108c8
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_printenv...
 
-
 Func __printf_chk
 Arg 0 at 9000
 
@@ -2148,7 +2091,6 @@ Func __printf_chk
 Arg 0 at b230
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_printf...
 
-
 Func __printf_chk
 Arg 0 at 97f8
 
@@ -2172,7 +2114,6 @@ Arg 0 at c8e8
 Func __printf_chk
 Arg 0 at c908
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_ptx...
-
 
 Func __printf_chk
 Arg 0 at a228
@@ -2207,12 +2148,12 @@ Arg 3 at b5a8
 Arg 4 at b5a0
 
 Func __sprintf_chk
-Arg 0 at d9d0
+Arg 0 at d9d0  [.rodata]
 Arg 1 at d9cc
 Arg 2 at d9c8
 
 Func __sprintf_chk
-Arg 0 at dac8
+Arg 0 at dac8  [.rodata]
 Arg 1 at dac4
 Arg 2 at dac0
 
@@ -2222,7 +2163,6 @@ Arg 0 at fe28
 Func __printf_chk
 Arg 0 at fe48
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_pwd...
-
 
 Func __printf_chk
 Arg 0 at 97ec
@@ -2248,7 +2188,6 @@ Func __printf_chk
 Arg 0 at baf0
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_readlink...
 
-
 Func __printf_chk
 Arg 0 at 91c4
 
@@ -2270,7 +2209,6 @@ Func __printf_chk
 Arg 0 at cf98
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_realpath...
 
-
 Func __printf_chk
 Arg 0 at 95bc
 
@@ -2286,12 +2224,12 @@ Arg 0 at 96a8
 Arg 1 at 96a4
 
 Func __sprintf_chk
-Arg 0 at c310
+Arg 0 at c310  [.rodata]
 Arg 1 at c30c
 Arg 2 at c308
 
 Func __sprintf_chk
-Arg 0 at c408
+Arg 0 at c408  [.rodata]
 Arg 1 at c404
 Arg 2 at c400
 
@@ -2301,7 +2239,6 @@ Arg 0 at e66c
 Func __printf_chk
 Arg 0 at e68c
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_rm...
-
 
 Func __printf_chk
 Arg 0 at 9654
@@ -2331,7 +2268,6 @@ Func __printf_chk
 Arg 0 at cfc4
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_rmdir...
 
-
 Func __printf_chk
 Arg 0 at 9228
 
@@ -2353,7 +2289,6 @@ Func __printf_chk
 Arg 0 at b640
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_runcon...
 
-
 Func __printf_chk
 Arg 0 at 9004
 
@@ -2374,7 +2309,6 @@ Arg 0 at b630
 Func __printf_chk
 Arg 0 at b650
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_seq...
-
 
 Func __printf_chk
 Arg 0 at 94dc
@@ -2421,7 +2355,6 @@ Func __printf_chk
 Arg 0 at c53c
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_sha1sum...
 
-
 Func __printf_chk
 Arg 0 at 95fc
 
@@ -2463,7 +2396,6 @@ Arg 0 at e1e0
 Func __printf_chk
 Arg 0 at e200
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_sha224sum...
-
 
 Func __printf_chk
 Arg 0 at 95fc
@@ -2507,7 +2439,6 @@ Func __printf_chk
 Arg 0 at f100
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_sha256sum...
 
-
 Func __printf_chk
 Arg 0 at 95fc
 
@@ -2549,7 +2480,6 @@ Arg 0 at f0e0
 Func __printf_chk
 Arg 0 at f100
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_sha384sum...
-
 
 Func __printf_chk
 Arg 0 at 95fc
@@ -2593,7 +2523,6 @@ Func __printf_chk
 Arg 0 at 1c580
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_sha512sum...
 
-
 Func __printf_chk
 Arg 0 at 95fc
 
@@ -2635,7 +2564,6 @@ Arg 0 at 1c560
 Func __printf_chk
 Arg 0 at 1c580
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_shred...
-
 
 Func __sprintf_chk
 Arg 0 at 9798
@@ -2692,7 +2620,6 @@ Func __printf_chk
 Arg 0 at ee40
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_shuf...
 
-
 Func __printf_chk
 Arg 0 at 95b0
 
@@ -2722,7 +2649,6 @@ Func __printf_chk
 Arg 0 at d7cc
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_sleep...
 
-
 Func __printf_chk
 Arg 0 at 9038
 
@@ -2743,7 +2669,6 @@ Arg 0 at b3b0
 Func __printf_chk
 Arg 0 at b3d0
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_sort...
-
 
 Func __printf_chk
 Arg 0 at b0c8
@@ -2780,9 +2705,8 @@ Func __printf_chk
 Arg 0 at 17574
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_split...
 
-
 Func __sprintf_chk
-Arg 0 at a308
+Arg 0 at a308  [.rodata]
 Arg 1 at a304
 Arg 2 at a300
 Arg 3 at a2fc
@@ -2823,7 +2747,6 @@ Arg 1 at 10b38
 Arg 2 at 10b34
 Arg 3 at 10b30
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_stat...
-
 
 Func __printf_chk
 Arg 0 at 9ee4
@@ -2878,7 +2801,6 @@ Func __printf_chk
 Arg 0 at ffec
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_stdbuf...
 
-
 Func __printf_chk
 Arg 0 at 9554
 
@@ -2910,7 +2832,6 @@ Func __printf_chk
 Arg 0 at ceac
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_stty...
 
-
 Func __printf_chk
 Arg 0 at 996c
 
@@ -2939,7 +2860,6 @@ Arg 0 at d578
 Func __printf_chk
 Arg 0 at d598
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_sum...
-
 
 Func __printf_chk
 Arg 0 at 94b8  [.rodata]
@@ -3002,7 +2922,6 @@ Func __printf_chk
 Arg 0 at c638
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_sync...
 
-
 Func __printf_chk
 Arg 0 at 8fcc
 
@@ -3024,7 +2943,6 @@ Func __printf_chk
 Arg 0 at b128
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_tac...
 
-
 Func __printf_chk
 Arg 0 at 9c0c
 
@@ -3045,7 +2963,6 @@ Arg 0 at c4c8
 Func __printf_chk
 Arg 0 at c4e8
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_tail...
-
 
 Func __printf_chk
 Arg 0 at 9740  [.rodata]
@@ -3078,7 +2995,6 @@ Func __printf_chk
 Arg 0 at 10d94
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_tee...
 
-
 Func __printf_chk
 Arg 0 at 9448
 
@@ -3100,7 +3016,6 @@ Func __printf_chk
 Arg 0 at b6d4
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_test...
 
-
 Func __printf_chk
 Arg 0 at aad0
 Arg 1 at aacc
@@ -3116,7 +3031,6 @@ Func __printf_chk
 Arg 0 at ab4c
 Arg 1 at ab48
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_timeout...
-
 
 Func __printf_chk
 Arg 0 at 9a1c
@@ -3154,7 +3068,6 @@ Arg 1 at d8ec
 Arg 2 at d8e8
 Arg 3 at d8e4
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_touch...
-
 
 Func __printf_chk
 Arg 0 at 9680
@@ -3202,7 +3115,6 @@ Arg 3 at 1035c
 Arg 4 at 10354  [.rodata]
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_tr...
 
-
 Func __sprintf_chk
 Arg 0 at 966c  [.rodata]
 Arg 1 at 9668
@@ -3236,7 +3148,6 @@ Func __printf_chk
 Arg 0 at d79c
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_true...
 
-
 Func __printf_chk
 Arg 0 at 8ee8
 
@@ -3264,7 +3175,6 @@ Arg 0 at af64
 Func __printf_chk
 Arg 0 at af84
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_truncate...
-
 
 Func __printf_chk
 Arg 0 at 9404
@@ -3297,7 +3207,6 @@ Func __printf_chk
 Arg 0 at d0d8
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_tsort...
 
-
 Func __printf_chk
 Arg 0 at 9394
 
@@ -3318,7 +3227,6 @@ Arg 0 at bff0
 Func __printf_chk
 Arg 0 at c010
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_tty...
-
 
 Func __printf_chk
 Arg 0 at 900c
@@ -3341,7 +3249,6 @@ Func __printf_chk
 Arg 0 at b174
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_uname...
 
-
 Func __printf_chk
 Arg 0 at 9050
 
@@ -3363,7 +3270,6 @@ Func __printf_chk
 Arg 0 at b454
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_unexpand...
 
-
 Func __printf_chk
 Arg 0 at 94b0
 
@@ -3384,7 +3290,6 @@ Arg 0 at be8c
 Func __printf_chk
 Arg 0 at beac
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_uniq...
-
 
 Func __printf_chk
 Arg 0 at 9470  [.rodata]
@@ -3411,7 +3316,6 @@ Func __printf_chk
 Arg 0 at c804
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_unlink...
 
-
 Func __printf_chk
 Arg 0 at 8fd0
 
@@ -3432,7 +3336,6 @@ Arg 0 at b1c0
 Func __printf_chk
 Arg 0 at b1e0
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_uptime...
-
 
 Func __printf_chk
 Arg 0 at 96fc
@@ -3490,7 +3393,6 @@ Func __printf_chk
 Arg 0 at d8c4
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_users...
 
-
 Func __printf_chk
 Arg 0 at 92b8
 
@@ -3515,9 +3417,8 @@ Func __printf_chk
 Arg 0 at b488
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_vdir...
 
-
 Func __sprintf_chk
-Arg 0 at ab58
+Arg 0 at ab58  [.rodata]
 Arg 1 at ab54
 Arg 2 at ab50
 Arg 3 at ab4c
@@ -3527,19 +3428,19 @@ Arg 0 at c260
 Arg 1 at c25c
 
 Func __printf_chk
-Arg 0 at c360
+Arg 0 at c360  [.rodata]
 Arg 1 at c35c
 
 Func __printf_chk
-Arg 0 at d370
+Arg 0 at d370  [.rodata]
 Arg 1 at d36c
 
 Func __printf_chk
-Arg 0 at d338
+Arg 0 at d338  [.rodata]
 Arg 1 at d334
 
 Func __printf_chk
-Arg 0 at d2a8
+Arg 0 at d2a8  [.rodata]
 Arg 1 at d2a4
 
 Func __mempcpy_chk
@@ -3556,19 +3457,19 @@ Arg 3 at d764
 Arg 4 at d760
 
 Func __sprintf_chk
-Arg 0 at dc60
+Arg 0 at dc60  [.rodata]
 Arg 1 at dc5c
 Arg 2 at dc58
 Arg 3 at dc54
 
 Func __sprintf_chk
-Arg 0 at d9d0
+Arg 0 at d9d0  [.rodata]
 Arg 1 at d9cc
 Arg 2 at d9c8
 Arg 3 at d9c4
 
 Func __sprintf_chk
-Arg 0 at d65c
+Arg 0 at d65c  [.rodata]
 Arg 1 at d658
 Arg 2 at d654
 Arg 3 at d650
@@ -3588,17 +3489,17 @@ Arg 0 at f46c
 Arg 1 at f468
 
 Func __printf_chk
-Arg 0 at 1196c
+Arg 0 at 1196c  [.rodata]
 Arg 1 at 11968
 
 Func __sprintf_chk
-Arg 0 at 13dc4
+Arg 0 at 13dc4  [.rodata]
 Arg 1 at 13dc0
 Arg 2 at 13dbc
 Arg 3 at 13db8
 
 Func __sprintf_chk
-Arg 0 at 13e5c
+Arg 0 at 13e5c  [.rodata]
 Arg 1 at 13e58
 Arg 2 at 13e54
 Arg 3 at 13e50
@@ -3610,7 +3511,7 @@ Arg 2 at 14230
 Arg 3 at 1422c
 
 Func __sprintf_chk
-Arg 0 at 13cf4
+Arg 0 at 13cf4  [.rodata]
 Arg 1 at 13cf0
 Arg 2 at 13cec
 Arg 3 at 13ce8
@@ -3621,7 +3522,6 @@ Arg 0 at 18814
 Func __printf_chk
 Arg 0 at 18834
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_wc...
-
 
 Func __printf_chk
 Arg 0 at 9658  [.rodata]
@@ -3673,7 +3573,6 @@ Arg 0 at d4c8
 Func __printf_chk
 Arg 0 at d4e8
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_who...
-
 
 Func __sprintf_chk
 Arg 0 at 95ac  [.rodata]
@@ -3802,7 +3701,6 @@ Func __printf_chk
 Arg 0 at c97c
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_whoami...
 
-
 Func __printf_chk
 Arg 0 at 9034
 
@@ -3823,7 +3721,6 @@ Arg 0 at b21c
 Func __printf_chk
 Arg 0 at b23c
 Running plugin on /home/vagrant/arm-binaries/coreutils/coreutils_O1_yes...
-
 
 Func __printf_chk
 Arg 0 at 8fd4
