@@ -45,6 +45,14 @@ let ssa_blk blk =
       Seq.length_is_bounded_by ~min:2 (Phi.defs phi))
 
 
+let succ_of_jmp  jmp = match Jmp.kind jmp with
+  | Goto (Direct tid) -> Some tid
+  | Call t -> Option.(Call.return t >>= function
+    | Direct tid -> Some tid
+    | _ -> None)
+  | Int (_,tid) -> Some tid
+  | _ -> None
+
 (** builds a map from a tid to all blocks that have jumps that lead
     this tid. *)
 let build_rdep sub : blk term list Tid.Map.t =
@@ -52,12 +60,8 @@ let build_rdep sub : blk term list Tid.Map.t =
   Seq.fold ~init:Tid.Map.empty ~f:(fun ins blk ->
       Term.to_sequence jmp_t blk |>
       Seq.fold ~init:ins ~f:(fun ins jmp ->
-          match Jmp.kind jmp with
-          | Goto (Direct tid) ->
-            Map.change ins tid (function
-                | None -> Some [blk]
-                | Some blks -> Some (blk :: blks))
-          | _ -> ins))
+          Option.value_map (succ_of_jmp jmp) ~default:ins ~f:(fun tid ->
+              Map.add_multi ins ~key:tid ~data:blk)))
 
 let dominance_frontier sub entry : blk term -> blk term list =
   let module Dom = Graph.Dominator.Make(struct
@@ -68,9 +72,9 @@ let dominance_frontier sub entry : blk term -> blk term list =
         | Some xs -> xs
       let succ (sub,_) blk =
         Term.to_sequence ~rev:true jmp_t blk |>
-        Seq.filter_map ~f:(fun jmp -> match Jmp.kind jmp with
-            | Goto (Direct t) -> Term.find blk_t sub t
-            | _ -> None) |>
+        Seq.filter_map ~f:(fun jmp -> match succ_of_jmp jmp with
+            | Some t -> Term.find blk_t sub t
+            | None -> None) |>
         Seq.to_list_rev
       let fold_vertex f (sub,_) init =
         Term.to_sequence blk_t sub |>
