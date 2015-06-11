@@ -74,13 +74,19 @@ let iterated_frontier frontier blks =
     if Set.equal idf idf' then idf' else fixpoint idf' in
   fixpoint Tid.Set.empty
 
-(* todo, collect only globals *)
 let collect_vars sub =
   Term.to_sequence blk_t sub |>
-  Seq.fold ~init:Var.Set.empty ~f:(fun vars blk ->
+  Seq.fold ~init:(Var.Set.empty) ~f:(fun vars blk ->
       Term.to_sequence def_t blk |>
-      Seq.fold ~init:vars ~f:(fun vars def ->
-          Set.add vars (Def.lhs def)))
+      Seq.fold ~init:(vars,Var.Set.empty) ~f:(fun (vars,kill) def ->
+          let vars =
+            Exp.fold ~init:vars (object
+              inherit [Var.Set.t] Bil.visitor
+              method enter_var v vars =
+                if Set.mem kill v then vars
+                else Set.add vars v
+            end) (Def.rhs def) in
+          vars,Set.add kill (Def.lhs def)) |> fst)
 
 let blocks_that_define_var var sub =
   Term.to_sequence blk_t sub |>
@@ -110,23 +116,24 @@ let rename children phis vars sub entry =
     x = y || match Hashtbl.find vars x with
     | None -> false
     | Some other -> List.mem ~equal:Var.equal other y in
-  let pop v = Hashtbl.change vars v (function
-      | Some (x::xs) -> Some xs
-      | xs -> xs) in
-  let rename_defs blk =
-    Term.map def_t blk ~f:(fun def ->
-        let lhs = renumber (Def.lhs def) in
-        Hashtbl.add_multi vars ~key:(Def.lhs def) ~data:lhs;
-        Def.rhs def |> substitute vars |>
-        Def.with_rhs (Def.with_lhs def lhs)) in
-  let rename_jmps blk =
-    Term.map jmp_t blk
-      ~f:(Jmp.map_exp ~f:(substitute vars)) in
+  let find_blk sub id = match Term.find blk_t sub id with
+    | None -> assert false
+    | Some vs -> vs in
+  let new_name x =
+    let y = renumber x in
+    Hashtbl.add_multi vars ~key:x ~data:y;
+    y in
+
   let rename_phis blk =
     Term.map phi_t blk ~f:(fun phi ->
-        let lhs = renumber (Phi.lhs phi) in
-        Hashtbl.add_multi vars ~key:(Phi.lhs phi) ~data:lhs;
-        Phi.with_lhs phi lhs) in
+        Phi.with_lhs phi (new_name (Phi.lhs phi))) in
+  let rename_defs blk =
+    Term.map def_t blk ~f:(fun def ->
+        let rhs = Def.rhs def |> substitute vars in
+        let lhs = new_name (Def.lhs def) in
+        Def.with_rhs (Def.with_lhs def lhs) rhs) in
+  let rename_jmps blk =
+    Term.map jmp_t blk ~f:(Jmp.map_exp ~f:(substitute vars)) in
   let update_phis src dst =
     match Map.find phis (Term.tid dst) with
     | None -> dst
@@ -141,26 +148,30 @@ let rename children phis vars sub entry =
           | Some phi ->
             Phi.update phi tid (Bil.var (top v)) |>
             Term.update phi_t dst) in
-  let rec rename sub tid =
-    let blk' = match Term.find blk_t sub tid with
-      | None -> assert false
-      | Some blk' -> blk' in
-    let blk = blk' |> rename_phis |> rename_defs |> rename_jmps in
-    let sub = Term.update blk_t sub blk in
-    Term.to_sequence jmp_t blk |>
-    Seq.fold ~init:sub ~f:(fun sub jmp -> match succ_of_jmp jmp with
-        | None -> sub
-        | Some tid -> match Term.find blk_t sub tid with
-          | None -> sub
-          | Some dst ->
-            Term.update blk_t sub (update_phis blk dst)) |>
-    fun sub ->
-    List.fold (children tid) ~init:sub ~f:rename |>
-    fun sub ->
+  let pop_defs blk' =
+    let pop v = Hashtbl.change vars v (function
+        | Some (x::xs) -> Some xs
+        | xs -> xs) in
     Term.to_sequence phi_t blk' |>
     Seq.iter ~f:(fun phi -> pop (Phi.lhs phi));
     Term.to_sequence def_t blk' |>
-    Seq.iter ~f:(fun def -> pop (Def.lhs def));
+    Seq.iter ~f:(fun def -> pop (Def.lhs def)) in
+
+  let rec rename sub tid =
+    let blk' = find_blk sub tid in
+    let blk = blk' |> rename_phis |> rename_defs |> rename_jmps in
+    let sub = Term.update blk_t sub blk in
+    let sub =
+      Term.to_sequence jmp_t blk |>
+      Seq.fold ~init:sub ~f:(fun sub jmp -> match succ_of_jmp jmp with
+          | None -> sub
+          | Some tid -> match Term.find blk_t sub tid with
+            | None -> sub
+            | Some dst ->
+              Term.update blk_t sub (update_phis blk dst)) in
+    let children = Tid.Set.of_list (children tid) in
+    let sub = Set.fold children ~init:sub ~f:rename in
+    pop_defs blk';
     sub in
   rename sub entry
 
@@ -181,7 +192,7 @@ let find_phi_placeholders frontier sub entry vars =
 
 let ssa_sub sub = match Term.first blk_t sub with
   | None -> sub
-  | Some entry ->
+  | Some entry  ->
     let rdep = build_rdep sub in
     let dom = create_dom rdep sub entry in
     let vars = collect_vars sub in
@@ -195,9 +206,10 @@ let main' proj =
   Term.map sub_t (Project.program proj) ~f:ssa_sub |>
   printf "Program in SSA: @.%a@." Program.pp
 
-let main proj =
-  Project.with_program proj @@
-  Term.map sub_t (Project.program proj) ~f:ssa_sub
 
-let () = Project.register_pass "SSA" main
+(* let main proj = *)
+(*   Project.with_program proj @@ *)
+(*   Term.map sub_t (Project.program proj) ~f:ssa_sub *)
+
+(* let () = Project.register_pass "SSA" main *)
 let () = Project.register_pass' "SSA'" main'
