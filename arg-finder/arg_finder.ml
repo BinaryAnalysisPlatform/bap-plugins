@@ -42,8 +42,6 @@ module Cmdline = struct
     | _ -> exit 1
 end
 
-(* open Custom_arm_abi *)
-
 module Main(Target : Target) = struct
   open Target.CPU
 
@@ -126,34 +124,17 @@ module Main(Target : Target) = struct
   let min x =
     Memory.min_addr x
 
-  let output_rodata_tag proj =
-    let memory = Project.memory proj in
-    Memmap.iter memory ~f:(fun tag ->
-        match Value.get comment tag with
-        | Some ".rodata" -> Format.printf "  [.rodata]"
-        | _ -> ())
-
-  let output_rodata project exp =
+  let output_rodata project exp ro_section_mem =
     match exp with
     | Bil.Int addr ->
-      begin
-        Memmap.lookup (Project.memory project) addr |> Seq.to_list |> function
-        | [] -> ()
-        | l ->
-          let mem = List.hd_exn l |> fst in
-          Memory.view ~from:addr mem ~words:4 |> function
-          | Ok mem ->
-            let subbed_project =
-              Project.substitute project mem comment "$section" in
-            output_rodata_tag subbed_project
-          | Error e -> ()
-      end
+        if Memory.contains ro_section_mem addr then
+          Format.printf "  [.rodata]"
     | _ -> ()
 
   (* Gets the ABI information of a [dest_block]. The custom ABI module
    * only returns ABI information here if it's one of the funtions we
    * are interested in, e.g. __strcpy_chk *)
-  let handle_dest block dest_block project parent_sym acc verbose =
+  let handle_dest block dest_block project parent_sym acc verbose ro_section_mem =
     let symbols = Project.symbols project in
     let res = Symtab.find_by_start symbols @@ Block.addr dest_block in
     Option.fold ~init: acc res ~f:(fun acc fn ->
@@ -176,7 +157,7 @@ module Main(Target : Target) = struct
                 if verbose then begin
                   let hex = Addr.to_int (min mem) |> ok_exn in
                   Format.printf "Arg %d at %x" i hex;
-                  output_rodata project exp;
+                  output_rodata project exp ro_section_mem;
                   print_newline ();
                 end;
                 let disasm = Project.disasm project in
@@ -194,9 +175,17 @@ module Main(Target : Target) = struct
           end
         else acc)
 
+  let find_section_by_name memory name =
+    Memmap.to_sequence memory |> Seq.find_map ~f:(fun (m,x) ->
+        Option.(Value.get Image.section x >>= fun n ->
+                Option.some_if (n = name) m))
+
   (* Gets blocks which are associated with calls and passes
    * these on to attempt retrieval of args *)
   let analyze sym bound entry project verbose =
+    let ro_section_mem = match find_section_by_name (Project.memory project) ".rodata" with
+      | Some mem -> mem
+      | None -> printf "no rodata"; exit 1 in
     let blocks = Block.dfs ~bound entry in
     Seq.fold ~init:[] blocks ~f:(fun acc block ->
         Seq.fold ~init:acc (Block.dests block) ~f:(fun acc dests ->
@@ -205,7 +194,7 @@ module Main(Target : Target) = struct
             | `Block (_, `Cond) -> acc
             | `Block (_, `Fall) -> acc
             | `Block (dest_block, `Jump) ->
-              handle_dest block dest_block project sym acc verbose))
+              handle_dest block dest_block project sym acc verbose ro_section_mem))
 end
 
 let main args project =
