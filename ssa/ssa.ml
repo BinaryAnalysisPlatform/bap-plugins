@@ -105,6 +105,11 @@ let rename children phis vars sub entry =
   let top v = match Hashtbl.find vars v with
     | None | Some [] -> v
     | Some (v :: _) -> v in
+  let is_of_class x phi =
+    let y = Phi.lhs phi in
+    x = y || match Hashtbl.find vars x with
+    | None -> false
+    | Some other -> List.mem ~equal:Var.equal other y in
   let pop v = Hashtbl.change vars v (function
       | Some (x::xs) -> Some xs
       | xs -> xs) in
@@ -129,12 +134,12 @@ let rename children phis vars sub entry =
       let tid = Term.tid src in
       List.fold vs ~init:dst ~f:(fun dst v ->
           Term.to_sequence phi_t dst |>
-          Seq.find ~f:(fun phi -> Var.(Phi.lhs phi = v)) |> function
+          Seq.find ~f:(is_of_class v) |> function
           | None ->
             Phi.create v tid (Bil.var (top v)) |>
             Term.append phi_t dst
           | Some phi ->
-            Phi.map_exp phi ~f:(substitute vars) |>
+            Phi.update phi tid (Bil.var (top v)) |>
             Term.update phi_t dst) in
   let rec rename sub tid =
     let blk' = match Term.find blk_t sub tid with
@@ -182,7 +187,9 @@ let ssa_sub sub = match Term.first blk_t sub with
     let vars = collect_vars sub in
     let phis =
       find_phi_placeholders dom.frontier sub (Term.tid entry) vars in
-    rename dom.children phis vars sub (Term.tid entry)
+    rename dom.children phis vars sub (Term.tid entry) |>
+    Term.map blk_t ~f:(Term.filter phi_t ~f:(fun phi ->
+        Seq.length_is_bounded_by ~min:2 (Phi.values phi)))
 
 let main' proj =
   Term.map sub_t (Project.program proj) ~f:ssa_sub |>
