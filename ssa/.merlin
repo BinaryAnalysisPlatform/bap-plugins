@@ -1,0 +1,3 @@
+B _build
+PKG bap
+FLG -short-paths
