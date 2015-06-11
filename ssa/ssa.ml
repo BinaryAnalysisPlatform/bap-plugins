@@ -1,8 +1,23 @@
+(** Transform to Semipruned SSA form.
+
+    The algorithm is adopted from the following sources:
+
+    [1]: Muchnick, Advanced Compiler Design and Implementation
+         [ISBN-10: 1558603204]
+    [2]: Appel, Modern Compiler Implementation in ML
+         [ISBN 0-521-60764-7]
+    [3]: Cooper, Engineering a Compiler, Second Edition
+         [ISBN-10: 012088478X]
+
+    Basically they describe the same algorithm but in different
+    flavors and levels of detail.
+*)
 open Core_kernel.Std
 open Bap.Std
 open Format
 
-let succ_of_jmp  jmp = match Jmp.kind jmp with
+(** extracts a successor's tid from a jump term  *)
+let succ_of_jmp jmp : tid option = match Jmp.kind jmp with
   | Goto (Direct tid) -> Some tid
   | Call t -> Option.(Call.return t >>= function
     | Direct tid -> Some tid
@@ -20,11 +35,13 @@ let build_rdep sub : tid list Tid.Map.t =
           Option.value_map (succ_of_jmp jmp) ~default:ins ~f:(fun tid ->
               Map.add_multi ins ~key:tid ~data:(Term.tid blk))))
 
+(** Dominance relations.  *)
 type dom = {
-  frontier : tid -> tid list;
-  children : tid -> tid list;
+  frontier : tid -> tid list;    (** dominance frontier of a node *)
+  children : tid -> tid list;    (** children of a node in a dominator tree *)
 }
 
+(** computes dominator tree an dominance frontier  *)
 let create_dom rdep sub entry =
   let module Dom = Graph.Dominator.Make(struct
       type t = (sub term * tid list Tid.Map.t)
@@ -63,8 +80,7 @@ let create_dom rdep sub entry =
     where [DF(S)] computes a union of dominance frontiers of each
     block in [S].  The function returns a result of [IDF_k], where
     [k] is a fixpoint, i.e., such value that [IDF_k = IDF_{k-1}].  See
-    section 8.11 of Advanced Compiler Design and Implementation
-    [ISBN-10: 1558603204].*)
+    section 8.11 of [1].*)
 let iterated_frontier frontier blks =
   let df = Set.fold ~init:Tid.Set.empty ~f:(fun dfs b ->
       List.fold (frontier b) ~init:dfs ~f:Set.add) in
@@ -74,6 +90,9 @@ let iterated_frontier frontier blks =
     if Set.equal idf idf' then idf' else fixpoint idf' in
   fixpoint Tid.Set.empty
 
+(** [collect_vars] traverses through subroutine [sub] and collects
+    variables, that are live across multiple blocks (aka globals).
+    Algorithm is described in Figure 9.9 in [[3]].*)
 let collect_vars sub =
   Term.to_sequence blk_t sub |>
   Seq.fold ~init:(Var.Set.empty) ~f:(fun vars blk ->
@@ -82,13 +101,15 @@ let collect_vars sub =
           let vars =
             Exp.fold ~init:vars (object
               inherit [Var.Set.t] Bil.visitor
-              method enter_var v vars =
+              method! enter_var v vars =
                 if Set.mem kill v then vars
                 else Set.add vars v
             end) (Def.rhs def) in
           vars,Set.add kill (Def.lhs def)) |> fst)
 
-let blocks_that_define_var var sub =
+(** returns a list of blocks that contains [def] terms with lhs equal
+    to [var] *)
+let blocks_that_define_var var sub : tid list =
   Term.to_sequence blk_t sub |>
   Seq.filter ~f:(fun blk ->
       Term.to_sequence ~rev:true def_t blk |>
@@ -96,6 +117,10 @@ let blocks_that_define_var var sub =
   Seq.map ~f:Term.tid |>
   Seq.to_list_rev
 
+(** [substitute vars exp] take a table of stacks of variables and
+    for each variable in an expression [exp] perform a substitution
+    of the variable to a top value of a stack for this variable, if it
+    is not empty *)
 let substitute vars = (object
   inherit Bil.mapper as super
   method! map_sym z =
@@ -104,8 +129,22 @@ let substitute vars = (object
     | Some (d :: _) -> d
 end)#map_exp
 
+(** [renumber v] creates a new temporary variable with the same
+    name and type as [v] *)
 let renumber v = Var.(create ~tmp:true (name v) (typ v))
 
+(** [rename dom_children phis vars sub entry] performs a renaming
+    of variables in a subroutine [sub]. An algorithm is described
+    in section 19.7 of [[2]] and 9.12 of [[3]] (but there is a small
+    error in the latter). The difference is only in a naming scheme,
+    and that we do not put bogus phi-nodes, but introduce them in a
+    phi_update stage.
+
+    The naming scheme is the following: we start from an original name
+    of a variable, and rename of the following definitions of this
+    variable with [renumber] function. It has a nice side effect of
+    cleary showing a first use of a variable. And works well with
+    our API to resolve input/output parameters.*)
 let rename children phis vars sub entry =
   let vars : var list Var.Table.t = Var.Table.create () in
   let top v = match Hashtbl.find vars v with
@@ -123,7 +162,6 @@ let rename children phis vars sub entry =
     let y = renumber x in
     Hashtbl.add_multi vars ~key:x ~data:y;
     y in
-
   let rename_phis blk =
     Term.map phi_t blk ~f:(fun phi ->
         Phi.with_lhs phi (new_name (Phi.lhs phi))) in
@@ -157,7 +195,7 @@ let rename children phis vars sub entry =
     Term.to_sequence def_t blk' |>
     Seq.iter ~f:(fun def -> pop (Def.lhs def)) in
 
-  let rec rename sub tid =
+  let rec rename_block sub tid =
     let blk' = find_blk sub tid in
     let blk = blk' |> rename_phis |> rename_defs |> rename_jmps in
     let sub = Term.update blk_t sub blk in
@@ -170,10 +208,10 @@ let rename children phis vars sub entry =
             | Some dst ->
               Term.update blk_t sub (update_phis blk dst)) in
     let children = Tid.Set.of_list (children tid) in
-    let sub = Set.fold children ~init:sub ~f:rename in
+    let sub = Set.fold children ~init:sub ~f:rename_block in
     pop_defs blk';
     sub in
-  rename sub entry
+  rename_block sub entry
 
 (** [find_phi_placeholders frontier sub entry vars] given a [frontier]
     function that for a given block returns its dominance frontier, a
@@ -181,8 +219,7 @@ let rename children phis vars sub entry =
     [vars] compute for each variable [x] in [vars] a set of blocks
     where a phi-node for [x] should be placed.  The algorithm computes
     an iterated dominance frontier for each variable as per section
-    8.11 of Advanced Compiler Design and Implementation [ ISBN-10:
-    1558603204].*)
+    8.11 of [1].*)
 let find_phi_placeholders frontier sub entry vars =
   Set.fold vars ~init:Tid.Map.empty ~f:(fun phis x ->
       let bs = blocks_that_define_var x sub in
@@ -190,6 +227,7 @@ let find_phi_placeholders frontier sub entry vars =
       Set.fold ~init:phis ~f:(fun phis blk ->
           Map.add_multi phis ~data:x ~key:blk))
 
+(** transforms subroutine into a semi-pruned SSA form.  *)
 let ssa_sub sub = match Term.first blk_t sub with
   | None -> sub
   | Some entry  ->
@@ -202,14 +240,10 @@ let ssa_sub sub = match Term.first blk_t sub with
     Term.map blk_t ~f:(Term.filter phi_t ~f:(fun phi ->
         Seq.length_is_bounded_by ~min:2 (Phi.values phi)))
 
-let main' proj =
-  Term.map sub_t (Project.program proj) ~f:ssa_sub |>
-  printf "Program in SSA: @.%a@." Program.pp
+let ssa_program = Term.map sub_t ~f:ssa_sub
 
+let main proj =
+  Project.with_program proj @@
+  ssa_program (Project.program proj)
 
-(* let main proj = *)
-(*   Project.with_program proj @@ *)
-(*   Term.map sub_t (Project.program proj) ~f:ssa_sub *)
-
-(* let () = Project.register_pass "SSA" main *)
-let () = Project.register_pass' "SSA'" main'
+let () = Project.register_pass "SSA" main
