@@ -1,4 +1,4 @@
-(* this is an example from Muchnick, FIG.21 *)
+(* this is an example from Muchnick, FIG.8.21 *)
 
 open Bap.Std
 open Core_kernel.Std
@@ -41,9 +41,9 @@ let b1 = b1       |>
 
 let b2 = cond b2 Bil.(var i <= var j) b3 b4
 
-let b3 = b3 |>
+let b3 = b3                     |>
          def j Bil.(var j * _2) |>
-         def k _T |>
+         def k _T               |>
          def i Bil.(var i + _1) |>
          goto b2
 

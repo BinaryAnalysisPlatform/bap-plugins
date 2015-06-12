@@ -28,9 +28,9 @@ let succ_of_jmp jmp : tid option = match Jmp.kind jmp with
 (** builds a map from a tid to all blocks that have jumps that lead
     this tid. *)
 let build_rdep sub : tid list Tid.Map.t =
-  Term.to_sequence blk_t sub |>
+  Term.enum blk_t sub |>
   Seq.fold ~init:Tid.Map.empty ~f:(fun ins blk ->
-      Term.to_sequence jmp_t blk |>
+      Term.enum jmp_t blk |>
       Seq.fold ~init:ins ~f:(fun ins jmp ->
           Option.value_map (succ_of_jmp jmp) ~default:ins ~f:(fun tid ->
               Map.add_multi ins ~key:tid ~data:(Term.tid blk))))
@@ -52,14 +52,14 @@ let create_dom rdep sub entry =
       let succ (sub,_) tid = match Term.find blk_t sub tid with
         | None -> []
         | Some blk ->
-          Term.to_sequence jmp_t ~rev:true blk |>
+          Term.enum jmp_t ~rev:true blk |>
           Seq.filter_map ~f:succ_of_jmp |>
           Seq.to_list_rev
       let fold_vertex f (sub,_) init =
-        Term.to_sequence blk_t sub |>
+        Term.enum blk_t sub |>
         Seq.fold ~init ~f:(fun a v -> f (Term.tid v) a)
       let iter_vertex f (sub,_) =
-        Term.to_sequence blk_t sub |>
+        Term.enum blk_t sub |>
         Seq.map ~f:Term.tid |> Seq.iter ~f
       let nb_vertex (sub,_) = Term.length blk_t sub
     end) in
@@ -94,9 +94,9 @@ let iterated_frontier frontier blks =
     variables, that are live across multiple blocks (aka globals).
     Algorithm is described in Figure 9.9 in [[3]].*)
 let collect_vars sub =
-  Term.to_sequence blk_t sub |>
+  Term.enum blk_t sub |>
   Seq.fold ~init:(Var.Set.empty) ~f:(fun vars blk ->
-      Term.to_sequence def_t blk |>
+      Term.enum def_t blk |>
       Seq.fold ~init:(vars,Var.Set.empty) ~f:(fun (vars,kill) def ->
           let vars =
             Exp.fold ~init:vars (object
@@ -110,9 +110,9 @@ let collect_vars sub =
 (** returns a list of blocks that contains [def] terms with lhs equal
     to [var] *)
 let blocks_that_define_var var sub : tid list =
-  Term.to_sequence blk_t sub |>
+  Term.enum blk_t sub |>
   Seq.filter ~f:(fun blk ->
-      Term.to_sequence ~rev:true def_t blk |>
+      Term.enum ~rev:true def_t blk |>
       Seq.exists ~f:(fun def -> Var.(Def.lhs def = var))) |>
   Seq.map ~f:Term.tid |>
   Seq.to_list_rev
@@ -129,10 +129,6 @@ let substitute vars = (object
     | Some (d :: _) -> d
 end)#map_exp
 
-(** [renumber v] creates a new temporary variable with the same
-    name and type as [v] *)
-let renumber v = Var.(create ~tmp:true (name v) (typ v))
-
 (** [rename dom_children phis vars sub entry] performs a renaming of
     variables in a subroutine [sub]. An algorithm is described in
     section 19.7 of [[2]] and 9.12 of [[3]] (but there is a small
@@ -144,6 +140,7 @@ let renumber v = Var.(create ~tmp:true (name v) (typ v))
     API to resolve input/output parameters.*)
 let rename children vars sub entry =
   let vars : var list Var.Table.t = Var.Table.create () in
+  let nums : int Var.Table.t = Var.Table.create () in
   let top v = match Hashtbl.find vars v with
     | None | Some [] -> v
     | Some (v :: _) -> v in
@@ -151,7 +148,11 @@ let rename children vars sub entry =
     | None -> assert false
     | Some vs -> vs in
   let new_name x =
-    let y = renumber x in
+    Hashtbl.change nums x (function
+        | None -> Some 1
+        | Some x -> Some (x + 1));
+    let n = Hashtbl.find_exn nums x in
+    let y = Var.renumber x n in
     Hashtbl.add_multi vars ~key:x ~data:y;
     y in
   let rename_phis blk =
@@ -176,9 +177,9 @@ let rename children vars sub entry =
     let pop v = Hashtbl.change vars v (function
         | Some (x::xs) -> Some xs
         | xs -> xs) in
-    Term.to_sequence phi_t blk' |>
+    Term.enum phi_t blk' |>
     Seq.iter ~f:(fun phi -> pop (Phi.lhs phi));
-    Term.to_sequence def_t blk' |>
+    Term.enum def_t blk' |>
     Seq.iter ~f:(fun def -> pop (Def.lhs def)) in
 
   let rec rename_block sub tid =
@@ -186,7 +187,7 @@ let rename children vars sub entry =
     let blk = blk' |> rename_phis |> rename_defs |> rename_jmps in
     let sub = Term.update blk_t sub blk in
     let sub =
-      Term.to_sequence jmp_t blk |>
+      Term.enum jmp_t blk |>
       Seq.fold ~init:sub ~f:(fun sub jmp -> match succ_of_jmp jmp with
           | None -> sub
           | Some tid -> match Term.find blk_t sub tid with
@@ -195,14 +196,12 @@ let rename children vars sub entry =
               Term.update blk_t sub (update_phis blk dst)) in
     let children = Tid.Set.of_list (children tid) in
     let sub = Set.fold children ~init:sub ~f:rename_block in
-    pop_defs blk';
+    pop_defs blk;
     sub in
   rename_block sub entry
 
-
 let has_phi_for_var blk x =
-  Term.to_sequence phi_t blk |> Seq.exists ~f:(fun phi ->
-      Var.(Phi.lhs phi = x))
+  Term.enum phi_t blk |> Seq.exists ~f:(fun phi -> Var.(Phi.lhs phi = x))
 
 (** [insert_phi_node ins blk x]   *)
 let insert_phi_node ins blk x =
@@ -225,10 +224,9 @@ let insert_phi_nodes frontier rdep sub entry vars =
       Set.fold ~init:sub ~f:(fun sub blk ->
           match Map.find rdep blk with
           | None | Some [] | Some [_] -> sub
-          | Some ins -> match Term.find blk_t sub blk with
-            | None -> assert false
-            | Some blk ->
-              Term.update blk_t sub (insert_phi_node ins blk x)))
+          | Some ins ->
+            let blk = Option.value_exn (Term.find blk_t sub blk) in
+            Term.update blk_t sub (insert_phi_node ins blk x)))
 
 (** transforms subroutine into a semi-pruned SSA form.  *)
 let ssa_sub sub = match Term.first blk_t sub with
@@ -240,15 +238,19 @@ let ssa_sub sub = match Term.first blk_t sub with
     let sub =
       insert_phi_nodes dom.frontier rdep sub (Term.tid entry) vars in
     rename dom.children vars sub (Term.tid entry)
-(* |> *)
-(* Term.map blk_t ~f:(Term.filter phi_t ~f:(fun phi -> *)
-(*     Seq.length_is_bounded_by ~min:2 (Phi.values phi))) *)
 
 let ssa_program = Term.map sub_t ~f:ssa_sub
 
 let main proj =
-  printf "SSAing program\n";
   Project.with_program proj @@
   ssa_program (Project.program proj)
+
+let main proj =
+  Printexc.record_backtrace true;
+  try main proj with
+    exn -> eprintf "Failing with exn: %a@.%s@.%!"
+             Exn.pp exn
+             (Exn.backtrace ());
+    raise exn
 
 let () = Project.register_pass "ssa" main
