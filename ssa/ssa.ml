@@ -133,28 +133,20 @@ end)#map_exp
     name and type as [v] *)
 let renumber v = Var.(create ~tmp:true (name v) (typ v))
 
-(** [rename dom_children phis vars sub entry] performs a renaming
-    of variables in a subroutine [sub]. An algorithm is described
-    in section 19.7 of [[2]] and 9.12 of [[3]] (but there is a small
-    error in the latter). The difference is only in a naming scheme,
-    and that we do not put bogus phi-nodes, but introduce them in a
-    phi_update stage.
-
-    The naming scheme is the following: we start from an original name
-    of a variable, and rename of the following definitions of this
+(** [rename dom_children phis vars sub entry] performs a renaming of
+    variables in a subroutine [sub]. An algorithm is described in
+    section 19.7 of [[2]] and 9.12 of [[3]] (but there is a small
+    error in the latter).  The only difference is a naming scheme. The
+    naming scheme is the following: we start from an original name of
+    a variable, and rename of the following definitions of this
     variable with [renumber] function. It has a nice side effect of
-    cleary showing a first use of a variable. And works well with
-    our API to resolve input/output parameters.*)
-let rename children phis vars sub entry =
+    cleary showing a first use of a variable. And works well with our
+    API to resolve input/output parameters.*)
+let rename children vars sub entry =
   let vars : var list Var.Table.t = Var.Table.create () in
   let top v = match Hashtbl.find vars v with
     | None | Some [] -> v
     | Some (v :: _) -> v in
-  let is_of_class x phi =
-    let y = Phi.lhs phi in
-    x = y || match Hashtbl.find vars x with
-    | None -> false
-    | Some other -> List.mem ~equal:Var.equal other y in
   let find_blk sub id = match Term.find blk_t sub id with
     | None -> assert false
     | Some vs -> vs in
@@ -173,19 +165,13 @@ let rename children phis vars sub entry =
   let rename_jmps blk =
     Term.map jmp_t blk ~f:(Jmp.map_exp ~f:(substitute vars)) in
   let update_phis src dst =
-    match Map.find phis (Term.tid dst) with
-    | None -> dst
-    | Some vs ->
-      let tid = Term.tid src in
-      List.fold vs ~init:dst ~f:(fun dst v ->
-          Term.to_sequence phi_t dst |>
-          Seq.find ~f:(is_of_class v) |> function
-          | None ->
-            Phi.create v tid (Bil.var (top v)) |>
-            Term.append phi_t dst
-          | Some phi ->
-            Phi.update phi tid (Bil.var (top v)) |>
-            Term.update phi_t dst) in
+    let tid = Term.tid src in
+    Term.map phi_t dst ~f:(fun phi ->
+        Phi.values phi |> Seq.fold ~init:phi ~f:(fun phi rhs ->
+            match rhs with
+            | (id,Bil.Var v) when Tid.(tid = id) ->
+              Phi.update phi tid (Bil.var (top v))
+            | _ -> phi)) in
   let pop_defs blk' =
     let pop v = Hashtbl.change vars v (function
         | Some (x::xs) -> Some xs
@@ -213,19 +199,36 @@ let rename children phis vars sub entry =
     sub in
   rename_block sub entry
 
-(** [find_phi_placeholders frontier sub entry vars] given a [frontier]
+
+let has_phi_for_var blk x =
+  Term.to_sequence phi_t blk |> Seq.exists ~f:(fun phi ->
+      Var.(Phi.lhs phi = x))
+
+(** [insert_phi_node ins blk x]   *)
+let insert_phi_node ins blk x =
+  if has_phi_for_var blk x then blk
+  else List.map ins ~f:(fun tid -> tid, Bil.var x) |>
+       Phi.of_list x |>
+       Term.append phi_t blk
+
+(** [insert_phi_nodes frontier sub entry vars] given a [frontier]
     function that for a given block returns its dominance frontier, a
     subroutine [sub] with entry block [entry] and a set of variable
-    [vars] compute for each variable [x] in [vars] a set of blocks
-    where a phi-node for [x] should be placed.  The algorithm computes
-    an iterated dominance frontier for each variable as per section
-    8.11 of [1].*)
-let find_phi_placeholders frontier sub entry vars =
-  Set.fold vars ~init:Tid.Map.empty ~f:(fun phis x ->
+    [vars], insert phi node of a form [x <- phi(x,x,..,x)] for each
+    variable [x] in [vars] in each block that needs it. The
+    algorithm computes an iterated dominance frontier for each
+    variable as per section 8.11 of [1].*)
+let insert_phi_nodes frontier rdep sub entry vars =
+  Set.fold vars ~init:sub ~f:(fun sub x ->
       let bs = blocks_that_define_var x sub in
       iterated_frontier frontier (entry :: bs) |>
-      Set.fold ~init:phis ~f:(fun phis blk ->
-          Map.add_multi phis ~data:x ~key:blk))
+      Set.fold ~init:sub ~f:(fun sub blk ->
+          match Map.find rdep blk with
+          | None | Some [] | Some [_] -> sub
+          | Some ins -> match Term.find blk_t sub blk with
+            | None -> assert false
+            | Some blk ->
+              Term.update blk_t sub (insert_phi_node ins blk x)))
 
 (** transforms subroutine into a semi-pruned SSA form.  *)
 let ssa_sub sub = match Term.first blk_t sub with
@@ -234,16 +237,18 @@ let ssa_sub sub = match Term.first blk_t sub with
     let rdep = build_rdep sub in
     let dom = create_dom rdep sub entry in
     let vars = collect_vars sub in
-    let phis =
-      find_phi_placeholders dom.frontier sub (Term.tid entry) vars in
-    rename dom.children phis vars sub (Term.tid entry) |>
-    Term.map blk_t ~f:(Term.filter phi_t ~f:(fun phi ->
-        Seq.length_is_bounded_by ~min:2 (Phi.values phi)))
+    let sub =
+      insert_phi_nodes dom.frontier rdep sub (Term.tid entry) vars in
+    rename dom.children vars sub (Term.tid entry)
+(* |> *)
+(* Term.map blk_t ~f:(Term.filter phi_t ~f:(fun phi -> *)
+(*     Seq.length_is_bounded_by ~min:2 (Phi.values phi))) *)
 
 let ssa_program = Term.map sub_t ~f:ssa_sub
 
 let main proj =
+  printf "SSAing program\n";
   Project.with_program proj @@
   ssa_program (Project.program proj)
 
-let () = Project.register_pass "SSA" main
+let () = Project.register_pass "ssa" main
