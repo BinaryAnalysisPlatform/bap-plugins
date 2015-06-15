@@ -17,12 +17,17 @@ open Bap.Std
 open Format
 
 (** extracts a successor's tid from a jump term  *)
-let succ_of_jmp jmp : tid option = match Jmp.kind jmp with
+let succ_tid_of_jmp jmp : tid option = match Jmp.kind jmp with
   | Goto (Direct tid) -> Some tid
   | Call t -> Option.(Call.return t >>= function
     | Direct tid -> Some tid
     | _ -> None)
   | Int (_,tid) -> Some tid
+  | _ -> None
+
+let succ_of_jmp sub jmp =
+  match succ_tid_of_jmp jmp with
+  | Some tid as blk when Term.find blk_t sub tid <> None -> blk
   | _ -> None
 
 (** builds a map from a tid to all blocks that have jumps that lead
@@ -32,7 +37,7 @@ let build_rdep sub : tid list Tid.Map.t =
   Seq.fold ~init:Tid.Map.empty ~f:(fun ins blk ->
       Term.enum jmp_t blk |>
       Seq.fold ~init:ins ~f:(fun ins jmp ->
-          Option.value_map (succ_of_jmp jmp) ~default:ins ~f:(fun tid ->
+          Option.value_map (succ_of_jmp sub jmp) ~default:ins ~f:(fun tid ->
               Map.add_multi ins ~key:tid ~data:(Term.tid blk))))
 
 (** Dominance relations.  *)
@@ -43,26 +48,27 @@ type dom = {
 
 (** computes dominator tree an dominance frontier  *)
 let create_dom rdep sub entry =
-  let module Dom = Graph.Dominator.Make(struct
-      type t = (sub term * tid list Tid.Map.t)
-      module V = Tid
-      let pred (_,rdep) tid = match Map.find rdep tid with
-        | None -> []
-        | Some xs -> xs
-      let succ (sub,_) tid = match Term.find blk_t sub tid with
-        | None -> []
-        | Some blk ->
-          Term.enum jmp_t ~rev:true blk |>
-          Seq.filter_map ~f:succ_of_jmp |>
-          Seq.to_list_rev
-      let fold_vertex f (sub,_) init =
-        Term.enum blk_t sub |>
-        Seq.fold ~init ~f:(fun a v -> f (Term.tid v) a)
-      let iter_vertex f (sub,_) =
-        Term.enum blk_t sub |>
-        Seq.map ~f:Term.tid |> Seq.iter ~f
-      let nb_vertex (sub,_) = Term.length blk_t sub
-    end) in
+  let module G = struct
+    type t = (sub term * tid list Tid.Map.t)
+    module V = Tid
+    let pred (_,rdep) tid = match Map.find rdep tid with
+      | None -> []
+      | Some xs -> xs
+    let succ (sub,_) tid = match Term.find blk_t sub tid with
+      | None -> []
+      | Some blk ->
+        Term.enum jmp_t ~rev:true blk |>
+        Seq.filter_map ~f:(succ_of_jmp sub) |>
+        Seq.to_list_rev
+    let fold_vertex f (sub,_) init =
+      Term.enum blk_t sub |>
+      Seq.fold ~init ~f:(fun a v -> f (Term.tid v) a)
+    let iter_vertex f (sub,_) =
+      Term.enum blk_t sub |>
+      Seq.map ~f:Term.tid |> Seq.iter ~f
+    let nb_vertex (sub,_) = Term.length blk_t sub
+  end in
+  let module Dom = Graph.Dominator.Make(G) in
   let cfg = sub, rdep in
   let idom = Dom.compute_idom cfg (Term.tid entry) in
   let dom_tree = Dom.idom_to_dom_tree cfg idom in
@@ -188,7 +194,7 @@ let rename children vars sub entry =
     let sub = Term.update blk_t sub blk in
     let sub =
       Term.enum jmp_t blk |>
-      Seq.fold ~init:sub ~f:(fun sub jmp -> match succ_of_jmp jmp with
+      Seq.fold ~init:sub ~f:(fun sub jmp -> match succ_of_jmp sub jmp with
           | None -> sub
           | Some tid -> match Term.find blk_t sub tid with
             | None -> sub
@@ -229,9 +235,10 @@ let insert_phi_nodes frontier rdep sub entry vars =
             Term.update blk_t sub (insert_phi_node ins blk x)))
 
 (** transforms subroutine into a semi-pruned SSA form.  *)
-let ssa_sub sub = match Term.first blk_t sub with
+let ssa_sub sub =
+  match Term.first blk_t sub with
   | None -> sub
-  | Some entry  ->
+  | Some entry ->
     let rdep = build_rdep sub in
     let dom = create_dom rdep sub entry in
     let vars = collect_vars sub in
@@ -244,13 +251,5 @@ let ssa_program = Term.map sub_t ~f:ssa_sub
 let main proj =
   Project.with_program proj @@
   ssa_program (Project.program proj)
-
-let main proj =
-  Printexc.record_backtrace true;
-  try main proj with
-    exn -> eprintf "Failing with exn: %a@.%s@.%!"
-             Exn.pp exn
-             (Exn.backtrace ());
-    raise exn
 
 let () = Project.register_pass "ssa" main
