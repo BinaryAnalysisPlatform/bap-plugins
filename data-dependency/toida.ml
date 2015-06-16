@@ -12,7 +12,7 @@ let ida_stmt_highlight c =
     (custom_color c)
 
 let output_script proj =
-  let memory = Memmap.map proj.memory ~f:(fun tag ->
+  let memory = Memmap.map (Project.memory proj) ~f:(fun tag ->
       match Value.get color tag with
       | None -> tag
       | Some color ->
@@ -20,6 +20,6 @@ let output_script proj =
         | `yellow | `blue as c ->
           Value.create python @@ ida_stmt_highlight c
         | _ -> tag) in
-  {proj with memory}
+  Project.with_memory proj memory
 
-let () = register_plugin output_script
+let () = Project.register_pass "toida" output_script

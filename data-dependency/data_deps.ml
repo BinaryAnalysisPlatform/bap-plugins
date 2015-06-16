@@ -39,6 +39,7 @@ module Cmdline = struct
 end
 
 exception Not_found of string
+exception Can't_handle of string
 
 type data_dependency = {
   (* stmt for which we hold dependencies *)
@@ -46,7 +47,7 @@ type data_dependency = {
   (* list of dependencies *)
   deps : (Dataflow.Address.t * Stmt.t) list;
   (* the function symbol associated with this stmt *)
-  sym : string
+  sym : Symtab.fn
 }
 
 (* Reaching definitions visitor for dataflow -- we use this for dependencies *)
@@ -66,31 +67,6 @@ let reaching = object inherit [Domain.t list Var.Map.t] Dataflow.visitor
       | true -> domain :: Var.Map.find_exn state var in
     (address, dataflow, Var.Map.add state ~key:var ~data, result)
 end
-
-(* returns the [entry] block and mem which corresponds with the bounds
- * of this entire function *)
-let block_from_sym sym_to_find project =
-  match Table.find_mapi project.symbols ~f:(fun mem_of_sym sym ->
-      if sym = sym_to_find then Some mem_of_sym else None) with
-  | None ->
-    raise (Not_found (sprintf "No functions with symbol %S" sym_to_find))
-  | Some mem_of_sym ->
-    let blocks = Disasm.blocks project.disasm in
-    (* out of all the blocks, get the block that matches this symbols
-     * min_addr mem *)
-    (* we need the next part to get the *block* corresponding to entry, because
-     * we will use Block.dfs on it *)
-    match Table.find_addr blocks (Memory.min_addr mem_of_sym) with
-    | None -> assert false
-    (* _mem contains the memory region / block only for this addr *)
-    | Some (_mem, entry) -> (entry, mem_of_sym)
-
-(* find which function this addr is in. *)
-let sym_from_addr addr project =
-  let addr = Word.of_int ~width:32 addr in
-  match Table.find_addr project.symbols addr with
-  | None -> raise (Not_found (sprintf "No addr %s" @@ Addr.to_string addr))
-  | Some (_mem, sym) -> sym
 
 (* Give the bil statement associated with the Dataflow [addr] *)
 let stmt_from_addr disasm addr =
@@ -146,8 +122,8 @@ let strip = String.filter ~f:(fun x -> x <> '\n')
 let int_of_dataflow_addr addr =
   addr |> Dataflow.Address.mem |> Word.to_int |> ok_exn
 
-let dataflow_addr_of_int ?(idx=0) addr =
-  Dataflow.Address.create (Addr.of_int ~width:32 addr) idx
+let dataflow_addr_of_addr ?(idx=0) addr =
+  Dataflow.Address.create addr idx
 
 let print_header insn_addr addr =
   Format.printf "\nSTART <Data flow Dependence> <%a> %s\n"
@@ -172,30 +148,39 @@ let output_verbose_reaching_defs disasm dataflow =
             Dataflow.Address.pp addr @@ strip @@ Stmt.to_string stmt))
 
 let output_verbose_data_deps disasm dependency =
-  Format.printf "\nFunction %s\n" dependency.sym;
+  Format.printf "\nFunction %s\n" @@ Symtab.name_of_fn dependency.sym;
   let addr,header = dependency.stmt in
   print_header addr header;
   print_dependencies dependency.deps
 
 (* Populate the data dependency structure with information, given an addr *)
 let collect_data_deps disasm dataflow func addr =
-  let addr = dataflow_addr_of_int addr in
-  let stmt = stmt_from_addr disasm addr in
-  let deps = deps_for_insn dataflow disasm addr in
-  let t = (addr,stmt) in
+  let daddr = dataflow_addr_of_addr addr in
+  let stmt = stmt_from_addr disasm daddr in
+  let deps = deps_for_insn dataflow disasm daddr in
+  let t = (daddr,stmt) in
   {stmt = t; deps; sym = func}
 
 (* Run reaching definitions and then collect the data dependenices *)
 let process_addr project addr =
   try
-    let func = sym_from_addr addr project in
-    let entry,bound = block_from_sym func project in
+    let symtab = Project.symbols project in
+    let func =
+      match Symtab.fns_of_addr symtab addr with
+      | [] -> raise (Not_found (sprintf "No function found containing addr %S"
+                                @@ Addr.to_string addr))
+      | [f] -> f
+      | _ -> raise (Can't_handle (sprintf "More than one function for addr %S,\
+                                           can't handle this!" @@
+                                  Addr.to_string addr)) in
+    let entry = Symtab.entry_of_fn func in
+    let bound = unstage (Symtab.create_bound symtab func) in
     let dataflow =
       Dataflow.create ~entry ~bound ~interior:Domain.empty
         ~boundary:Domain.empty ~direction:Dataflow.Forwards in
     Dataflow.run dataflow ~worklist:None ~meet:Domain.union
       ~user_state:Var.Map.empty ~transfer:reaching;
-    collect_data_deps project.disasm dataflow func addr
+    collect_data_deps (Project.disasm project) dataflow func addr
   with
   | Not_found msg -> print_endline msg; exit 1
 
@@ -227,26 +212,16 @@ let annotate disasm mem entry =
   List.fold deps_mem ~init:mem ~f:(fun mem x ->
       Memmap.add mem x (Value.create color `blue))
 
-(* TODO case out on color *)
-let print_substitution project =
-  let project = Project.substitute project in
-  let buf = Buffer.create 4096 in
-  Memmap.iter project.memory ~f:(fun tag ->
-      match Value.get python tag with
-      | Some line -> Buffer.add_string buf line
-      | None -> ());
-  Format.printf "%s\n" @@ Buffer.contents buf
-
 let main args project =
   let addrs_of_interest,idascript = Cmdline.parse args in
   let result =
     List.fold ~init:[] addrs_of_interest ~f:(fun acc x ->
-        (process_addr project x) :: acc) in
-  List.iter result ~f:(fun x -> output_verbose_data_deps project.disasm x);
+        let addr = Addr.of_int ~width:32 x in
+        (process_addr project addr) :: acc) in
+  List.iter result ~f:(fun x -> output_verbose_data_deps (Project.disasm project) x);
   if String.length idascript > 0 then output_script idascript result;
-  let memory = List.fold result ~init:project.memory
-      ~f:(fun mem entry -> annotate project.disasm mem entry) in
-  print_substitution {project with memory};
-  {project with memory}
+  let memory = List.fold result ~init:(Project.memory project)
+      ~f:(fun mem entry -> annotate (Project.disasm project) mem entry) in
+  Project.with_memory project memory
 
-let () = register_plugin_with_args main
+let () = Project.register_pass_with_args "data_deps" main

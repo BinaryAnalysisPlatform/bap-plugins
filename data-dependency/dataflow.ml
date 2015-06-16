@@ -49,15 +49,16 @@ module Address = struct
 
   let find_bil insns ~f =
     List.fold ~init:[] ~f:(fun accum (mem, insn) ->
-        accum @ snd @@ Bil.fold ~init:(create (Memory.min_addr mem) 0, []) (object
-          inherit [t * (t * stmt) list] Bil.visitor
-          method! enter_stmt stmt (address, ret) =
-            match f stmt with
-            | true -> (address, (address, stmt) :: ret)
-            | false -> (address, ret)
-          method! leave_stmt _ ((addr, idx), ret) =
-            ((addr, idx + 1), ret)
-        end) (Insn.bil insn)
+        accum @ snd @@ Bil.fold ~init:(create (Memory.min_addr mem) 0, [])
+          (object
+            inherit [t * (t * stmt) list] Bil.visitor
+            method! enter_stmt stmt (address, ret) =
+              match f stmt with
+              | true -> (address, (address, stmt) :: ret)
+              | false -> (address, ret)
+            method! leave_stmt _ ((addr, idx), ret) =
+              ((addr, idx + 1), ret)
+          end) (Insn.bil insn)
       ) insns
 
   include Comparable.Make(T)
@@ -128,7 +129,8 @@ let create ~entry ~bound ~interior ~boundary ~direction =
     | Forwards -> Block.dfs ~bound entry
     | Backwards -> Block.dfs ~next:Block.preds ~bound entry in
   Seq.iter blocks ~f:(fun block ->
-      let initial = if Block.(block = (Seq.hd_exn blocks)) then boundary else interior in
+      let initial =
+        if Block.(block = (Seq.hd_exn blocks)) then boundary else interior in
       Hashtbl.set block_lattice ~key:block ~data:initial
     );
   { counter = 0; domain_map; address_map; addr_lattice;
@@ -151,7 +153,8 @@ let rec run dataflow ~worklist ~meet ~user_state ~transfer =
                     (* Ignore references to blocks outside the current function *)
                     | None -> accum
                     | Some block -> meet accum block) in
-            let (transfer, state) = List.fold (Block.insns block) ~init:(meet, state) 
+            let (transfer, state) =
+              List.fold (Block.insns block) ~init:(meet, state)
                 ~f:(fun (accum, state) (mem, insn) ->
                     let addr = (Memory.min_addr mem, 0) in
                     let bil = Insn.bil insn in

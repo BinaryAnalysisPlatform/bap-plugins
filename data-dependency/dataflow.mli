@@ -36,7 +36,7 @@ end
 (* Create a dataflow analysis with the given parameters *)
 val create :
   entry:block ->
-  bound:mem ->
+  bound:(word -> bool) ->
   interior:Domain.t ->
   boundary:Domain.t ->
   direction:direction -> dataflow
