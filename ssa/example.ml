@@ -47,6 +47,8 @@ let b3 = b3                     |>
          def i Bil.(var i + _1) |>
          goto b2
 
+let b3_without_jumps = Term.filter jmp_t ~f:(fun _ -> false) b3
+
 let b4 = cond b4 Bil.(var k) b5 b6
 
 let b5 =
@@ -56,6 +58,10 @@ let b5 =
   let use = Jmp.create_call call in
   Term.append jmp_t b5 use
 
+let b3_with_jump_to_b5 = Term.map jmp_t ~f:(fun _ ->
+    Jmp.create_goto (Label.direct (Term.tid b5))) b3
+
+
 
 let b6 = def i Bil.(var i + _1) b6 |> goto exit
 
@@ -63,6 +69,20 @@ let sub_of_blk blks =
   let sub = Sub.create ~name:"example" () in
   List.fold blks ~init:sub ~f:(Term.append blk_t)
 
-let sub = sub_of_blk [entry; b1; b2; b3; b4; b5; b6; exit]
-let sub_ssa = Ssa.ssa_sub sub
-let () = Format.printf "%a" Sub.pp sub_ssa
+let blks = [entry; b1; b2; b3; b4; b5; b6; exit]
+let sub = sub_of_blk blks
+
+module G = Graphlib.Ir
+
+let g = G.of_sub sub
+(* let dom = Graphlib.dominators (module G) g (G.Node.create entry) *)
+
+let (++) g x = G.Node.(insert (create x) g)
+let (--) g x = G.Node.(remove (create x) g)
+let nil = G.empty
+
+
+let graph_of_list = List.fold ~init:G.empty ~f:(fun g blk ->
+    G.Node.(insert (create blk) g))
+
+let dom = Graphlib.dominators (module G) g (G.Node.create entry)

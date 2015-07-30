@@ -16,7 +16,7 @@ open Core_kernel.Std
 open Bap.Std
 open Format
 
-module Cfg = Graphlib.Ir
+module Cfg = Graphlib.Tid.Tid
 
 (** [iterated_frontier frontier bs] given a [frontier] function, that
     for a each block [b] returns its dominance frontier, compute an
@@ -28,18 +28,19 @@ module Cfg = Graphlib.Ir
     [k] is a fixpoint, i.e., such value that [IDF_k = IDF_{k-1}].  See
     section 8.11 of [1].*)
 let iterated_frontier f blks =
-  let df = Set.fold ~init:Blk.Set.empty ~f:(fun dfs b ->
+  let df = Set.fold ~init:Tid.Set.empty ~f:(fun dfs b ->
       Seq.fold (Frontier.enum f b) ~init:dfs ~f:Set.add) in
-  let blks = List.fold blks ~init:Blk.Set.empty ~f:Set.add in
+  let blks = List.fold blks ~init:Tid.Set.empty ~f:Set.add in
   let rec fixpoint idf =
     let idf' = df (Set.union idf blks) in
     if Set.equal idf idf' then idf' else fixpoint idf' in
-  fixpoint Blk.Set.empty
+  fixpoint Tid.Set.empty
 
-let vars_of_exp = Exp.fold ~init:Var.Set.empty (object
-    inherit [Var.Set.t] Bil.visitor
-    method! enter_var var vars = Set.add vars var
-  end)
+let vars_of_exp = Exp.free_vars
+
+let blk_of_tid = Term.find_exn blk_t
+let succs cfg sub tid =
+  Cfg.Node.succs tid cfg |> Seq.map ~f:(blk_of_tid sub)
 
 let vars_of_label = function
   | Indirect exp -> vars_of_exp exp
@@ -68,16 +69,14 @@ let collect_vars sub =
               | None -> Var.Set.empty
               | Some dst -> vars_of_label dst) -- kill ++ vars)
 
-
-
 (** returns a list of blocks that contains [def] terms with lhs equal
     to [var] *)
-let blocks_that_define_var var sub : blk term list =
-  Cfg.nodes sub |>
+let blocks_that_define_var var sub : tid list =
+  Term.enum blk_t sub |>
   Seq.filter ~f:(fun blk ->
       Term.enum ~rev:true def_t blk |>
       Seq.exists ~f:(fun def -> Var.(Def.lhs def = var))) |>
-  Seq.to_list_rev
+  Seq.map ~f:Term.tid |> Seq.to_list_rev
 
 (** [substitute vars exp] take a table of stacks of variables and
     for each variable in an expression [exp] perform a substitution
@@ -100,7 +99,7 @@ end)#map_exp
     variable with [renumber] function. It has a nice side effect of
     cleary showing a first use of a variable. And works well with our
     API to resolve input/output parameters.*)
-let rename dom vars sub entry =
+let rename dom vars cfg sub entry =
   let vars : var list Var.Table.t = Var.Table.create () in
   let nums : int Var.Table.t = Var.Table.create () in
   let top v = match Hashtbl.find vars v with
@@ -142,13 +141,15 @@ let rename dom vars sub entry =
     Seq.iter ~f:(fun def -> pop (Def.lhs def)) in
 
   let rec rename_block sub blk' =
+    let tid = Term.tid blk' in
     let blk = blk' |> rename_phis |> rename_defs |> rename_jmps in
-    let sub = Cfg.Node.update blk sub in
+    let sub = Term.update blk_t sub blk in
     let sub =
-      Cfg.Node.succs blk sub |> Seq.fold ~init:sub ~f:(fun sub dst ->
-          Cfg.Node.update (update_phis blk dst) sub) in
-    let children = Cfg.nodes sub |>
-                   Seq.filter ~f:(Tree.is_child_of ~parent:blk dom) in
+      succs cfg sub tid |> Seq.fold ~init:sub ~f:(fun sub dst ->
+          Term.update blk_t sub (update_phis blk dst)) in
+    let children = Cfg.nodes cfg |>
+                   Seq.filter ~f:(Tree.is_child_of ~parent:tid dom) |>
+                   Seq.map ~f:(blk_of_tid sub) in
     let sub = Seq.fold children ~init:sub ~f:rename_block in
     pop_defs blk;
     sub in
@@ -171,14 +172,15 @@ let insert_phi_node ins blk x =
     variable [x] in [vars] in each block that needs it. The
     algorithm computes an iterated dominance frontier for each
     variable as per section 8.11 of [1].*)
-let insert_phi_nodes frontier sub entry vars =
+let insert_phi_nodes frontier cfg sub entry vars : sub term =
   Set.fold vars ~init:sub ~f:(fun sub x ->
       let bs = blocks_that_define_var x sub in
-      iterated_frontier frontier (entry :: bs) |>
-      Set.fold ~init:sub ~f:(fun sub blk ->
-          let blk = Term.find_exn blk_t (Cfg.to_sub sub) (Term.tid blk) in
-          let ins = Cfg.Node.preds blk sub in
-          Cfg.Node.update (insert_phi_node ins blk x) sub))
+      iterated_frontier frontier (Term.tid entry :: bs) |>
+      Set.fold ~init:sub ~f:(fun sub tid ->
+          let blk = blk_of_tid sub tid in
+          let ins = Cfg.Node.preds tid cfg |>
+                    Seq.map ~f:(blk_of_tid sub) in
+          Term.update blk_t sub (insert_phi_node ins blk x)))
 
 (** transforms subroutine into a semi-pruned SSA form.  *)
 let ssa_sub sub =
@@ -186,12 +188,11 @@ let ssa_sub sub =
   | None -> sub
   | Some entry ->
     let vars = collect_vars sub in
-    let cfg = Cfg.of_sub sub in
-    let dom = Graphlib.dominators (module Cfg) cfg entry in
+    let cfg = Sub.to_graph sub in
+    let dom = Graphlib.dominators (module Cfg) cfg (Term.tid entry) in
     let dom_frontier = Graphlib.dom_frontier (module Cfg) cfg dom in
-    let sub = insert_phi_nodes dom_frontier cfg entry vars in
-    rename dom vars sub entry |>
-    Cfg.to_sub
+    let sub = insert_phi_nodes dom_frontier cfg sub entry vars in
+    rename dom vars cfg sub entry
 
 let ssa_program = Term.map sub_t ~f:ssa_sub
 
