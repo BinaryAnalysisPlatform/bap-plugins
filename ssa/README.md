@@ -1,4 +1,7 @@
-# Transfrom program into Semipruned SSA form
+# Transfrom program into SSA form
+
+This plugin will transform all subroutines in a IR of a program into
+an SSA form.
 
 # Compilation
 

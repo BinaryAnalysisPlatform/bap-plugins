@@ -74,7 +74,7 @@ let sub = sub_of_blk blks
 
 module G = Graphlib.Ir
 
-let g = G.of_sub sub
+let g = Sub.to_cfg sub
 (* let dom = Graphlib.dominators (module G) g (G.Node.create entry) *)
 
 let (++) g x = G.Node.(insert (create x) g)
