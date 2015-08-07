@@ -8,6 +8,34 @@ let yellow_format = ref "$symbol YELLOW\n"
 let red_format = ref "$symbol RED\n"
 let green_format = ref "$symbol GREEN\n"
 
+module Vis = Addr.Hash_set
+
+let bounded bound addr =
+  Option.value_map bound ~default:true ~f:(fun f -> f addr)
+
+let skip bound visited blk =
+  let addr = Block.addr blk in
+  Hash_set.mem visited addr || not (bounded bound addr)
+
+
+let dfs ?(order=`pre) ?(next=Block.succs) ?bound entry =
+  let open Seq.Generator in
+  let vis = Vis.create () in
+  let yield blk =
+    Hash_set.add vis (Block.addr blk);
+    yield blk in
+  let rec loop blk =
+    if skip bound vis blk then return ()
+    else
+      let childs =
+        Seq.fold (next blk) ~init:(return ())
+          ~f:(fun gen blk -> gen >>= fun () -> loop blk) in
+      match order with
+      | `post -> childs >>= fun () -> yield blk
+      | `pre  -> yield blk >>= fun () -> childs
+  in
+  run (loop entry) |> Seq.memoize
+
 let make_printer fmt sym =
   let b = Buffer.create 16 in
   Buffer.add_substitute b (function
@@ -222,7 +250,7 @@ module Main(Target : Target) = struct
     let bil_of_block blk' =
       if Block.(blk = blk') then bil_of_first_blk else
         bil_of_block blk' |> propagate subst |> fst |> optimize in
-    Block.dfs ~bound blk |>
+    dfs ~bound blk |>
     Seq.fold ~init:[] ~f:(fun unsafe blk ->
         Bil.fold ~init:unsafe
           (object
@@ -234,10 +262,10 @@ module Main(Target : Target) = struct
 
   let modifies_sp_in_the_middle ~bound entry =
     let exits =
-      Block.dfs ~bound entry |> Seq.filter ~f:(fun blk ->
-          Seq.length_is_bounded_by ~max:1 (Block.dfs ~bound blk)) |>
+      dfs ~bound entry |> Seq.filter ~f:(fun blk ->
+          Seq.length_is_bounded_by ~max:1 (dfs ~bound blk)) |>
       Seq.to_list_rev |> Block.Set.of_list in
-    Block.dfs ~bound entry |>
+    dfs ~bound entry |>
     Seq.exists ~f:(fun blk ->
         not Block.(blk = entry || Set.mem exits blk) &&
         Bil.exists (object
