@@ -1,40 +1,13 @@
 open Core_kernel.Std
 open Bap.Std
 open Format
+open Option.Monad_infix
 
 let version = "0.2"
 let max_exp_size = ref 100
 let yellow_format = ref "$symbol YELLOW\n"
 let red_format = ref "$symbol RED\n"
 let green_format = ref "$symbol GREEN\n"
-
-module Vis = Addr.Hash_set
-
-let bounded bound addr =
-  Option.value_map bound ~default:true ~f:(fun f -> f addr)
-
-let skip bound visited blk =
-  let addr = Block.addr blk in
-  Hash_set.mem visited addr || not (bounded bound addr)
-
-
-let dfs ?(order=`pre) ?(next=Block.succs) ?bound entry =
-  let open Seq.Generator in
-  let vis = Vis.create () in
-  let yield blk =
-    Hash_set.add vis (Block.addr blk);
-    yield blk in
-  let rec loop blk =
-    if skip bound vis blk then return ()
-    else
-      let childs =
-        Seq.fold (next blk) ~init:(return ())
-          ~f:(fun gen blk -> gen >>= fun () -> loop blk) in
-      match order with
-      | `post -> childs >>= fun () -> yield blk
-      | `pre  -> yield blk >>= fun () -> childs
-  in
-  run (loop entry) |> Seq.memoize
 
 let make_printer fmt sym =
   let b = Buffer.create 16 in
@@ -126,108 +99,6 @@ module Main(Target : Target) = struct
 
   let defines_stack var = is_sp var || is_bp var
 
-  (** Substitute PC with its value  *)
-  let resolve_pc mem =
-    Bil.map (object
-      inherit Bil.mapper as super
-      method! map_var var =
-        if Target.CPU.is_pc var then
-          Bil.int (Target.CPU.addr_of_pc mem)
-        else super#map_var var
-    end)
-
-  let optimize : bil -> bil =
-    List.map ~f:Bil.fixpoint [
-      Bil.fold_consts;
-    ] |> List.reduce_exn ~f:Fn.compose |> Bil.fixpoint
-
-  let bil_of_block blk =
-    Block.insns blk
-    |> List.concat_map ~f:(fun (mem,insn) ->
-        (resolve_pc mem (Insn.bil insn)))
-    |> optimize
-
-  type subst = (var * exp) list
-
-  let exp_size exp = (object
-    inherit [int] Bil.visitor
-    method! enter_exp _ n = n + 1
-  end)#visit_exp exp 0
-
-  let squash_complex_exp (var,exp) =
-    if exp_size exp < !max_exp_size then var,exp
-    else
-      let regs = (object
-        inherit [String.Set.t] Bil.visitor
-        method! enter_var v s = Set.add s (Var.to_string v)
-      end)#visit_exp exp String.Set.empty in
-      let desc = String.concat ~sep:", " @@
-        Set.elements regs in
-      var, Bil.unknown desc reg32_t
-
-  let subst_exp u ~in_ ~to_:x = (object
-    inherit Bil.mapper
-    method! map_var v =
-      if Var.(v = u) then x else Bil.var v
-  end)#map_exp in_
-
-  (* this simplification assumes that store/load folding step
-     was performed earlier *)
-  let simpl_memory =
-    (object(self)
-      inherit Bil.mapper as super
-      method! map_exp = function
-        | Bil.Load (_,addr,e,s) ->
-          Bil.Load (Bil.var mem, self#map_exp addr,e,s)
-        | Bil.Store (m,idx, Bil.Load(_,idx',e',s'),e,s) ->
-          Bil.Store (self#map_exp m,
-                     self#map_exp idx,
-                     Bil.Load(
-                       Bil.var mem,
-                       self#map_exp idx',e',s'),e,s)
-        | exp -> super#map_exp exp
-    end)#map_exp
-
-  let simpl_memory (var,exp) =
-    let rec loop exp =
-      let exp' = simpl_memory exp in
-      if Exp.(exp = exp') then exp
-      else loop exp' in
-    var,loop exp
-
-  let apply_subst subst exp =
-    List.fold subst ~init:exp ~f:(fun exp (lhs,rhs) ->
-        subst_exp lhs ~in_:exp ~to_:rhs)
-
-  let use_or_def u (v,x) =
-    Var.(v = u) || (object
-      inherit [bool] Bil.visitor
-      method! enter_var v found = found || Var.(v = u)
-    end)#visit_exp x false
-  let doesn't_use_or_def u = Fn.non (use_or_def u)
-
-  let propagate init bil =
-    let (sps,esp) = List.fold ~init:([], init)
-        ~f:(fun (stmts,subst) stmt ->
-            let subst' =
-              Bil.fold ~init:subst (object
-                inherit [subst] Bil.visitor
-                method! leave_move v exp subs =
-                  let exp = apply_subst subs exp in
-                  (v,exp) :: List.filter ~f:(doesn't_use_or_def v) subs |>
-                  List.map ~f:simpl_memory |>
-                  List.map ~f:squash_complex_exp
-              end) [stmt] in
-            (stmt,subst) :: stmts, subst') bil in
-    List.rev_map sps ~f:(fun (stmt,subst) ->
-        Bil.map (object
-          inherit Bil.mapper
-          method! map_var v =
-            match List.find subst ~f:(fun (lhs,_) -> Var.(v = lhs)) with
-            | Some (_,rhs) -> rhs
-            | _ -> Bil.var v
-        end) [stmt]) |> List.concat,esp
-
   let is_safe_index exp = (object
     inherit [bool] Bil.visitor
     method! enter_load ~mem:_ ~addr _ _ r =
@@ -240,69 +111,48 @@ module Main(Target : Target) = struct
     method! enter_var var r = r && defines_stack var
   end)#visit_exp exp true
 
-  let collect_unsafe ~bound blk =
-    let bil_of_first_blk,subst =
-      let bil,subst = bil_of_block blk |>
-                      propagate [] in
-      optimize bil,subst in
-    let subst = List.filter subst ~f:(fun (var,_) ->
-        defines_stack var) in
-    let bil_of_block blk' =
-      if Block.(blk = blk') then bil_of_first_blk else
-        bil_of_block blk' |> propagate subst |> fst |> optimize in
-    dfs ~bound blk |>
-    Seq.fold ~init:[] ~f:(fun unsafe blk ->
-        Bil.fold ~init:unsafe
-          (object
-            inherit [exp list] Bil.visitor
-            method! enter_store ~mem:_ ~addr ~exp:_ _ _ unsafe =
-              if is_safe_index addr then unsafe
-              else addr :: unsafe
-          end) (bil_of_block blk))
 
-  let modifies_sp_in_the_middle ~bound entry =
-    let exits =
-      dfs ~bound entry |> Seq.filter ~f:(fun blk ->
-          Seq.length_is_bounded_by ~max:1 (dfs ~bound blk)) |>
-      Seq.to_list_rev |> Block.Set.of_list in
-    dfs ~bound entry |>
-    Seq.exists ~f:(fun blk ->
-        not Block.(blk = entry || Set.mem exits blk) &&
-        Bil.exists (object
-          inherit [unit] Bil.finder
-          method move var _ find =
-            if defines_stack var then
-              find.return (Some ());
-            find
-        end) (bil_of_block blk))
+  let collect_unsafe sub =
+    Term.enum blk_t sub |> Seq.fold ~init:[] ~f:(fun unsafe blk ->
+        Term.enum def_t blk |>
+        Seq.fold ~init:unsafe ~f:(fun unsafe def ->
+            Exp.fold ~init:unsafe (object
+              inherit [exp list] Bil.visitor
+              method! enter_store ~mem:_ ~addr ~exp:_ _ _ unsafe =
+                if is_safe_index addr then unsafe
+                else addr :: unsafe
+            end) (Def.rhs def)))
 end
 
 let stub_names = [".plt"; "__symbol_stub"; "__picsymbol_stub"]
+
+let entry_of_sub proj sub =
+  Term.first blk_t sub >>= fun entry ->
+  Term.get_attr entry Disasm.block >>=
+  Table.find_addr (Disasm.blocks (Project.disasm proj)) >>| fst
+
 
 let main argv proj =
   Cmdline.eval argv;
   let arch = Project.arch proj in
   let module Target = (val target_of_arch arch) in
   let module Main = Main(Target) in
-  let syms = Project.symbols proj in
-  let is_plt entry =
-    Memmap.dominators (Project.memory proj) (Block.memory entry) |>
+  let prog = Project.program proj in
+  let is_plt mem =
+    Memmap.dominators (Project.memory proj) mem |>
     Seq.exists ~f:(fun (_,tag) -> match Value.get Image.section tag with
         | Some name -> List.mem stub_names name
         | None -> false) in
-  let annotate fn proj : project =
-    let bound = unstage (Symtab.create_bound syms fn) in
-    let entry = Symtab.entry_of_fn fn in
-    let sym = Symtab.name_of_fn fn in
-    let mark = match Main.collect_unsafe ~bound entry with
-      | [] when Main.modifies_sp_in_the_middle ~bound entry ->
-        print_string (yellow sym);
-        `yellow
+  let annotate sub mem : project =
+    let sym = Sub.name sub in
+    let mark = match Main.collect_unsafe sub with
       | [] -> print_string (green sym); `green
-      | _  -> print_string (red sym); `red in
-    Project.tag_memory proj (Block.memory entry) color mark in
-  Symtab.to_sequence syms |> Seq.fold ~init:proj ~f:(fun proj fn ->
-      if is_plt (Symtab.entry_of_fn fn) then proj
-      else annotate fn proj)
+      | exps  -> print_string (red sym); `red in
+    Project.tag_memory proj mem color mark in
+  Term.enum sub_t prog |> Seq.fold ~init:proj ~f:(fun proj sub ->
+      match entry_of_sub proj sub with
+      | None -> proj
+      | Some entry when is_plt entry -> proj
+      | Some entry -> annotate sub entry)
 
 let () = Project.register_pass_with_args "staticstore" main
