@@ -20,6 +20,11 @@ module Memory(Target : Target) = struct
 
   type t = G.t
 
+  type value =
+    | Bot                       (* nothing *)
+    | Val of exp                (* constant *)
+    | Top                       (* any *)
+
   let add_edge g src dst lbl =
     let x, y = Var.(version src, version dst) in
     G.Edge.(insert (create x y lbl) g)
@@ -47,32 +52,38 @@ module Memory(Target : Target) = struct
     Seq.fold ~init:G.empty ~f:(fun g blk ->
         insert_phis (insert_defs g blk) blk)
 
-  let tainting = function
+  let protected _ = false
+
+  let taints write_addr read_addr = match write_addr with
     | Bil.Int _  -> false
     | _ -> true
 
-  let protected _ = false
+
+  let join x xs =
+    List.fold_left xs ~init:x ~f:(fun x y -> match x,y with
+        | Bot,_ | _,Bot -> Bot
+        | Top,x | x,Top -> x
+        | Val x, Val y -> if Exp.(x = y) then Val x else Bot)
 
   let lookup g mem addr =
     let visited = Int.Hash_set.create () in
     let rec search node =
-      if Hash_set.mem visited node then None
-      else
-        let () = Hash_set.add visited node in
-        match Seq.to_list_rev (G.Node.inputs node g) with
-        | [] -> None
-        | [x] -> single x
-        | x :: xs -> multi x xs
-    and single edge = match G.Edge.label edge with
-      | Some c when Exp.equal c.addr addr -> Some c.data
-      | Some {addr=a} when tainting a && not (protected a) -> None
-      | _ -> search (G.Edge.src edge)
+      match Seq.to_list_rev (G.Node.inputs node g) with
+      | [] -> Top
+      | [x] -> single x
+      | x :: xs -> multi x xs
+    and single edge =
+      let next = G.Edge.src edge in
+      match G.Edge.label edge with
+      | Some c when Exp.equal c.addr addr -> Val c.data
+      | Some {addr=a} when taints a addr -> Bot
+      | lbl when Hash_set.mem visited next -> Top
+      | _ -> Hash_set.add visited next; search next
     and multi edge edges =
-      let x = single edge in
-      let xs = List.map edges ~f:(single) in
-      if List.for_all xs ~f:(Option.equal Exp.equal x)
-      then x else None in
-    search (Var.version mem)
+      join (single edge) (List.map edges ~f:single) in
+    match search (Var.version mem) with
+    | Val x -> Some x
+    | _ -> None
 
 end
 
