@@ -94,35 +94,21 @@ module Cmdline = struct
 
 end
 
-module Main(Target : Target) = struct
-  open Target.CPU
-
-  let defines_stack var = is_sp var || is_bp var
-
-  let is_safe_index exp = (object
-    inherit [bool] Bil.visitor
-    method! enter_load ~mem:_ ~addr _ _ r =
-      r && match addr with
-      | Bil.Int _ -> true
-      | Bil.BinOp (_,Bil.Var var, Bil.Int _) ->
-        defines_stack var
-      | _ -> false
-    method! enter_special _ _ = false
-    method! enter_var var r = r && defines_stack var
-  end)#visit_exp exp true
+let is_safe = function
+  | Bil.Int _ -> true
+  | _ -> false
 
 
-  let collect_unsafe sub =
-    Term.enum blk_t sub |> Seq.fold ~init:[] ~f:(fun unsafe blk ->
-        Term.enum def_t blk |>
-        Seq.fold ~init:unsafe ~f:(fun unsafe def ->
-            Exp.fold ~init:unsafe (object
-              inherit [exp list] Bil.visitor
-              method! enter_store ~mem:_ ~addr ~exp:_ _ _ unsafe =
-                if is_safe_index addr then unsafe
-                else addr :: unsafe
-            end) (Def.rhs def)))
-end
+let collect_unsafe sub =
+  Term.enum blk_t sub |> Seq.fold ~init:[] ~f:(fun unsafe blk ->
+      Term.enum def_t blk |>
+      Seq.fold ~init:unsafe ~f:(fun unsafe def ->
+          Exp.fold ~init:unsafe (object
+            inherit [exp list] Bil.visitor
+            method! enter_store ~mem:_ ~addr ~exp:_ _ _ unsafe =
+              if is_safe addr then unsafe
+              else addr :: unsafe
+          end) (Def.rhs def)))
 
 let stub_names = [".plt"; "__symbol_stub"; "__picsymbol_stub"]
 
@@ -136,7 +122,6 @@ let main argv proj =
   Cmdline.eval argv;
   let arch = Project.arch proj in
   let module Target = (val target_of_arch arch) in
-  let module Main = Main(Target) in
   let prog = Project.program proj in
   let is_plt mem =
     Memmap.dominators (Project.memory proj) mem |>
@@ -145,7 +130,7 @@ let main argv proj =
         | None -> false) in
   let annotate sub mem : project =
     let sym = Sub.name sub in
-    let mark = match Main.collect_unsafe sub with
+    let mark = match collect_unsafe sub with
       | [] -> print_string (green sym); `green
       | exps  -> print_string (red sym); `red in
     Project.tag_memory proj mem color mark in
