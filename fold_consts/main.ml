@@ -24,6 +24,61 @@ let will_substitute = function
 let substitute sub lhs rhs =
   Term.map blk_t sub ~f:(fun blk -> Blk.substitute blk lhs rhs)
 
+
+let mem_elt_size arch =
+  let module Target = (val target_of_arch arch) in
+  match Var.typ Target.CPU.mem with
+  | Type.Imm _ -> assert false
+  | Type.Mem (_,s) -> s
+
+let clobbers blk =
+  Term.enum jmp_t blk |> Seq.exists ~f:(fun jmp ->
+      match Jmp.kind jmp with
+      | Call _ | Int _ -> true
+      | Goto (Indirect _) -> true
+      | _ -> false)
+
+let succs blk =
+  Term.enum jmp_t blk |> Seq.filter_map ~f:(fun jmp ->
+      match Jmp.kind jmp with
+      | Goto (Direct tid) | Int (_,tid) -> Some tid
+      | Goto _ | Ret _ -> None
+      | Call call -> match Call.return call with
+        | Some (Direct tid) -> Some tid
+        | _ -> None)
+
+let clobber_blk arch blk =
+  let module Target = (val target_of_arch arch) in
+  Set.fold Target.CPU.gpr ~init:blk ~f:(fun blk var ->
+      let typ = Var.typ var in
+      Def.create var Bil.(unknown "clobberred by call" typ) |>
+      Term.prepend def_t blk)
+
+let clobber_sub arch sub =
+  if Sub.is_ssa sub then
+    invalid_arg "Input must be in non SSA form";
+  let module Target = (val target_of_arch arch) in
+  let addr_t = Type.Imm (Size.to_bits (Arch.addr_size arch)) in
+  let data_t = Type.Imm (Size.to_bits (mem_elt_size arch)) in
+  let undef_mem =
+    let exp = Bil.unknown "clobbered by call" data_t in
+    let en = Arch.endian arch in
+    let addr = Bil.(unknown "any addr" addr_t) in
+    let lhs = Target.CPU.mem in
+    let mem = Bil.var lhs in
+    let rhs = Bil.store ~mem ~addr exp en (mem_elt_size arch) in
+    Def.create lhs rhs in
+  let clobbered =
+    Term.enum blk_t sub |>
+    Seq.fold ~init:Tid.Set.empty ~f:(fun set blk ->
+        if clobbers blk then
+          Seq.fold (succs blk) ~init:set ~f:Set.add else set) in
+  Term.enum blk_t sub |> Seq.fold ~init:sub ~f:(fun sub blk ->
+      if Set.mem clobbered (Term.tid blk) then
+        let blk = Term.prepend def_t blk undef_mem in
+        Term.update blk_t sub (clobber_blk arch blk)
+      else sub)
+
 let propagate_consts simpl sub =
   let prop sub =
     Term.enum blk_t sub |> Seq.fold ~init:sub ~f:(fun sub blk ->
@@ -42,9 +97,7 @@ let propagate_consts simpl sub =
 let get_sp_base make_addr proj =
   match options.fix_sp with
   | None -> None
-  | Some (Some addr) ->
-    eprintf "Making address from string:\n%!";
-    Some (make_addr (Int64.of_string addr))
+  | Some (Some addr) -> Some (make_addr (Int64.of_string addr))
   | Some None ->
     match Memmap.max_binding (Project.memory proj) with
     | None -> Some (make_addr stack_offset)
@@ -65,6 +118,7 @@ let run proj =
   let is_mem = Target.CPU.is_mem in
   let prog = Project.program proj |>
              Term.map sub_t ~f:(fun sub ->
+                 let sub = Sub.ssa (clobber_sub arch sub) in
                  let mem = Memdep.create is_mem sub in
                  let lookup = Memdep.lookup mem in
                  let simpl = simpl lookup in

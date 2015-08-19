@@ -86,3 +86,5 @@ let graph_of_list = List.fold ~init:G.empty ~f:(fun g blk ->
     G.Node.(insert (create blk) g))
 
 let dom = Graphlib.dominators (module G) g (G.Node.create entry)
+
+let sub = Sub.ssa sub

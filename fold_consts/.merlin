@@ -1,3 +1,5 @@
 PKG bap
 PKG cmdliner
 B _build
+EXT nonrec
+FLG -short-paths
