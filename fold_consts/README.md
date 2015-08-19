@@ -22,3 +22,12 @@ usually not followed by compilers.
 
 Plugin will also dereference memory access that points to statically
 known read-only memory regions.
+
+# Usage
+
+```sh
+$ make
+$ bap -lfold_consts /bin/true
+```
+
+See run with `--fold-consts-help` to get more documentation.
