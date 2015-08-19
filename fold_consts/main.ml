@@ -26,17 +26,10 @@ let substitute sub lhs rhs =
   Term.map blk_t sub ~f:(fun blk -> Blk.substitute blk lhs rhs)
 
 let clobbers blk =
-  Term.enum jmp_t blk |> Seq.exists ~f:(fun jmp ->
-      match Jmp.kind jmp with
-      | Call _ | Int _ -> true
-      | Goto (Indirect _) -> true
-      | _ -> false)
-
-let succs blk =
   Term.enum jmp_t blk |> Seq.filter_map ~f:(fun jmp ->
       match Jmp.kind jmp with
-      | Goto (Direct tid) | Int (_,tid) -> Some tid
       | Goto _ | Ret _ -> None
+      | Int (_,tid) -> Some tid
       | Call call -> match Call.return call with
         | Some (Direct tid) -> Some tid
         | _ -> None)
@@ -69,8 +62,7 @@ let clobber_sub arch sub =
   let clobbered =
     Term.enum blk_t sub |>
     Seq.fold ~init:Tid.Set.empty ~f:(fun set blk ->
-        if clobbers blk then
-          Seq.fold (succs blk) ~init:set ~f:Set.add else set) in
+        Seq.fold (clobbers blk) ~init:set ~f:Set.add) in
   let globals = globals sub in
   Term.enum blk_t sub |> Seq.fold ~init:sub ~f:(fun sub blk ->
       if Set.mem clobbered (Term.tid blk) then
