@@ -66,9 +66,19 @@ let insert_defs is_mem g blk =
         | _ -> g
       else g)
 
-let create is_mem sub =
+let create_const memory =
+  Memmap.to_sequence memory |>
+  Seq.fold ~init:Memmap.empty ~f:(fun consts (mem,tag) ->
+      match Value.get Image.segment tag with
+      | Some seg when Image.Segment.is_writable seg -> consts
+      | Some seg when Image.Segment.is_readable seg ->
+        Memmap.add consts mem ()
+      | _ -> consts)
+
+let create ?(memory = Memmap.empty) is_mem sub =
+  let const = create_const memory in
   Term.enum blk_t sub |>
-  Seq.fold ~init:empty ~f:(fun m blk ->
+  Seq.fold ~init:{empty with const} ~f:(fun m blk ->
       insert_phis is_mem (insert_defs is_mem m blk) blk)
 
 let protected _ = false
