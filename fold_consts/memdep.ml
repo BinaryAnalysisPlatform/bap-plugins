@@ -1,5 +1,6 @@
 open Core_kernel.Std
 open Bap.Std
+open Utils
 
 type change = {addr : exp; data : exp} with compare
 type range = Set of Exp.Set.t | All with compare
@@ -28,12 +29,14 @@ end
 module G = Graphlib.Make(Int)(Label)
 
 type t = {
+  arch : arch;
   graph : G.t;
   const : unit memmap;
   mutab : unit memmap;
 }
 
-let empty = {
+let empty arch = {
+  arch;
   graph = G.empty;
   const = Memmap.empty;
   mutab = Memmap.empty;
@@ -75,10 +78,13 @@ let create_const memory =
         Memmap.add consts mem ()
       | _ -> consts)
 
-let create ?(memory = Memmap.empty) is_mem sub =
+let create ?(memory = Memmap.empty) arch sub =
+  let module Target = (val target_of_arch arch) in
+  let is_mem = Target.CPU.is_mem in
   let const = create_const memory in
+  let init = {(empty arch) with const} in
   Term.enum blk_t sub |>
-  Seq.fold ~init:{empty with const} ~f:(fun m blk ->
+  Seq.fold ~init ~f:(fun m blk ->
       insert_phis is_mem (insert_defs is_mem m blk) blk)
 
 let protected _ = false
@@ -93,7 +99,7 @@ let join x xs =
       | Top,x | x,Top -> x
       | Val x, Val y -> if Exp.(x = y) then Val x else Bot)
 
-let lookup m var addr =
+let lookup_graph m var addr =
   let visited = Int.Hash_set.create () in
   let rec search node =
     match Seq.to_list_rev (G.Node.inputs node m.graph) with
@@ -115,16 +121,20 @@ let lookup m var addr =
   | _ -> None
 
 
-(* let memdep_of_sub proj name = *)
-(*   let arch = Project.arch proj in *)
-(*   let module Target = (val target_of_arch arch) in *)
-(*   let is_mem = Target.CPU.is_mem in *)
-(*   Term.enum sub_t (Project.program proj) |> *)
-(*   Seq.find ~f:(fun sub -> Sub.name sub = name) |> function *)
-(*   | None -> None *)
-(*   | Some sub -> Some (create is_mem (Sub.ssa sub)) *)
+(* todo: instead of using default word size, we can try to infer
+   argument type, based on generated dependency graph. *)
+let lookup_const m addr =
+  match addr with
+  | Bil.Int addr ->
+    let scale = mem_elt_size m.arch in
+    Memmap.lookup m.const addr |> Seq.find_map ~f:(fun (mem,_) ->
+        match Memory.get ~scale ~addr mem with
+        | Error _ -> None
+        | Ok word -> Some (Bil.Int word))
+  | _ -> None
 
 
-(* let Some g = *)
-(*   let proj = Project.from_file "strconcat" |> ok_exn in *)
-(*   memdep_of_sub proj "strcpy" *)
+let lookup m var addr =
+  match lookup_const m addr with
+  | None -> lookup_graph m var addr
+  | x -> x
