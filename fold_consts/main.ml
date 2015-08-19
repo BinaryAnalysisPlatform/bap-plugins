@@ -1,6 +1,7 @@
 open Core_kernel.Std
 open Bap.Std
 open Parameters
+open Utils
 
 let stack_offset = 0x40000000L
 
@@ -23,13 +24,6 @@ let will_substitute = function
 
 let substitute sub lhs rhs =
   Term.map blk_t sub ~f:(fun blk -> Blk.substitute blk lhs rhs)
-
-
-let mem_elt_size arch =
-  let module Target = (val target_of_arch arch) in
-  match Var.typ Target.CPU.mem with
-  | Type.Imm _ -> assert false
-  | Type.Mem (_,s) -> s
 
 let clobbers blk =
   Term.enum jmp_t blk |> Seq.exists ~f:(fun jmp ->
@@ -115,14 +109,13 @@ let run proj =
     | None -> ident
     | Some sp -> fun sub ->
       substitute sub Bil.(var Target.CPU.sp) (Bil.Int sp) in
-  let is_mem = Target.CPU.is_mem in
   let prog = Project.program proj |>
              Term.map sub_t ~f:(fun sub ->
                  let sub = Sub.ssa (clobber_sub arch sub) in
                  let memory = match options.resolve_loads with
                    | `no -> None
                    | `ro | `rw -> Some (Project.memory proj) in
-                 let mem = Memdep.create ?memory is_mem sub in
+                 let mem = Memdep.create ?memory arch sub in
                  let lookup = Memdep.lookup mem in
                  let simpl = simpl lookup in
                  propagate_consts simpl @@
