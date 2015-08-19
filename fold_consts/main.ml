@@ -41,12 +41,16 @@ let succs blk =
         | Some (Direct tid) -> Some tid
         | _ -> None)
 
-let clobber_blk arch blk =
+let clobber_blk globs arch blk =
   let module Target = (val target_of_arch arch) in
-  Set.fold Target.CPU.gpr ~init:blk ~f:(fun blk var ->
+  Set.fold (Set.inter Target.CPU.gpr globs) ~init:blk ~f:(fun blk var ->
       let typ = Var.typ var in
       Def.create var Bil.(unknown "clobberred_by_call" typ) |>
       Term.prepend def_t blk)
+
+let globals sub =
+  Term.enum blk_t sub |> Seq.fold ~init:Var.Set.empty ~f:(fun vs blk ->
+      Set.union vs (Blk.free_vars blk))
 
 let clobber_sub arch sub =
   if Sub.is_ssa sub then
@@ -67,10 +71,11 @@ let clobber_sub arch sub =
     Seq.fold ~init:Tid.Set.empty ~f:(fun set blk ->
         if clobbers blk then
           Seq.fold (succs blk) ~init:set ~f:Set.add else set) in
+  let globals = globals sub in
   Term.enum blk_t sub |> Seq.fold ~init:sub ~f:(fun sub blk ->
       if Set.mem clobbered (Term.tid blk) then
         let blk = Term.prepend def_t blk undef_mem in
-        Term.update blk_t sub (clobber_blk arch blk)
+        Term.update blk_t sub (clobber_blk globals arch blk)
       else sub)
 
 let propagate_consts simpl sub =
