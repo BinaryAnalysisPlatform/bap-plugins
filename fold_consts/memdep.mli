@@ -2,11 +2,12 @@ open Bap.Std
 
 type t
 
+(** [create ?memory arch sub] computes a memory model of a given
+    subroutine [sub]. If static memory is provided, then it will
+    be used to resolve memory accesses.*)
 val create : ?memory:value memmap -> arch -> sub term -> t
 
 
-(** [lookup model mem]   *)
-val lookup : t -> var -> exp -> exp option
-(* TODO: looks like that we may need to provide more information, or
-   provide two function: as to read from memory we need to know type.
-*)
+(** [load model ~mem ~addr endian size] statically evaluates
+    with respect to a computed memory [model].*)
+val load : t -> mem:exp -> addr:exp -> endian -> size -> exp option

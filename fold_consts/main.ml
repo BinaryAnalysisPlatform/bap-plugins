@@ -9,10 +9,9 @@ let simpl_load lookup =
   Exp.map (object(self)
     inherit Bil.mapper as super
     method! map_load ~mem ~addr endian size =
-      let default = super#map_load ~mem ~addr endian size in
-      match mem with
-      | Bil.Var mem -> Option.value (lookup mem addr) ~default
-      | exp -> self#map_exp exp
+      match lookup ~mem ~addr endian size with
+      | None -> super#map_load ~mem ~addr endian size
+      | Some exp -> exp
   end)
 
 let simpl lookup =
@@ -113,7 +112,7 @@ let run proj =
                    | `no -> None
                    | `ro | `rw -> Some (Project.memory proj) in
                  let mem = Memdep.create ?memory arch sub in
-                 let lookup = Memdep.lookup mem in
+                 let lookup = Memdep.load mem in
                  let simpl = simpl lookup in
                  propagate_consts simpl @@
                  substitute_sp sub) in
