@@ -1,4 +1,6 @@
 PKG core_kernel
 PKG bap
 PKG cmdliner
+PKG x86_lifter
+PKG shingled_disassembler
 FLG -short-paths

@@ -1,0 +1,48 @@
+OASISFormat: 0.4
+Name:        shingled_disassembler
+Version:     0.1
+Synopsis:    A conservative lifter that treats every byte offset as a possible instruction, possibly lifting for an image.
+Authors:     Kenneth Adam Miller <kennethadammiller@gmail.com>
+Maintainers: Kenneth Adam Miller <kennethadammiller@gmail.com>
+License:     MIT
+Plugins:     META (0.4)
+AlphaFeatures: ocamlbuild_more_args
+BuildTools: ocamlbuild, camlp4o
+XOCamlbuildExtraArgs: -j 5
+BuildDepends:
+              bin_prot.syntax,
+              camlp4,
+              comparelib.syntax,
+              core_kernel,
+              enumerate.syntax,
+              faillib.syntax,
+              fieldslib.syntax,
+              herelib.syntax,
+              pa_ounit.syntax,
+              sexplib.syntax,
+              variantslib.syntax
+
+Library shingled_disassembler
+  Path:           .
+  Install:        true
+  Modules:	  Image_lifter, Conservative_disasm, Mem, Encoder, Lifted_image_piqi
+  CompiledObject: best
+  BuildDepends:   core_kernel, bap, bap.plugins, bap.serialization, cmdliner, piqirun, piqilib, threads
+
+Executable test_disasm
+  Path:           unit_tests
+  MainIs:         test_disasm.ml
+  Install:        false
+  BuildDepends:   core_kernel, bap, bap.plugins, bap.serialization, cmdliner, piqirun, piqilib, threads, x86_lifter, oUnit
+  CompiledObject: best
+
+Executable test_sizes
+  Path:         unit_tests
+  MainIs:       test_sizes.ml
+  Install:      false
+  BuildDepends: core_kernel, bap, bap.plugins, bap.serialization, cmdliner, piqirun, piqilib, threads, objsize, x86_lifter, oUnit
+  CompiledObject: best
+
+Test unit_tests
+  TestTools: run_tests
+  Command: $run_tests

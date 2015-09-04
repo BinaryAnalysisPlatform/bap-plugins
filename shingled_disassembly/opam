@@ -1,0 +1,47 @@
+opam-version: "1.2"
+name: "shingled_disassembler"
+version: "master"
+maintainer: "Kenneth Adam Miller <kennethadammiller@gmail.com>"
+authors: "Kenneth Adam Miller <kennethadammiller@gmail.com>"
+homepage: "https://github.com/KennethAdamMiller/bap-plugins"
+bug-reports: "https://github.com/ivg/KennethAdamMiller/bap-plugins/issues"
+dev-repo: "git://github.com/KennethAdamMiller/bap-plugins/"
+license: "MIT"
+build: [
+  [make]
+]
+
+install: [
+  [make "install"]
+]
+
+remove: [
+  ["ocamlfind" "remove" "shingled_disassembler"]
+  ["rm" "-rf" "%{prefix}%/share/shingled_disassembler"]
+]
+
+depends: [
+    "bap"
+]
+
+depexts: [
+    [["ubuntu"] [
+        "libgmp-dev"
+        "libzip-dev"
+        "libcurl4-gnutls-dev"
+        "llvm-3.4-dev"
+        "time"
+        "clang"
+        "llvm"
+        "m4"
+     ]]
+     [["osx" "macports"] [
+        "gmp"
+        "llvm-3.4"
+        "graphviz"
+        "curl"
+        "libzip"
+     ]
+    ]
+]
+available: [ocaml-version >= "4.01.0"]
