@@ -126,8 +126,16 @@ let create ~entry ~bound ~interior ~boundary ~direction =
   let address_map = Address.Map.empty in
   (* Temporary fix for BAP bug *)
   let blocks = Seq.force_eagerly @@ match direction with
-    | Forwards -> Block.dfs ~bound entry
-    | Backwards -> Block.dfs ~next:Block.preds ~bound entry in
+    | Forwards ->
+      let block_graph = Block.to_graph ~bound entry in
+      Graphlib.depth_first_search (module Block.Graph)
+        ~enter_node:(fun _ node acc -> node ^:: acc)
+        ~init:Seq.empty block_graph
+    | Backwards ->
+      let block_graph = Block.to_graph ~bound entry in
+      Graphlib.depth_first_search (module Block.Graph) ~rev:true
+        ~enter_node:(fun _ node acc -> node ^:: acc)
+        ~init:Seq.empty block_graph in
   Seq.iter blocks ~f:(fun block ->
       let initial =
         if Block.(block = (Seq.hd_exn blocks)) then boundary else interior in
