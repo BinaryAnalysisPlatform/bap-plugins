@@ -24,6 +24,10 @@ host ::= call | exp | host, host | host .. host
 cure ::= '' | call | cure \| cure | cure -> cure | (cure)
 call ::= exp = name(args) | name(args)
 args ::= exp | exp = int | args, args | ''
+name ::= iden | addr | term
+iden ::= *C identifier*
+addr ::= *hex number*
+term ::= *term identifier*
 exp ::= var | var[int]
 var ::= *CPU register* | $int | $SP | $? | $*
 int ::= *integer*

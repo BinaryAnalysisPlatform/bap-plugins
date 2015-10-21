@@ -11,10 +11,10 @@ class ['a] main k p = object
 end
 
 
-let to_result (ctxt : #main_context) =
+let compute_result (ctxt : #context)  =
   let checked = ctxt#sanitized in
   let all_taints = ctxt#all_taints in
   let maybe = Set.diff all_taints checked in
   let live = ctxt#live_taints in
   let dead = Set.diff maybe live in
-  checked, Set.inter maybe live, dead
+  `Cured checked, `Uncured (Set.inter maybe live), `Dead dead
