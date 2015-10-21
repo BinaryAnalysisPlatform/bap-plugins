@@ -96,4 +96,13 @@ class context = object(self)
     Set.union (collect_taints tvs) (collect_taints tas)
 end
 
+let compute_result (ctxt : #context)  =
+  let checked = ctxt#sanitized in
+  let all_taints = ctxt#all_taints in
+  let maybe = Set.diff all_taints checked in
+  let live = ctxt#live_taints in
+  let dead = Set.diff maybe live in
+  `Cured checked, `Uncured (Set.inter maybe live), `Dead dead
+
+
 include Taint

@@ -26,3 +26,8 @@ class context :  object('s)
   method all_taints  : taints
   method live_taints : taints
 end
+
+val compute_result : #context ->
+  [`Cured of taints] *
+  [`Uncured of taints] *
+  [`Dead of taints]
