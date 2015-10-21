@@ -1,13 +1,11 @@
 open Core_kernel.Std
 open Bap.Std
 
-class with_jmp p = object
-  inherit context
-  inherit Biri.context p
-end
+module SM = Monad.State
+open SM.Monad_infix
 
-class ['a] with_jmp = object(self)
-  constraint 'a = #context
+class ['a] jmp = object(self)
+  constraint 'a = #Taint.context
   constraint 'a = #Biri.context
   inherit ['a] biri as super
   method! eval_jmp jmp =
