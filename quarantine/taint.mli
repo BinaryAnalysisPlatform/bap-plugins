@@ -13,6 +13,7 @@ val host : t -> host
 
 val term : t -> tid
 
+val pp_taints : Format.formatter -> taints -> unit
 
 class context :  object('s)
   inherit Expi.context

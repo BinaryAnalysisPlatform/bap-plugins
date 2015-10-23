@@ -5,6 +5,8 @@ open Spec_types
 module SM = Monad.State
 open SM.Monad_infix
 
+open Format
+
 let def_summary _ = None
 let def_mapping _ = None
 let def_const = Word.zero 8
@@ -15,7 +17,7 @@ let calls_of_spec spec =
       | _ -> None)
 
 let same_ident ctxt tid = function
-  | `Name s -> Tid.name tid = s
+  | `Name s -> Tid.name tid = "@"^s
   | `Term t -> Tid.(tid = t)
   | `Addr a -> failwith "Host as addr is not implemented"
 
@@ -25,12 +27,7 @@ let pass () = SM.return true
 let def_summary call = match Call.target call with
   | Indirect _ -> None
   | Direct tid -> match Tid.name tid with
-    | "@malloc" ->
-      eprintf "Summarizing!!!\n%!";
-      Some []
-    | s ->
-      eprintf "Not summarizing %s\n%!" s;
-      None
+    | s -> None
 
 class context p k  = object(self)
   val k = k
@@ -49,6 +46,15 @@ class context p k  = object(self)
 
 end
 
+let pp_bindings ppf bs =
+  Seq.iter bs ~f:(fun (x,v) ->
+      fprintf ppf "%a = %a;@;" Var.pp x Bil.Result.pp v)
+
+let print_taints ts =
+  eprintf "@[taints = {@;";
+  Set.iter ts ~f:(eprintf "%a@;" Taint.pp);
+  eprintf "}@;@]"
+
 class ['a] main summary tid_of_addr const hosts spec = object(self)
   constraint 'a = #context
   inherit ['a] biri as super
@@ -56,13 +62,21 @@ class ['a] main summary tid_of_addr const hosts spec = object(self)
   method! eval_unknown _ t = self#emit t
 
   method! lookup v =
-    super#lookup v >>= fun r -> match Bil.Result.value r with
+    super#lookup v >>= fun r ->
+    SM.get () >>= fun ctxt ->
+    match Bil.Result.value r with
     | Bil.Imm _ | Bil.Mem _ -> SM.return r
     | Bil.Bot -> self#emit (Var.typ v)
 
   method! load s a =
-    self#concretize_load s a >>=
-    self#propagate_load a
+    self#concretize_load s a
+
+  method! eval_load ~mem ~addr e s =
+    super#eval_load ~mem ~addr e s >>= fun r ->
+    self#eval_exp addr >>| Bil.Result.value >>= function
+    | Bil.Bot | Bil.Mem _ -> SM.return r
+    | Bil.Imm a ->
+      self#propagate_load a r
 
   method! eval_binop op e1 e2 =
     super#eval_binop op e1 e2 >>= self#eval2 e1 e2
@@ -76,7 +90,7 @@ class ['a] main summary tid_of_addr const hosts spec = object(self)
     super#eval_extract n1 n2 e >>= self#eval e
 
   method! eval_store ~mem ~addr v e s =
-    super#eval_exp v >>= fun rv ->
+    self#eval_exp v >>= fun rv ->
     super#eval_store ~mem ~addr v e s >>= fun rr ->
     self#eval_exp addr >>| Bil.Result.value >>= function
     | Bil.Bot | Bil.Mem _ -> SM.return rr
@@ -100,34 +114,25 @@ class ['a] main summary tid_of_addr const hosts spec = object(self)
     self#taint_call call
 
   method! eval_indirect exp =
-    super#eval_exp exp >>| Bil.Result.value >>= function
+    self#eval_exp exp >>| Bil.Result.value >>= function
     | Bil.Bot | Bil.Mem _ -> SM.return ()
     | Bil.Imm dst -> match tid_of_addr dst with
-      | Some dst -> super#eval_direct dst
+      | Some dst -> self#eval_direct dst
       | None ->
         SM.get () >>= fun ctxt -> match ctxt#pop_restore with
         | None -> super#eval_indirect exp
         | Some (next,ctxt) ->
-          eprintf "at %a restoring to %a\n%!"
-            Tid.ppo (List.hd_exn ctxt#trace) Tid.ppo next;
-          SM.put ctxt >>= fun () -> super#eval_direct next
+          SM.put ctxt >>= fun () -> self#eval_direct next
 
   method private sanitize_jmp jmp =
-    super#eval_exp (Jmp.cond jmp) >>= fun r ->
+    self#eval_exp (Jmp.cond jmp) >>= fun r ->
     SM.get () >>= fun ctxt ->
-    SM.put (ctxt#sanitize r) >>= fun () ->
-    super#eval_jmp jmp
-
-  method private taint_call call =
-    super#eval_call call >>= fun () ->
-    List.fold hosts ~init:(SM.return ()) ~f:(fun m host ->
-        m >>= fun () -> self#eval_host host call) >>= fun () ->
-    SM.return ()
+    SM.put (ctxt#sanitize r)
 
   method private eval_host (name,args) call  =
     SM.get () >>= fun ctxt -> match Call.target call with
     | Indirect _ -> SM.return ()
-    | Direct tid when same_ident ctxt tid name -> SM.return ()
+    | Direct tid when not(same_ident ctxt tid name) -> SM.return ()
     | Direct tid ->
       let args = if args = [] then [`Var `Ret,None] else args in
       List.fold  args ~init:(SM.return ())
@@ -154,14 +159,14 @@ class ['a] main summary tid_of_addr const hosts spec = object(self)
       SM.put (ctxt#taint_val x (Taint.Set.singleton taint))
 
   method private eval2 e1 e2 r3 =
-    super#eval_exp e1 >>= fun r1 ->
-    super#eval_exp e2 >>= fun r2 ->
+    self#eval_exp e1 >>= fun r1 ->
+    self#eval_exp e2 >>= fun r2 ->
     self#propagate r1 r3 >>= fun () ->
     self#propagate r2 r3 >>= fun () ->
     SM.return r3
 
   method private eval e rr =
-    super#eval_exp e >>= fun re ->
+    self#eval_exp e >>= fun re ->
     self#propagate re rr >>= fun () ->
     SM.return rr
 
@@ -188,7 +193,6 @@ class ['a] main summary tid_of_addr const hosts spec = object(self)
     SM.put ctxt >>= fun () ->
     SM.return r
 
-
   method private concretize_load s a =
     super#load s a >>= fun r -> match Bil.Result.value r with
     | Bil.Imm _ | Bil.Mem _ -> SM.return r
@@ -198,6 +202,11 @@ class ['a] main summary tid_of_addr const hosts spec = object(self)
     SM.get () >>= fun ctxt ->
     SM.put (ctxt#taint_val r (ctxt#mem_taints addr)) >>= fun () ->
     SM.return r
+
+  method private taint_call call =
+    List.fold hosts ~init:(SM.return ()) ~f:(fun m host ->
+        m >>= fun () -> self#eval_host host call) >>= fun () ->
+    SM.return ()
 
   method private shortcut_indirect call =
     match Call.target call with
@@ -213,7 +222,6 @@ class ['a] main summary tid_of_addr const hosts spec = object(self)
       SM.get () >>= fun ctxt ->
       SM.put (ctxt#set_restore ret) >>= fun () ->
       super#eval_call call
-
 
   method private summarize_call call =
     let create f =

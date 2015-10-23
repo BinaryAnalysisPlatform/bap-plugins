@@ -22,8 +22,8 @@ let main proj =
   let prog = Project.program proj in
   let ctxt = Main.run prog k spec point in
   let r = Taint.compute_result ctxt in
-  print_trace (List.rev ctxt#trace);
   print_result r
+(* print_trace (List.rev ctxt#trace); *)
 
 
 let () = Project.register_pass' "quarantine" main

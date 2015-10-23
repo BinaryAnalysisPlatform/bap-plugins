@@ -96,6 +96,10 @@ class context = object(self)
     Set.union (collect_taints tvs) (collect_taints tas)
 end
 
+let pp_taints ppf taints =
+  Taint.Set.iter taints ~f:(Format.fprintf ppf "%a@." Taint.pp)
+
+
 let compute_result (ctxt : #context)  =
   let checked = ctxt#sanitized in
   let all_taints = ctxt#all_taints in
