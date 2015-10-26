@@ -174,7 +174,6 @@ class ['a] main summary tid_of_addr const hosts spec = object(self)
     SM.get () >>= fun ctxt ->
     SM.put (ctxt#taint_val rr (ctxt#val_taints rd))
 
-
   method private emit t =
     match t with
     | Type.Imm sz -> self#emit_const sz

@@ -18,7 +18,7 @@ module Taint = Regular.Make(struct
     open Format
 
     let rec pp ppf t =
-      fprintf ppf "%a:%a" Tid.pp t.term pp_host t.host
+      fprintf ppf "%a@%a" pp_host t.host Tid.pp t.term
     and pp_call ppf (id,_) = match id with
       | `Name n -> fprintf ppf "%s" n
       | `Term t -> Tid.pp ppf t
