@@ -7,7 +7,7 @@ let compile =
   "$(arch)-$(abi)-$(cc)-$(ver) $opt -g $(file).c -o $(dir)$(file)"
 
 let bap =
-  "bap $(options) $(dir)$(file) $(ida) $(symfile) -l$(plugin)"
+  "bap $(options) $(dir)$(file) $(ida) $(symfile) $(plugin)"
 
 let test_folder = "/tmp/bap/tests/"
 
@@ -21,7 +21,7 @@ let subst = [
   "options", "";
   "ida", "";
   "symfile", "";
-  "plugin", "quarantine";
+  "plugin", "";
 
 ]
 
@@ -59,7 +59,9 @@ let sh cmd =
     raise (Command_failed cmd)
 
 let dump_syms f =
-  expand (sprintf "--use-ida --dump-symbols=$(dir)%s.syms" f) subst
+  expand (sprintf "--use-ida --dump-symbols=$(dir)%s.syms \
+                   -dbir > $(dir)%s.bir"  f f) subst
+
 let with_syms f =
   expand (sprintf "--syms=$(dir)%s.syms" @@ chop_extension f) subst
 
@@ -70,16 +72,23 @@ let build_file file =
                       subst
 
 let mtime file =
-  let file = expand (sprintf "$(dir)%s" file) subst in
+  let file = expand (sprintf "%s" file) subst in
   try Unix.((stat file).st_mtime) with exn -> Float.nan
 
-let pipe_bap file =
+let needs_rebuild f =
+  let s =
+    expand (sprintf "$(dir)%s.syms" @@ chop_extension f) subst in
+  mtime f > mtime s
+
+let pipe_bap plugin file =
   sh @@ expand "mkdir -p $(dir)$(file)" @@
   ["file", dirname file] @ subst;
-  if mtime file <> mtime (chop_extension file ^ ".syms")
-  then build_file file;
-  pipe @@ expand bap @@ ["file", chop_extension file;
-                         "symfile", with_syms file] @ subst
+  if needs_rebuild file then build_file file;
+  pipe @@ expand bap @@ [
+    "file", chop_extension file;
+    "symfile", with_syms file;
+    "options", sprintf "-l%s" plugin] @
+    subst
 
 let print_result ~exp ~got =
   printf "Expected:\n";
@@ -87,26 +96,32 @@ let print_result ~exp ~got =
   printf "Got:\n";
   Set.iter ~f:print_endline got
 
-let ok file =
+let ok plugin file =
   let exp = expected_results file in
-  let got = String.Set.of_list (pipe_bap file) in
+  let got = String.Set.of_list (pipe_bap plugin file) in
   if verbose <> "0" then print_result ~exp ~got;
   Set.equal exp got
 
-let check file =
+let check plugin file =
   if file <> Sys.argv.(0) then
-    let r = ok file in
+    let r = ok plugin file in
     if r
-    then printf "%-40s%s\n" file "ok"
-    else printf "%-40s%s\n" file "fail";
+    then printf "%-40s%s\n%!" file "ok"
+    else printf "%-40s%s\n%!" file "fail";
     not r
   else false
 
-let run () =
-  Array.count Sys.argv ~f:check |> function
+let run plugin files =
+  List.count files ~f:(check plugin) |> function
   | 0 -> printf "all ok\n"; exit 0
   | 1 -> printf "one failure\n"; exit 1
   | n -> printf "%d failures\n" n; exit 1
 
+let main () =
+  match Array.to_list Sys.argv with
+  | _ :: plugin :: files -> run plugin files
+  | _ ->
+    eprintf "Usage: bapbuild test.native -- <plugin> <file1> <file2> .. ";
+    exit 3
 
-let () = run ()
+let () = main ()
