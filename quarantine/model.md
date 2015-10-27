@@ -195,7 +195,7 @@ int r = read(data, BUFSIZ);
 
 if (strncmp(data, "password", 8) == 0) {
     char *cmd[BUFSIZ];
-    sprintf("sh %s", &data[8]);
+    sprintf(cmd, "sh %s", &data[8]);
     system(cmd);
 }
 ```
@@ -210,7 +210,7 @@ define user_can_control_stack ::=
 
 x(r0) = read()
 (p=SP)[y] := x
----------------------- :: when_SP_depends_on_user
+---------------------- :: when_SP_depends_on_user_input
 y -> x
 ```
 
