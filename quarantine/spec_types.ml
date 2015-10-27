@@ -1,47 +1,87 @@
 open Core_kernel.Std
 open Bap.Std
 
-type var = [
-  | `Reg of Var.t
-  | `Pos of int
-  | `Ret
-  | `All
-] with bin_io, compare, sexp
+module Id = String
 
-
-type exp = [
-  | `Var of var
-  | `Mem of var * int
-] with bin_io, compare, sexp
-
-
-type arg = exp * word option
+type id = Id.t
 with bin_io, compare, sexp
 
-type args = arg list
+
+module Constr = struct
+  type t = {
+    exp : exp;
+    value : word option
+  } with bin_io, compare, sexp, fields
+end
+
+type constr = Constr.t
 with bin_io, compare, sexp
 
-type ident = [
-  | `Addr of addr
-  | `Name of string
-  | `Term of tid
-] with bin_io, compare, sexp
 
-type call = ident * args
+module V = struct
+  type t = {
+    id : id;
+    constr : constr option
+  } with bin_io, compare, fields, sexp
+end
+
+type v = V.t with bin_io, compare, sexp
+
+module E = struct
+  type t =
+    | Reg of v
+    | Ptr of v * v
+  with bin_io, compare, sexp, variants
+end
+
+type e = E.t
 with bin_io, compare, sexp
 
-type cure = [
-  | `Any of cure * cure
-  | `Seq of cure * cure
-  | `Call of call
-] with bin_io, compare, sexp
+module P = struct
+  type t = {
+    base : v;
+    off  : v;
+  } with bin_io, compare, fields, sexp
+end
 
-
-type host = [
-  | `Call of call
-  | `Read of exp
-  | `Seq of host * host
-] with bin_io, compare, sexp
-
-type spec = (host * cure option) list
+type p = P.t
 with bin_io, compare, sexp
+
+module Rule = struct
+  type t =
+    | Pred of id * v list
+    | Call of id * e list * e list
+    | Jump of v * v
+    | Move of v * v
+    | Load of v * p
+    | Store of v * p
+    | Dep of v * v
+  with bin_io, compare, sexp, variants
+end
+
+type rule = Rule.t
+with bin_io, compare, sexp
+
+module Judgement = struct
+  type t = {
+    name : string;
+    premises : rule list;
+    conclusion : rule list;
+  } with bin_io, compare, fields, sexp
+end
+
+type judgement = Judgement.t
+with bin_io, compare, sexp
+
+module Definition = struct
+  type t = {
+    name : string;
+    judgements : judgement list
+  } with bin_io, compare, fields, sexp
+
+end
+
+type definition = Definition.t
+with bin_io, compare, sexp
+
+type spec = definition list

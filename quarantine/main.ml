@@ -1,6 +1,5 @@
 open Core_kernel.Std
 open Bap.Std
-open Spec_types
 
 module SM = Monad.State
 open SM.Monad_infix
@@ -43,7 +42,6 @@ class context p k  = object(self)
   method pop_restore = match cps with
     | [] -> None
     | c :: cps -> Some (c, {< cps = cps >})
-
 end
 
 let pp_bindings ppf bs =
@@ -75,8 +73,7 @@ class ['a] main summary tid_of_addr const hosts spec = object(self)
     super#eval_load ~mem ~addr e s >>= fun r ->
     self#eval_exp addr >>| Bil.Result.value >>= function
     | Bil.Bot | Bil.Mem _ -> SM.return r
-    | Bil.Imm a ->
-      self#propagate_load a r
+    | Bil.Imm a -> self#propagate_load a r
 
   method! eval_binop op e1 e2 =
     super#eval_binop op e1 e2 >>= self#eval2 e1 e2

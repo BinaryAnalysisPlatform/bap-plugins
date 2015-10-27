@@ -97,15 +97,15 @@ judgements ::= '' | judgement judgements
 judgement  ::= rules over rules
 rules      ::= '' | rule | rule newline rules
 rule       ::= call | move | jump | pred | term | var -> var
-call       ::= arg = ident(args) | [args1] = name(args2)
-move       ::= var := arg | v1[v2] := v3
-term       ::= term(args)
+call       ::= exp = ident(exps) | [exps1] = name(exps2)
+move       ::= var := exp | v1[v2] := v3
+term       ::= term(exps)
 jump       ::= when v1 jmp v2
 pred       ::= ident(var)
-args       ::= arg | arg , args | ''
-arg,a      ::= var | v1[v2]
+exps       ::= exp | exp , exps | ''
+exp,e      ::= var | v1[v2]
 var,v      ::= ident | ident(constr)
-constr     ::= exp | exp = word.
+constr     ::= ident | ident = word.
 over       ::= -----------------... :: ident
 ```
 
