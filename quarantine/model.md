@@ -2,24 +2,23 @@
 
 It is observed that a wide range of problems can be modeled, using a
 simple set of inference rules if we enrich our language with a
-proposition of form `y -> x`, that denotes that variable `y` depends
+proposition of form `y / x`, that denotes that variable `y` depends
 on variable `x`. This proposition can be solved either with a static
 dataflow engine, a concrete or symbolic execution engine, or
 by observing a dynamic behavior of real system. As long as a system
-can provide an answer for `y -> x` problem, it can be used as a
+can provide an answer for `y / x` problem, it can be used as a
 backend engine for a generic solver procedure.
 
 Definition: a variable `y` depends on variable `x`, denoted as
-`y -> x`, if changing the value of variable `x` affects the value
+`y / x`, if changing the value of variable `x` affects the value
 of variable `y`.
 
-Definition: in `y -> x` the `x` is independent (input) variable, and
+Definition: in `y / x` the `x` is independent (input) variable, and
 `y` is a dependent (output) variable.
 
 We observe a system behavior by asking a backend dataflow engine a set
-of questions of the form `y -> x`. We describe a model a system with a
-set of mutual recursive definitions, where each definition is an
-inference rule. If all rules are satisfied, then a system is
+of questions of the form `y / x`. We define a model of a system
+with a set of inference rules. If all rules are satisfied, then a system is
 recognized by our model, so we can expect a corresponding
 behavior. For example, if we described a model named `malloc_is_safe`
 that defines a set of rules, that we expect to hold for systems that
@@ -32,59 +31,46 @@ recognized by our model, then it contains a backdoor.
 
 An inference rule (or judgement) is a logical form that consists of a
 set of premises and a set of conclusions. Premises and conclusions are
-logical propositions, that are defined by a `rule` grammar. Other than
-already mentioned dependce rule of a form `var -> var`, it has
-syntactic rules that matches terms an IR representation of a
-program. For example,
+logical propositions, that are defined by a `rule` grammar. Each
+proposition consists of pattern and a set of constraints. Pattern will
+match with a term, if all constraints are satisfied, e.g,
 
 ```
-when c jump x
+v := x[y], when x = SP
 ```
 
-matches (i.e., holds, evaluates to true) for any term of `jmp` kind.
-It also binds condition expression to a `c` variable, and jump
-destination to `x`. The bounded variables can be used in dependcy
-rules as input or output variables. Rules cannot bind the same
-variables (since we cannot establish equalities between them).
+matches (i.e., holds, evaluates to true) for any load operation, from
+SP based address.
 
-Other than bounding a varible, a rule can constraint it, to some BIL
-expression:
+Variables, bounded by a pattern, may be used in other rules:
 ```
-p(R0) = malloc(n(R0))
+p := malloc(n), p = R0, n = R0
+when c jmp x, p / c
 ```
 
-Here, variable `p` is constrained to a value stored in register `R0`
-after a call to `malloc`, and variable `n` is constrained to value
-stored in `R0` before the call. All input variables (variables that
-are used as independent variables in some dependency rule), must be
-constrained. If an output variable is constrainted, then a rule will
-match only if bound expression is syntactically equal to a constraint
-(modulo variable versioning).
-
-Bounded variables, can be used in dependency rules, e.g.,
+Each judgement consists of a set of premises. If all premises hold,
+then all conclusions must hold also. If it doesn't then system doesn't
+match the model.
 
 ```
-p(R0) = malloc()
-when c jmp x
------------------ :: xxx
-c -> x
+p := malloc(), p = R0
+--------------------- :: when_checked
+when c jmp x, p / c
 ```
 
 This rule defines that a condition of some jump expression must depend
 on the value returned from `malloc`.
 
-We also allow a user to specify uninterpreted functions in our
-rules. This rules maps to a predicate functions, and allows a user to
-extend the model with arbitrary facts. For example, `is_red(v)` can be
-defined as a function that returns `true` if term has `color` attribute
-equal to `red`, e.g.:
+We also allow a user to specify an uninterpreted function as a
+constraint. They maps to a user provided functions allows a user to
+extend the model with arbitrary facts. For example, `is_red` can be
+defined as a function that returns `true` if term has `color`
+attribute equal to `red`, e.g.:
 
 ```
-x := v
-is_red(v)
-malloc(y(R0))
--------------- :: red_sinks_into_malloc
-y -> x
+x := v, is_red
+-------------------- :: red_sinks_into_malloc
+malloc(y), y/x, y=R0
 ```
 
 See Examples section for more.
@@ -92,79 +78,60 @@ See Examples section for more.
 # Grammar
 
 ```
-model      ::= define ident ::= judgements
-judgements ::= '' | judgement judgements
+model      ::= define ident ::= judgement,.., judgement
 judgement  ::= rules over rules
-rules      ::= '' | rule | rule newline rules
-rule       ::= call | move | jump | pred | term | var -> var
-call       ::= exp = ident(exps) | [exps1] = name(exps2)
-move       ::= var := exp | v1[v2] := v3
-term       ::= term(exps)
-jump       ::= when v1 jmp v2
-pred       ::= ident(var)
-exps       ::= exp | exp , exps | ''
-exp,e      ::= var | v1[v2]
-var,v      ::= ident | ident(constr)
-constr     ::= ident | ident = word.
-over       ::= -----------------... :: ident
+rules      ::= rule \n..\n rule
+rule       ::= patt , cons
+patt       ::= call | move | jump | wild
+cons       ::= v1 / v2 | v = id | v = word | v1,..,vn
+call       ::= e1,..,en := id(e1,..,en) | id(e1,..,en)
+move       ::= v := v1[v2] | v := v' | v1[v2] := v3
+jump       ::= when v1 jmp_kind v2
+wild       ::= var
+pred       ::= id | id(v1, v2,.., vn)
+jmp_kind   ::= call, goto, ret, jmp
+var,v      ::= id
+ident,id   ::= ?string identifier?
+over       ::= --..-- :: ident
 ```
-
-Conclusion `y -> x` implies that:
-
-1. `x` is an independent variable, bound by one or more rule in
-   premise.
-2. `y` is a variable that must depend on `x`.
-
-
 
 # Examples
 
 ## Unchecked malloc
 
 A simpliest model, asserting that each malloc is checked can be
-specified by a following two rules:
+specified by a following definition:
 
 ```
 define malloc_is_safe ::=
 
-p(r0) = malloc()
---------------------- :: if_jmp_exists
-when c goto e
-
-
-p(r0) = malloc()
-when c goto e
---------------------- :: if_jmp_depends
-c -> p
+p := malloc(), p = R0
+--------------------- :: if_some_jmp_depends
+when c jmp e, c / p
 ```
 
 We can strengthen our model, by a more sophisticated definition, that
 require a mallocated pointer to be checked only if it is used, in that
-case we need to add one more premise to both rules:
+case we need to extend one premises with one more rule:
 
 ```
 define malloc_is_safe ::=
 
-p(r0) = malloc()
-term(q)
-q -> p
---------------------- :: if_used_and_jmp_exists
-when c goto e
-
-p(r0) = malloc()
-term(q)
-q -> p
-when c goto e
---------------------- :: if_used_and_jmp_depends
-c -> p
+p := malloc(), p = R0
+t, t / p
+--------------------- :: if_used_and_some_jmp_depends
+when c jmp e, c / p
 ```
 
-Note: here we used `term(q)` rule that matches all terms and binds all
-free variables in it to variable `q`.
-
-This rule will require `c -> p` property to hold iff there exists a
+This rule will require `c / p` property to hold iff there exists a
 load operation with a pointer that depends on a pointer, that was
-returned from malloc (i.e., `q -> p` holds).
+returned from malloc (i.e., `q / p` holds).
+
+Note: here we used a wildcard `t` rule that matches all terms and
+binds all free variables in it to variable `t`. Basically, `t, t/p`
+can be read as "there exists such term that has a free variable,
+depending on p"
+
 
 ## Magic problem
 
@@ -172,12 +139,10 @@ returned from malloc (i.e., `q -> p` holds).
 ```
 define magic_door_exists ::=
 
-is_magic(p)
-x(r0) = read()
-when c goto d
-c -> x
-------------------- :: when_magic_meets_user_input
-c -> p
+p := v, is_magic(v)
+x := read(), x = R0
+---------------------------- :: when_magic_meets_user_input
+when c jmp d, c / x, c / p
 ```
 
 
@@ -188,7 +153,7 @@ condition depends on a magical value and, at the same time, depends on
 the user input, then a backdoor may exist. (At least a program matches
 with our model of a backdoor).
 
-Example of a backdoor:
+Example of a backdoor, that matches this model:
 
 ```c
 int r = read(data, BUFSIZ);
@@ -208,16 +173,28 @@ values on stack:
 ```
 define user_can_control_stack ::=
 
-x(r0) = read()
-(p=SP)[y] := x
----------------------- :: when_SP_depends_on_user_input
-y -> x
+x = read(), x = R0
+------------------------ :: when_SP_depends_on_user_input
+p[y] := z, y / x, p = SP
 ```
+
+
+## SQL sanitization
+
+```
+define user_input_sanitized_before_exec ::=
+
+x = read(), x = R0
+sql_exec(y), y/x, y = R0
+------------------------------ :: if_sql_exec_is_called
+sql_sanitize(z), z/x, y/z, z=R0
+```
+
 
 
 # Three value logic
 
-In general the proposition of form `y -> x` is not a true logic
+In general the proposition of form `y / x` is not a true logic
 proposition, as we can have three answers to this question:
 
 - T (true)  - `y` must depend on `x`.
