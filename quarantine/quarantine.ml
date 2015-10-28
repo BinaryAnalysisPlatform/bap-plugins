@@ -1,11 +1,10 @@
 open Core_kernel.Std
 open Bap.Std
-open Spec_types
 open Format
 
 let k = 100
-let point : ident = `Name "main"
-let spec : spec = [`Call (`Name "malloc",[`Var (`Reg ARM.CPU.r0),None]),None]
+let point = `Name "main"
+let spec = [`Call (`Name "malloc",[`Var (`Reg ARM.CPU.r0),None]),None]
 
 let pp_taints c ppf taints =
   Taint.Set.iter taints ~f:(fprintf ppf "%c:%a@." c Taint.pp)

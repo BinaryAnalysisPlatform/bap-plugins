@@ -18,9 +18,13 @@ module E : sig
   include Regular with type t := t
 end
 
+module Ptr : sig
+  include module type of Ptr with type t = Ptr.t
+  include Regular with type t := t
+end
 
-module P : sig
-  include module type of P with type t = P.t
+module Pat : sig
+  include module type of Pat with type t = Pat.t
   include Regular with type t := t
 end
 

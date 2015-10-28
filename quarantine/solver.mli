@@ -4,19 +4,11 @@ open Spec_types
 
 type t
 
-type input
 
 val create : spec -> t
 
-val mark_inputs : t -> program term -> program term
+val seed_sub : t -> sub term -> sub term
 
-val input : input tag
+val seed_program : t -> program term -> program term
 
-module Input : sig
-  type t = input
-
-  val definition : t -> definition
-  val judgement : t -> judgement
-  val var : t -> v
-  include Regular with type t := t
-end
+val seed : tid tag

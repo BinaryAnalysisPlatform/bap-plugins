@@ -42,11 +42,15 @@ v := x[y], when x = SP
 matches (i.e., holds, evaluates to true) for any load operation, from
 SP based address.
 
-Variables, bounded by a pattern, may be used in other rules:
+A scope of a variables, bounded by a pattern, is the whole judgement,
+so it may be used in other rules of the same judgement:
+
 ```
 p := malloc(n), p = R0, n = R0
 when c jmp x, p / c
 ```
+
+Each pattern must bind different variables.
 
 Each judgement consists of a set of premises. If all premises hold,
 then all conclusions must hold also. If it doesn't then system doesn't
@@ -85,11 +89,12 @@ rule       ::= patt , cons
 patt       ::= call | move | jump | wild
 cons       ::= v1 / v2 | v = id | v = word | v1,..,vn
 call       ::= e1,..,en := id(e1,..,en) | id(e1,..,en)
-move       ::= v := v1[v2] | v := v' | v1[v2] := v3
+move       ::= v := exp | v1[v2] := v3
 jump       ::= when v1 jmp_kind v2
 wild       ::= var
 pred       ::= id | id(v1, v2,.., vn)
-jmp_kind   ::= call, goto, ret, jmp
+jmp_kind   ::= call, goto, ret, exn, jmp
+exp,e      ::= var | v1[v2]
 var,v      ::= id
 ident,id   ::= ?string identifier?
 over       ::= --..-- :: ident
