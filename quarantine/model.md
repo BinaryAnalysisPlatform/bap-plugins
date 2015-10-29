@@ -36,7 +36,7 @@ proposition consists of pattern and a set of constraints. Pattern will
 match with a term, if all constraints are satisfied, e.g,
 
 ```
-v := x[y], when x = SP
+v := x, v = SP
 ```
 
 matches (i.e., holds, evaluates to true) for any load operation, from
@@ -89,12 +89,12 @@ rule       ::= patt , cons
 patt       ::= call | move | jump | wild
 cons       ::= v1 / v2 | v = id | v = word | v1,..,vn
 call       ::= e1,..,en := id(e1,..,en) | id(e1,..,en)
-move       ::= v := exp | v1[v2] := v3
+move       ::= v := exp | *v1 := v2
 jump       ::= when v1 jmp_kind v2
 wild       ::= var
 pred       ::= id | id(v1, v2,.., vn)
 jmp_kind   ::= call, goto, ret, exn, jmp
-exp,e      ::= var | v1[v2]
+exp,e      ::= var | *var
 var,v      ::= id
 ident,id   ::= ?string identifier?
 over       ::= --..-- :: ident
@@ -137,6 +137,27 @@ binds all free variables in it to variable `t`. Basically, `t, t/p`
 can be read as "there exists such term that has a free variable,
 depending on p"
 
+However, this model still allows programs, that are unsafe, in
+particular, it allows programs, that checks pointer after use, not
+before. We may try to constraint our system furthermore,
+
+```
+define malloc_is_safe ::= # not a valid formula
+
+p := malloc(), p = R0
+*r := x, r / p
+--------------------- :: if_used_and_some_jmp_depends
+when c jmp e, r / c
+```
+
+The rule, looks correct, as it constains the system, so that the use
+must always depend on the jump. But this rule is malformed, since
+constraint `r/c` require `c` variable to be defined somewhere, i.e.,
+there should exist a patter, where `c` occurs to the left of `:=`
+symbol. But here `c` is bound inside the jump condition. Since, `c` is
+never defined, we cannot observe it.
+
+So such precision is not supported by our formalism.
 
 ## Magic problem
 
@@ -179,20 +200,55 @@ values on stack:
 define user_can_control_stack ::=
 
 x = read(), x = R0
------------------------- :: when_SP_depends_on_user_input
-p[y] := z, y / x, p = SP
+s = y, s = SP
+--------------------- :: when_SP_depends_on_user_input
+*p := z, p / x, p / s
 ```
 
+```
+define cmdline_can_control_stack ::=
+
+s = y, s = SP, in_main
+x = *r, r / s, in_main
+--------------------- :: when_SP_depends_on_main_argument
+*p := z, p / x
+```
+
+```
+define stack_is_guarded ::=
+
+s = y, s = SP
+*p = x, p / s
+-------------------- :: when_sp_is_checked_before_write
+when c jmp to, c / p
+```
 
 ## SQL sanitization
 
-```
-define user_input_sanitized_before_exec ::=
+We may assert that data obtained from the outside world will never
+reach `sql_exec` function, without being sanitized with `sql_escape`
+function, with the following definition:
 
-x = read(), x = R0
-sql_exec(y), y/x, y = R0
------------------------------- :: if_sql_exec_is_called
-sql_sanitize(z), z/x, y/z, z=R0
+
+```
+define sql_exec_is_safe ::=
+
+x := read(), x = R0
+sql_exec(p), p/x, p = R0
+------------------------------ :: if_user_input_is_sanitized
+z := sql_escape(y), y/x, p/z
+```
+
+We can actually, make it even stonger, by stating that any pointer
+should be passed through sanitization procedure, before execution.
+
+```
+define sql_exec_is_safe ::=
+
+x := u
+sql_exec(p), p/x, p = R0
+------------------------------ :: if_input_is_sanitized
+z := sql_escape(y), y/x, p/z
 ```
 
 
