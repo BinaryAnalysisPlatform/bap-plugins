@@ -4,10 +4,9 @@ open Format
 
 let k = 100
 let point = `Name "main"
-let spec = [`Call (`Name "malloc",[`Var (`Reg ARM.CPU.r0),None]),None]
 
 let pp_taints c ppf taints =
-  Taint.Set.iter taints ~f:(fprintf ppf "%c:%a@." c Taint.pp)
+  Tid.Set.iter taints ~f:(fprintf ppf "%c:%a@." c Tid.pp)
 
 let print_result (`Cured c, `Uncured u, `Dead d) =
   printf "%a" (pp_taints 'c') c;
@@ -19,10 +18,8 @@ let print_trace trace =
 
 let main proj =
   let prog = Project.program proj in
-  let ctxt = Main.run prog k spec point in
-  let r = Taint.compute_result ctxt in
-  print_result r
-(* print_trace (List.rev ctxt#trace); *)
+  let ctxt = Main.run prog k point in
+  print_trace (List.rev ctxt#trace)
 
 
 let () = Project.register_pass' "quarantine" main

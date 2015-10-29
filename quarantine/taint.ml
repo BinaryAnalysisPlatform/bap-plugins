@@ -2,51 +2,22 @@ open Core_kernel.Std
 open Bap.Std
 open Spec_types
 
+module SM = Monad.State
+open SM.Monad_infix
 
-type taint = {
-  term : tid;
-  host : host;
-} with bin_io, compare, sexp, fields
-
-let create host term = {host; term}
-
-module Taint = Regular.Make(struct
-    type t = taint with compare, bin_io, sexp
-    let hash t = Tid.hash t.term
-    let module_name = Some "Taint"
-
-    open Format
-
-    let rec pp ppf t =
-      fprintf ppf "%a@%a" pp_host t.host Tid.pp t.term
-    and pp_call ppf (id,_) = match id with
-      | `Name n -> fprintf ppf "%s" n
-      | `Term t -> Tid.pp ppf t
-      | `Addr a -> Addr.pp ppf a
-    and pp_read ppf = function
-      | `Var v -> pp_var ppf v
-      | `Mem e -> pp_mem ppf e
-    and pp_seq ppf (h1,h2) =
-      fprintf ppf "%a..%a" pp_host h1 pp_host h2
-    and pp_host ppf = function
-      | `Call c -> pp_call ppf c
-      | `Read e -> pp_read ppf e
-      | `Seq s  -> pp_seq ppf s
-    and pp_mem ppf (v,n) = fprintf ppf "%a[%d]" pp_var v n
-    and pp_var ppf = function
-      | `Reg v -> Var.pp ppf v
-      | `Pos n -> fprintf ppf "$%d" n
-      | `Ret   -> fprintf ppf "$?"
-      | `All   -> fprintf ppf "$*"
-  end)
-
-
-type t = taint
-type taints = Taint.Set.t
+module Taint = Tid
 module Taints = Taint.Set
 module Values = Bil.Result.Id.Map
+
+
+
+type taint = Taint.t with bin_io, compare, sexp
+type t = taint
+type taints = Taint.Set.t
 type 'a values = 'a Values.t
 
+
+let create = ident
 
 let get_taints from key = match Map.find from key with
   | None -> Taints.empty
@@ -57,19 +28,15 @@ let collect_taints =
       Set.union ts ts')
 
 class context = object(self)
-  inherit Expi.context
   val tvs : taints values = Values.empty
   val tas : taints Addr.Map.t = Addr.Map.empty
-  val san : taints = Taints.empty
-  val tot : taints = Taints.empty
 
   (** T(r) <- T(r) U T *)
   method taint_val r ts =
     let tvs' = Values.change tvs (Bil.Result.id r) @@ function
       | None -> Some ts
       | Some ts' -> Some (Taints.union ts ts') in
-    let tot' = Taints.union tot ts in
-    {< tvs = tvs'; tot = tot' >}
+    {< tvs = tvs' >}
 
   method taint_mem a (s : size) ts =
     let addrs = Seq.init (Size.to_bytes s) ~f:(fun n -> Addr.(a++n)) in
@@ -83,16 +50,7 @@ class context = object(self)
   method val_taints r = get_taints tvs (Bil.Result.id r)
   method mem_taints r = get_taints tas r
 
-  (** T := T \ T(v)  *)
-  method sanitize r =
-    let ts = self#val_taints r in
-    let clean = Map.map  ~f:(fun ts' -> Taints.diff ts' ts) in
-    {< tvs = clean tvs; tas = clean tas; san = Set.union ts san >}
-
-  method sanitized = san
-  method all_taints = tot
-
-  method live_taints =
+  method taints =
     Set.union (collect_taints tvs) (collect_taints tas)
 end
 
@@ -100,13 +58,55 @@ let pp_taints ppf taints =
   Taint.Set.iter taints ~f:(Format.fprintf ppf "%a@." Taint.pp)
 
 
-let compute_result (ctxt : #context)  =
-  let checked = ctxt#sanitized in
-  let all_taints = ctxt#all_taints in
-  let maybe = Set.diff all_taints checked in
-  let live = ctxt#live_taints in
-  let dead = Set.diff maybe live in
-  `Cured checked, `Uncured (Set.inter maybe live), `Dead dead
+
+class ['a] propagator = object(self)
+  constraint 'a = #context
+  inherit ['a] expi as super
+
+  method! eval_binop op e1 e2 =
+    super#eval_binop op e1 e2 >>= self#eval2 e1 e2
+  method! eval_unop op e =
+    super#eval_unop op e >>= self#eval e
+  method! eval_cast ct n e =
+    super#eval_cast ct n e >>= self#eval e
+  method! eval_concat e1 e2 =
+    super#eval_concat e1 e2 >>= self#eval2 e1 e2
+  method! eval_extract n1 n2 e =
+    super#eval_extract n1 n2 e >>= self#eval e
+
+  method! eval_store ~mem ~addr v e s =
+    self#eval_exp v >>= fun rv ->
+    super#eval_store ~mem ~addr v e s >>= fun rr ->
+    self#eval_exp addr >>| Bil.Result.value >>= function
+    | Bil.Bot | Bil.Mem _ -> SM.return rr
+    | Bil.Imm a ->
+      SM.get () >>= fun ctxt ->
+      SM.put (ctxt#taint_mem a s (ctxt#val_taints rv)) >>= fun () ->
+      SM.return rr
+
+  method! eval_load ~mem ~addr e s =
+    super#eval_load ~mem ~addr e s >>= fun r ->
+    super#eval_exp addr >>| Bil.Result.value >>= function
+    | Bil.Bot | Bil.Mem _ -> SM.return r
+    | Bil.Imm a ->
+      SM.get () >>= fun ctxt ->
+      SM.put (ctxt#taint_val r (ctxt#mem_taints a)) >>= fun () ->
+      SM.return r
 
 
-include Taint
+  method private eval2 e1 e2 r3 =
+    self#eval_exp e1 >>= fun r1 ->
+    self#eval_exp e2 >>= fun r2 ->
+    self#propagate r1 r3 >>= fun () ->
+    self#propagate r2 r3 >>= fun () ->
+    SM.return r3
+
+  method private eval e rr =
+    self#eval_exp e >>= fun re ->
+    self#propagate re rr >>= fun () ->
+    SM.return rr
+
+  method private propagate rd rr =
+    SM.get () >>= fun ctxt ->
+    SM.put (ctxt#taint_val rr (ctxt#val_taints rd))
+end
