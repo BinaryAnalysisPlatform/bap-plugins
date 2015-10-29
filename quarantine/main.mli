@@ -11,6 +11,7 @@ class context : program term -> int -> object('s)
     method pop_restore : (tid * 's) option
 
     method taint_var : tid -> var -> Bil.result -> 's
+    method taints_of_term : tid -> taints Var.Map.t
     method taints_of_var : tid -> var -> taints
   end
 

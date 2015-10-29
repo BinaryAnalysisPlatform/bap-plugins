@@ -48,6 +48,12 @@ class context p k  = object(self)
             | Some ts' -> Some (Set.union ts ts'))) in
     {< tv = tv >}
 
+
+  method taints_of_term tid =
+    Map.find tv tid |> function
+    | None -> Var.Map.empty
+    | Some ts -> ts
+
   method taints_of_var tid v =
     Option.(Map.find tv tid >>= fun vs -> Map.find vs v) |> function
     | None -> Tid.Set.empty
@@ -110,7 +116,7 @@ class ['a] main summary tid_of_addr const = object(self)
           SM.put ctxt >>= fun () -> self#eval_direct next
 
   method eval_def def =
-    match Term.get_attr def Solver.seed with
+    match Term.get_attr def Taint.seed with
     | None -> super#eval_def def
     | Some seed ->
       SM.get () >>= fun ctxt ->

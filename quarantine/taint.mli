@@ -9,6 +9,10 @@ type taints = Tid.Set.t
 
 val pp_taints : Format.formatter -> taints -> unit
 
+val seed : t tag
+
+val vars : taints Var.Map.t tag
+
 class context :  object('s)
   method taint_val : Bil.result -> taints -> 's
   method taint_mem : addr -> size -> taints -> 's

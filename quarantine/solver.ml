@@ -8,10 +8,6 @@ type t = spec
 
 let create = ident
 
-let seed = Value.Tag.register
-    ~name:"seed"
-    ~uuid:"1ab9a363-db8f-4ab4-9fb4-5ff54de97c5c"
-    (module Tid)
 
 let input_of_constr = function
   | Constr.Dep (_,v) -> Some v
@@ -56,7 +52,7 @@ let def_of_cons v cons =
   | Some x, None -> Some (unknown_of_var "undefined after call" x)
   | _ -> None
 
-let self_seed t = Term.set_attr t seed (Term.tid t)
+let self_seed t = Term.set_attr t Taint.seed (Term.tid t)
 
 let insert_seeds vars cons v blk =
   if Set.mem vars v then match def_of_cons v cons with
@@ -123,5 +119,5 @@ let seed_sub (spec : t) sub =
       Term.enum jmp_t blk |> Seq.fold ~init:sub ~f:(fun sub jmp ->
           fold_judgements spec ~init:sub ~f:(seed_jmp jmp)))
 
-let seed_program spec prog =
+let seed spec prog =
   Term.map sub_t prog ~f:(seed_sub spec)

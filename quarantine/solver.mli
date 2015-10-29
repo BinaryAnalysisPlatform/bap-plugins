@@ -9,6 +9,4 @@ val create : spec -> t
 
 val seed_sub : t -> sub term -> sub term
 
-val seed_program : t -> program term -> program term
-
-val seed : tid tag
+val seed : t -> program term -> program term

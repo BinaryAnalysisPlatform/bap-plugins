@@ -13,8 +13,30 @@ module Values = Bil.Result.Id.Map
 
 type taint = Taint.t with bin_io, compare, sexp
 type t = taint
-type taints = Taint.Set.t
+type taints = Taint.Set.t with bin_io, compare, sexp
 type 'a values = 'a Values.t
+
+
+let seed = Value.Tag.register
+    ~name:"taint_seed"
+    ~uuid:"1ab9a363-db8f-4ab4-9fb4-5ff54de97c5c"
+    (module Tid)
+
+module Tainted_vars = struct
+  type t = taints Var.Map.t with bin_io, compare, sexp
+  include Regular.Make(struct
+      type nonrec t = t with bin_io, compare, sexp
+      let module_name = None
+      let pp ppf t = ()
+      let hash = Hashtbl.hash
+    end)
+end
+
+
+let vars : taints Var.Map.t tag = Value.Tag.register
+    ~name:"taint_vars"
+    ~uuid:"03c90a60-e19f-43cc-8049-fdeb23973396"
+    (module Tainted_vars)
 
 
 let create = ident
