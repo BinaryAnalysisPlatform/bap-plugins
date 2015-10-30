@@ -1,6 +1,5 @@
 open Core_kernel.Std
 open Bap.Std
-open Spec_types
 
 module SM = Monad.State
 open SM.Monad_infix
@@ -9,13 +8,10 @@ module Taint = Tid
 module Taints = Taint.Set
 module Values = Bil.Result.Id.Map
 
-
-
 type taint = Taint.t with bin_io, compare, sexp
 type t = taint
 type taints = Taint.Set.t with bin_io, compare, sexp
 type 'a values = 'a Values.t
-
 
 let seed = Value.Tag.register
     ~name:"taint_seed"
@@ -32,12 +28,10 @@ module Tainted_vars = struct
     end)
 end
 
-
 let vars : taints Var.Map.t tag = Value.Tag.register
     ~name:"taint_vars"
     ~uuid:"03c90a60-e19f-43cc-8049-fdeb23973396"
     (module Tainted_vars)
-
 
 let create = ident
 
@@ -79,8 +73,6 @@ end
 let pp_taints ppf taints =
   Taint.Set.iter taints ~f:(Format.fprintf ppf "%a@." Taint.pp)
 
-
-
 class ['a] propagator = object(self)
   constraint 'a = #context
   inherit ['a] expi as super
@@ -114,7 +106,6 @@ class ['a] propagator = object(self)
       SM.get () >>= fun ctxt ->
       SM.put (ctxt#taint_val r (ctxt#mem_taints a)) >>= fun () ->
       SM.return r
-
 
   method private eval2 e1 e2 r3 =
     self#eval_exp e1 >>= fun r1 ->

@@ -1,7 +1,8 @@
 open Core_kernel.Std
 open Bap.Std
 open Format
-
+open Spec
+open Specification
 let k = 100
 let point = `Name "main"
 
@@ -50,7 +51,7 @@ let marker_of_markers markers =
     List.fold markers ~init:t ~f:(fun t {mark} -> mark t) in
   {mark}
 
-let mark_terms prog {mark}  =
+let mark_terms {mark} prog  =
   Term.map sub_t prog ~f:(fun sub ->
       mark sub |>
       Term.map arg_t ~f:mark |>
@@ -60,21 +61,21 @@ let mark_terms prog {mark}  =
           Term.map def_t ~f:mark |>
           Term.map jmp_t ~f:mark))
 
-(* fix SP at the start it will help alot *)
-(* but still R11 should be equal to 4 or something like this *)
-
 let main proj =
-  let prog = Project.program proj in
-  let src1 = seed (Tid.from_string_exn "%151") in
-  let prog = mark_terms prog src1 in
-  let proj = Project.with_program proj prog in
+  eprintf "Specification:@.@.%a" Spec.pp spec;
+  let s = Solver.create spec in
+  let proj =
+    Project.program proj |>
+    Solver.seed s |>
+    Project.with_program proj in
   let ctxt = Main.run proj k point in
   let mark = marker_of_markers [
       mark_if_visited ctxt;
       mark_if_tainted ctxt;
       if_seeded;
     ] in
-  let prog = mark_terms prog mark in
-  Project.with_program proj prog
+  Project.program proj |>
+  mark_terms mark |>
+  Project.with_program proj
 
 let () = Project.register_pass "quarantine" main

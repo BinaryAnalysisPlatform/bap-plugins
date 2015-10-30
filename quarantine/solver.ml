@@ -3,6 +3,8 @@ open Bap.Std
 open Spec_types
 open Spec
 
+open Format
+
 type t = spec
 
 
@@ -60,7 +62,6 @@ let insert_seeds vars cons v blk =
     | Some def -> Term.prepend def_t blk (self_seed def)
   else blk
 
-
 let seed_jmp jmp vars sub rule =
   let seed_call id es cons = match Jmp.kind jmp with
     | Ret _ | Int _ | Goto _ -> sub
@@ -111,13 +112,15 @@ let fold_judgements spec ~init ~f =
           List.fold rules ~init ~f:(fun init rule -> f vars init rule)))
 
 let seed_sub (spec : t) sub =
-  Term.enum blk_t sub |> Seq.fold ~init:sub ~f:(fun sub blk ->
-      let blk =
-        Term.enum def_t blk |> Seq.fold ~init:blk ~f:(fun blk def ->
-            fold_judgements spec ~init:blk ~f:(seed_def def)) in
-      let sub = Term.update blk_t sub blk in
+  let sub = Term.enum blk_t sub |> Seq.fold ~init:sub ~f:(fun sub blk ->
       Term.enum jmp_t blk |> Seq.fold ~init:sub ~f:(fun sub jmp ->
-          fold_judgements spec ~init:sub ~f:(seed_jmp jmp)))
+          fold_judgements spec ~init:sub ~f:(fun vars sub rule ->
+              seed_jmp jmp vars sub rule))) in
+  Term.enum blk_t sub |> Seq.fold ~init:sub ~f:(fun sub blk ->
+      Term.enum def_t blk |> Seq.fold ~init:blk ~f:(fun blk def ->
+          fold_judgements spec ~init:blk ~f:(seed_def def)) |>
+      Term.update blk_t sub)
+
 
 let seed spec prog =
   Term.map sub_t prog ~f:(seed_sub spec)

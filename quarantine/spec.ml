@@ -96,7 +96,7 @@ module Pat = struct
 
       let pp ppf = function
         | Call (id,as1,as2) ->
-          fprintf ppf "%a = %a(%a)" Id.pp id pp_args as1 pp_args as2
+          fprintf ppf "%a = %a(%a)" pp_args as2 Id.pp id pp_args as1
         | Jump (k,c,d) ->
           fprintf ppf "when %a %s %a" V.pp c (string_of_kind k) V.pp d
         | Move (t,s) ->
@@ -132,7 +132,16 @@ module Judgement = struct
       type nonrec t = t with bin_io, compare, sexp
       let hash j = Id.hash j.name
       let module_name = None
-      let pp ppf j = ()
+
+      let pp_rules ppf rs =
+        List.iter rs ~f:(fun r ->
+            Rule.pp ppf r;
+            pp_print_newline ppf ())
+
+      let pp ppf j =
+        fprintf ppf "%a---------------------------------- :: %s@;%a"
+          pp_rules j.premises j.name pp_rules j.conclusion
+
     end)
 end
 
@@ -142,7 +151,15 @@ module Definition = struct
       type nonrec t = t with bin_io, compare, sexp
       let module_name = None
       let hash d = Id.hash d.name
-      let pp ppf d = ()
+
+      let pp_judges ppf js =
+        List.iter js ~f:(fun j ->
+            Judgement.pp ppf j;
+            pp_print_newline ppf ())
+
+      let pp ppf d =
+        Format.fprintf ppf "@[<v>define %s ::= @;@;%a@]"
+          d.name  pp_judges d.judgements
     end)
 end
 
@@ -153,6 +170,9 @@ module Spec = struct
       type nonrec t = t with bin_io, compare, sexp
       let module_name = None
       let hash = Hashtbl.hash
-      let pp ppf _ = ()
+      let pp ppf spec =
+        List.iter spec ~f:(fun def ->
+            Definition.pp ppf def;
+            pp_print_newline ppf ())
     end)
 end
