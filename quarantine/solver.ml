@@ -2,8 +2,11 @@ open Core_kernel.Std
 open Bap.Std
 open Spec_types
 open Spec
-
 open Format
+
+module SM = Monad.State
+open SM.Monad_infix
+
 
 type t = spec
 
@@ -124,3 +127,99 @@ let seed_sub (spec : t) sub =
 
 let seed spec prog =
   Term.map sub_t prog ~f:(seed_sub spec)
+
+
+(* three rule sets shouldn't intersect.  If a user provided the same
+   rule under premise and and conclusion, then shame on him. *)
+type hyp = {
+  prems   : Rule.Set.t;
+  concs   : Rule.Set.t;
+  proofs  : tid Rule.Map.t;
+  ivars   : Var.Set.t;
+  ovars   : Var.Set.t;
+  satdep  : v -> var -> bool;
+}
+
+class type ['a] vis = object
+  method arg : arg term -> (unit,'a) SM.t
+  method phi : phi term -> (unit,'a) SM.t
+  method def : def term -> (unit,'a) SM.t
+  method jmp : jmp term -> (unit,'a) SM.t
+end
+
+type state = {
+  id : string;
+  hyps : hyp list;
+}
+
+let sat_def v def constr =
+  let open Constr in
+  List.for_all constr ~f:(function
+      | Dep _ | Int _ -> true
+      | Fun _ -> false
+      | Var (v',var) -> V.(v' = v) ==> Var.(def = var))
+
+let sat_use v use constr satdep =
+  let open Constr in
+  List.for_all constr ~f:(function
+      | Fun _ -> false | Int _ -> true
+      | Dep (v1,v2)  -> V.(v = v1) ==> satdep v2 use
+      | Var (v',var) -> V.(v = v') ==> Var.(use = var))
+
+let match_call id ins outs constr hyp = [hyp]
+
+let match_move t src dst constr hyp sat unsat  =
+  let def = Def.lhs t in
+  let _use = Def.free_vars t in
+  if sat_def src def constr
+  then []
+  else []
+
+
+let update f = SM.get () >>= fun s -> SM.put (f s)
+
+
+let iterm ~f =
+  Seq.fold ~init:(SM.return ()) ~f:(fun m v ->
+      m >>= fun () -> f v)
+
+let foreach cls t ~f = Term.enum cls t |> iterm ~f
+
+let search prog (vis : 'a vis) =
+  foreach sub_t prog ~f:(fun sub ->
+      foreach arg_t sub ~f:vis#arg >>= fun () ->
+      foreach blk_t sub ~f:(fun blk ->
+          foreach phi_t blk ~f:vis#phi >>= fun () ->
+          foreach def_t blk ~f:vis#def >>= fun () ->
+          foreach jmp_t blk ~f:vis#jmp))
+
+let run rs f t =
+  Seq.of_list rs |> iterm ~f:(fun r ->
+      SM.get () >>= fun s ->
+      SM.put {s with hyps = []} >>= fun () ->
+      Seq.of_list s.hyps |> iterm ~f:(fun h ->
+          SM.get () >>= fun s ->
+          let hs = f r t h in
+          SM.put {s with hyps = List.rev_append hs s.hyps }))
+
+class type checker = object
+  method arg : arg term -> hyp -> hyp list
+  method phi : phi term -> hyp -> hyp list
+  method def : def term -> hyp -> hyp list
+  method jmp : jmp term -> hyp -> hyp list
+end
+
+class solver (rs : checker list) =
+  object
+    method arg = run rs (fun r -> r#arg)
+    method phi = run rs (fun r -> r#phi)
+    method def = run rs (fun r -> r#def)
+    method jmp = run rs (fun r -> r#jmp)
+  end
+
+class rule_base : checker = object
+  method arg _ = List.return
+  method phi _ = List.return
+  method def _ = List.return
+  method jmp _ = List.return
+end
