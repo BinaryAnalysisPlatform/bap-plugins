@@ -22,8 +22,7 @@ let mark_if_visited ctxt =
   let vis = Tid.Set.of_list ctxt#trace in
   let mark t =
     if Set.mem vis (Term.tid t)
-    then Term.set_attr t foreground `green
-    else t in
+    then Term.set_attr t foreground `green else t in
   {mark}
 
 let mark_if_tainted (ctxt : Main.context) =
@@ -32,10 +31,10 @@ let mark_if_tainted (ctxt : Main.context) =
     then t else Term.set_attr t foreground `red in
   {mark}
 
-let mark_if_seeded =
+let if_seeded =
   let mark t =
     if Term.has_attr t Taint.seed
-    then Term.set_attr t foreground `black else t in
+    then Term.set_attr t background `red else t in
   {mark}
 
 let seed tid =
@@ -44,7 +43,14 @@ let seed tid =
     then Term.set_attr t Taint.seed tid else t in
   {mark}
 
-let mark_terms {mark} prog  =
+
+
+let marker_of_markers markers =
+  let mark t =
+    List.fold markers ~init:t ~f:(fun t {mark} -> mark t) in
+  {mark}
+
+let mark_terms prog {mark}  =
   Term.map sub_t prog ~f:(fun sub ->
       mark sub |>
       Term.map arg_t ~f:mark |>
@@ -54,20 +60,21 @@ let mark_terms {mark} prog  =
           Term.map def_t ~f:mark |>
           Term.map jmp_t ~f:mark))
 
-
+(* fix SP at the start it will help alot *)
+(* but still R11 should be equal to 4 or something like this *)
 
 let main proj =
   let prog = Project.program proj in
-  let src1 = seed (Tid.from_string_exn "%86") in
-  let prog = mark_terms src1 prog in
-  let ctxt = Main.run prog k point in
-  let if_visited = mark_if_visited ctxt in
-  let if_tainted = mark_if_tainted ctxt in
-  let if_seeded = mark_if_tainted ctxt in
-  let prog = mark_terms if_visited prog in
-  let prog = mark_terms if_tainted prog in
-  let prog = mark_terms if_seeded prog in
-  Format.printf "@.";
+  let src1 = seed (Tid.from_string_exn "%151") in
+  let prog = mark_terms prog src1 in
+  let proj = Project.with_program proj prog in
+  let ctxt = Main.run proj k point in
+  let mark = marker_of_markers [
+      mark_if_visited ctxt;
+      mark_if_tainted ctxt;
+      if_seeded;
+    ] in
+  let prog = mark_terms prog mark in
   Project.with_program proj prog
 
 let () = Project.register_pass "quarantine" main

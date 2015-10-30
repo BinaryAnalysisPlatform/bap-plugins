@@ -7,17 +7,19 @@ open SM.Monad_infix
 open Format
 
 let def_summary _ = None
-let def_mapping _ = None
 let def_const = Word.zero 8
 
 
 let skip () = SM.return false
 let pass () = SM.return true
 
+let summaries = String.Map.of_alist_exn [
+  ]
+
 let def_summary call = match Call.target call with
   | Indirect _ -> None
-  | Direct tid -> match Tid.name tid with
-    | s -> None
+  | Direct tid ->
+    Map.find summaries (Tid.name tid)
 
 class context p k  = object(self)
   inherit Taint.context as taints
@@ -60,16 +62,7 @@ class context p k  = object(self)
     | Some ts -> ts
 end
 
-let pp_bindings ppf bs =
-  Seq.iter bs ~f:(fun (x,v) ->
-      fprintf ppf "%a = %a;@;" Var.pp x Bil.Result.pp v)
-
-let print_taints ts =
-  eprintf "@[taints = {@;";
-  Set.iter ts ~f:(eprintf "%a@;" Tid.pp);
-  eprintf "}@;@]"
-
-class ['a] main summary tid_of_addr const = object(self)
+class ['a] main summary memory tid_of_addr const = object(self)
   constraint 'a = #context
   inherit ['a] biri as super
   inherit ['a] Taint.propagator
@@ -90,7 +83,13 @@ class ['a] main summary tid_of_addr const = object(self)
   method! load s a =
     super#load s a >>= fun r -> match Bil.Result.value r with
     | Bil.Imm _ | Bil.Mem _ -> SM.return r
-    | Bil.Bot -> self#emit_const 8
+    | Bil.Bot -> match memory a with
+      | None ->   self#emit_const 8
+      | Some w ->
+        SM.get () >>= fun ctxt ->
+        let ctxt,r = ctxt#create_word w in
+        SM.put ctxt >>= fun () ->
+        SM.return r
 
   method! eval_jmp jmp =
     SM.get () >>= fun ctxt ->
@@ -107,7 +106,8 @@ class ['a] main summary tid_of_addr const = object(self)
   method! eval_indirect exp =
     self#eval_exp exp >>| Bil.Result.value >>= function
     | Bil.Bot | Bil.Mem _ -> SM.return ()
-    | Bil.Imm dst -> match tid_of_addr dst with
+    | Bil.Imm dst ->
+      match tid_of_addr dst with
       | Some dst -> self#eval_direct dst
       | None ->
         SM.get () >>= fun ctxt -> match ctxt#pop_restore with
@@ -145,9 +145,7 @@ class ['a] main summary tid_of_addr const = object(self)
   method private shortcut_indirect call =
     match Call.target call with
     | Direct _ -> self#call_with_restore call
-    | Indirect _ -> match Call.return call with
-      | None -> super#eval_call call
-      | Some lab -> super#eval_ret lab
+    | Indirect _ -> self#return call
 
   method private call_with_restore call =
     match Call.return call with
@@ -171,7 +169,12 @@ class ['a] main summary tid_of_addr const = object(self)
               | Bil.Mem s -> ctxt#create_storage s
               | Bil.Imm w -> ctxt#create_word w
               | Bil.Bot   -> ctxt#create_undefined) >>= fun r ->
-          self#update x r)
+          self#update x r) >>= fun () ->
+      self#return call
+
+  method private return call = match Call.return call with
+    | None -> super#eval_call call
+    | Some lab -> super#eval_ret lab
 end
 
 exception Entry_point_not_found
@@ -196,9 +199,34 @@ let tid_of_ident mapping = function
 let run_from_point mapping p biri point =
   run_from_tid p biri (tid_of_ident mapping point)
 
-let run p k point =
+
+let create_mapping prog =
+  let addrs = Addr.Table.create () in
+  let add t a = Hashtbl.replace addrs ~key:a ~data:(Term.tid t) in
+  Term.enum sub_t prog |> Seq.iter ~f:(fun sub ->
+      Term.enum blk_t sub |> Seq.iter  ~f:(fun blk ->
+          match Term.get_attr blk Disasm.block with
+          | Some addr -> add blk addr
+          | None -> ());
+      match Term.get_attr sub subroutine_addr with
+      | Some addr -> add sub addr
+      | None -> ());
+  Hashtbl.find addrs
+
+let memory_lookup proj addr =
+  let memory = Project.memory proj in
+  Memmap.lookup memory addr |> Seq.hd |> function
+  | None -> None
+  | Some (mem,_) -> match Memory.get ~addr mem with
+    | Ok w -> Some w
+    | _ -> None
+
+let run proj k point =
+  let p = Project.program proj in
   let ctxt = new context p k in
-  let biri = new main def_summary def_mapping def_const in
+  let mapping = create_mapping p in
+  let memory = memory_lookup proj in
+  let biri = new main def_summary memory mapping def_const in
   let map _ = None in
   let res = run_from_point map p biri point in
   SM.exec res ctxt

@@ -7,8 +7,6 @@ open Spec_types
 type t = tid
 type taints = Tid.Set.t
 
-val pp_taints : Format.formatter -> taints -> unit
-
 val seed : t tag
 
 val vars : taints Var.Map.t tag
@@ -93,3 +91,6 @@ class ['a] propagator : object('s)
   constraint 'a = #context
   inherit ['a] expi
 end
+
+
+val pp_taints : Format.formatter -> taints -> unit

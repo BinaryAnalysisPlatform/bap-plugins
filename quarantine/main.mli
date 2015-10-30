@@ -16,7 +16,7 @@ class context : program term -> int -> object('s)
   end
 
 
-val run : program term -> int -> [
+val run : project -> int -> [
     | `Addr of addr
     | `Name of string
     | `Term of tid] -> context
