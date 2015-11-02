@@ -18,11 +18,6 @@ module E : sig
   include Regular with type t := t
 end
 
-module Ptr : sig
-  include module type of Ptr with type t = Ptr.t
-  include Regular with type t := t
-end
-
 module Pat : sig
   include module type of Pat with type t = Pat.t
   include Regular with type t := t
@@ -30,12 +25,6 @@ end
 
 module Rule : sig
   include module type of Rule with type t = Rule.t
-  include Regular with type t := t
-end
-
-
-module Judgement : sig
-  include module type of Judgement with type t = Judgement.t
   include Regular with type t := t
 end
 

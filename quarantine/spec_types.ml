@@ -16,27 +16,16 @@ module Constr = struct
     | Dep of v * v
     | Var of v * var
     | Int of v * word
-    | Fun of id * v list
+    | Fun of id * v
   with bin_io, compare, sexp, variants
 end
 type constr = Constr.t
 with bin_io, compare, sexp
 
-
-module Ptr = struct
-  type t = {
-    base : v;
-    off  : v;
-  } with bin_io, compare, fields, sexp
-end
-
-type ptr = Ptr.t
-with bin_io, compare, sexp
-
 module E = struct
   type t =
     | Reg of v
-    | Ptr of ptr
+    | Ptr of v
   with bin_io, compare, sexp, variants
 end
 
@@ -48,9 +37,9 @@ module Pat = struct
     | Call of id * e list * e list
     | Jump of [`call | `goto | `ret | `exn | `jmp] * v * v
     | Move of v * v
-    | Load of v * ptr
+    | Load of v * v
     | Wild of v
-    | Store of v * ptr
+    | Store of v * v
   with bin_io, compare, sexp, variants
 end
 
@@ -59,31 +48,21 @@ with bin_io, compare, sexp
 
 module Rule = struct
   type t = {
-    pat : pat;
-    constr : constr list;
+    name : string;
+    premises : pat list;
+    conclusion : pat list;
   } with bin_io, compare, fields, sexp
 end
 
 type rule = Rule.t
 with bin_io, compare, sexp
 
-module Judgement = struct
-  type t = {
-    name : string;
-    premises : rule list;
-    conclusion : rule list;
-  } with bin_io, compare, fields, sexp
-end
-
-type judgement = Judgement.t
-with bin_io, compare, sexp
-
 module Definition = struct
   type t = {
     name : string;
-    judgements : judgement list
+    constrs  : constr list;
+    rules : rule list
   } with bin_io, compare, fields, sexp
-
 end
 
 type definition = Definition.t

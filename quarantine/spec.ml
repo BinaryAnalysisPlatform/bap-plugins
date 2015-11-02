@@ -14,11 +14,15 @@ module V = struct
     end)
 end
 
-let rec pp_list pp ppf = function
-  | [] -> ()
-  | [x] -> pp ppf x
-  | x :: xs -> fprintf ppf "%a, %a" pp x (pp_list pp) xs
+let pp_list pp_sep pp_elem ppf xs =
+  let rec pp ppf = function
+    | [] -> ()
+    | [x] -> pp_elem ppf x
+    | x :: xs -> fprintf ppf "%a%t%a" pp_elem x pp_sep pp xs in
+  pp ppf xs
 
+let pp_comma ppf = fprintf ppf ",@;"
+let pp_break ppf = fprintf ppf "@;"
 
 module Constr = struct
   include Constr
@@ -32,28 +36,12 @@ module Constr = struct
 
       let module_name = None
 
-      let pp_args = pp_list V.pp
-
       let pp ppf = function
         | Dep (v1,v2) -> fprintf ppf "%a/%a" V.pp v1 V.pp v2
         | Var (v,var) -> fprintf ppf "%a = %a" V.pp v Var.pp var
         | Int (v,int) -> fprintf ppf "%a = %a" V.pp v Word.pp int
-        | Fun (id,[]) -> fprintf ppf "%a" Id.pp id
-        | Fun (id,args) -> fprintf ppf "%a(%a)" Id.pp id pp_args args
+        | Fun (id,v) -> fprintf ppf "%a(%a)" Id.pp id V.pp v
     end)
-end
-
-
-module Ptr = struct
-  include Ptr
-  include Regular.Make(struct
-      type nonrec t = t with bin_io, compare, sexp
-      let hash p = V.hash p.base lxor V.hash p.off
-      let module_name = None
-      let pp ppf p =
-        Format.fprintf ppf "%a[%a]" V.pp p.base V.pp p.off
-    end)
-  let create = Fields.create
 end
 
 module E = struct
@@ -61,13 +49,11 @@ module E = struct
   include Regular.Make(struct
       type nonrec t = t with bin_io, compare, sexp
       let hash = function
-        | Reg v -> V.hash v
-        | Ptr p -> Ptr.hash p
+        | Reg v | Ptr v -> V.hash v
 
       let module_name = None
       let pp ppf = function
-        | Reg v -> V.pp ppf v
-        | Ptr p -> Ptr.pp ppf p
+        | Reg v | Ptr v -> V.pp ppf v
     end)
 end
 
@@ -77,10 +63,8 @@ module Pat = struct
       type nonrec t = t with bin_io, compare, sexp
       let hash = function
         | Call (id,_,_) -> Id.hash id
-        | Jump (_,v1,v2)
-        | Move (v1,v2) -> V.hash v1 lxor V.hash v2
-        | Load (v,p)
-        | Store (v,p) -> V.hash v lxor Ptr.hash p
+        | Jump (_,v1,v2) | Move (v1,v2) | Load (v1,v2) | Store (v1,v2) ->
+          V.hash v1 lxor V.hash v2
         | Wild v -> V.hash v
 
       let module_name = None
@@ -92,7 +76,7 @@ module Pat = struct
         | `exn  -> "exn"
         | `jmp  -> "jmp"
 
-      let pp_args = pp_list E.pp
+      let pp_args ppf = pp_list pp_comma E.pp ppf
 
       let pp ppf = function
         | Call (id,as1,as2) ->
@@ -102,9 +86,9 @@ module Pat = struct
         | Move (t,s) ->
           fprintf ppf "%a := %a" V.pp t V.pp s
         | Load (v,p)  ->
-          fprintf ppf "%a := %a" V.pp v Ptr.pp p
+          fprintf ppf "%a := *%a" V.pp v V.pp p
         | Store (v,p) ->
-          fprintf ppf "%a := %a" Ptr.pp p V.pp v
+          fprintf ppf "*%a := %a" V.pp p V.pp v
         | Wild v -> V.pp ppf v
 
 
@@ -115,33 +99,14 @@ module Rule = struct
   include Rule
   include Regular.Make(struct
       type nonrec t = t with bin_io, compare, sexp
-      let hash r = Pat.hash r.pat
-
-      let module_name = None
-
-      let pp_constrs = pp_list Constr.pp
-      let pp ppf v =
-        fprintf ppf "%a, %a" Pat.pp v.pat pp_constrs v.constr
-
-    end)
-end
-
-module Judgement = struct
-  include Judgement
-  include Regular.Make(struct
-      type nonrec t = t with bin_io, compare, sexp
       let hash j = Id.hash j.name
       let module_name = None
 
-      let pp_rules ppf rs =
-        List.iter rs ~f:(fun r ->
-            Rule.pp ppf r;
-            pp_print_newline ppf ())
+      let pp_pats = pp_list pp_comma Pat.pp
 
-      let pp ppf j =
-        fprintf ppf "%a---------------------------------- :: %s@;%a"
-          pp_rules j.premises j.name pp_rules j.conclusion
-
+      let pp ppf r =
+        fprintf ppf "@[rule %s ::=@;%a@ |-@ %a@]"
+          r.name pp_pats r.premises pp_pats r.conclusion
     end)
 end
 
@@ -152,14 +117,12 @@ module Definition = struct
       let module_name = None
       let hash d = Id.hash d.name
 
-      let pp_judges ppf js =
-        List.iter js ~f:(fun j ->
-            Judgement.pp ppf j;
-            pp_print_newline ppf ())
+      let pp_cons = pp_list pp_break Constr.pp
+      let pp_rules = pp_list pp_break Rule.pp
 
       let pp ppf d =
-        Format.fprintf ppf "@[<v>define %s ::= @;@;%a@]"
-          d.name  pp_judges d.judgements
+        Format.fprintf ppf "@[<v>define %s ::= @;%a@;%a@]"
+          d.name  pp_cons d.constrs pp_rules d.rules
     end)
 end
 
@@ -170,9 +133,8 @@ module Spec = struct
       type nonrec t = t with bin_io, compare, sexp
       let module_name = None
       let hash = Hashtbl.hash
+      let pp_defs = pp_list pp_break Definition.pp
       let pp ppf spec =
-        List.iter spec ~f:(fun def ->
-            Definition.pp ppf def;
-            pp_print_newline ppf ())
+        fprintf ppf "@[<v>%a@]" pp_defs spec
     end)
 end
