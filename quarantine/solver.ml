@@ -9,18 +9,23 @@ open SM.Monad_infix
 
 type t = spec
 
-type sat = [`def | `use] -> v -> var -> bool
+type equation =
+  | Sat_def of v * var
+  | Sat_use of v * Var.Set.t
+with variants
 
+type equations = equation list
+
+(* a lattice for dependency equality class.*)
 type eq =
-  | Top
-  | Tid of tid
+  | Top              (* superset *)
+  | Set of Tid.Set.t (* invariant: set is not empty *)
 
 type hyp = {
   prems   : Pat.Set.t;
   concs   : Pat.Set.t;
   proofs  : tid Pat.Map.t;
   ivars   : eq V.Map.t;
-  ivar    : v -> v option;
   constrs : constr list;
 } with fields
 
@@ -38,30 +43,6 @@ class type ['a] vis = object
   method jmp : jmp term -> (unit,'a) SM.t
 end
 
-let sat term hyp kind v bil =
-  let dep_use y x =
-    match Term.get_attr term Taint.vars with
-    | None -> false
-    | Some vars -> match Map.find vars y with
-      | None -> false
-      | Some seeds -> match Map.find_exn hyp.ivars x with
-        | Top -> true
-        | Tid seed -> Set.mem seeds seed in
-  let dep_def x =
-    match Term.get_attr term Taint.seed with
-    | None -> false
-    | Some seed ->
-      match Map.find_exn hyp.ivars x with
-      | Top -> true
-      | Tid seed' -> Tid.(seed = seed') in
-  let open Constr in
-  List.for_all hyp.constrs ~f:(function
-      | Fun (id,v') -> V.(v <> v')
-      | Int _ -> true
-      | Var (v',e) -> V.(v' = v) ==> Var.(e = bil)
-      | Dep (v1,v2) ->  match kind with
-        | `def -> V.(v2 = v) ==> dep_def v2
-        | `use -> V.(v = v1) ==> dep_use bil v2)
 
 
 let create = ident
@@ -174,9 +155,6 @@ let search prog (vis : 'a vis) =
           foreach def_t blk ~f:vis#def >>= fun () ->
           foreach jmp_t blk ~f:vis#jmp))
 
-let sat_any sat v uses =
-  Set.exists uses ~f:(sat `use v)
-
 let ivars_of_pat f = function
   | Pat.Call (_,_,ys) -> List.filter ~f ys
   | Pat.Move (v,_)
@@ -186,23 +164,86 @@ let ivars_of_pat f = function
 
 
 
-(* here is the place where we can fix input variables.  if we have
-   proved proposition [pat], that binds some variable that occurs on
-   either side of `x/y` equation, then we should be sure, that `x` and
-   `y` are now unified into concrete equality class, not the Top one.
-*)
-
-let proof hyp pat term =
+let proved hyp pat term =
   {
     hyp with
     proofs = Map.add hyp.proofs ~key:pat ~data:(Term.tid term);
   }
 
+let sat term hyp kind v bil =
+  let dep_use y x =
+    match Term.get_attr term Taint.vars with
+    | None -> None
+    | Some vars -> match Map.find vars y with
+      | None -> None
+      | Some ss when Set.is_empty ss -> None
+      | Some ss -> match Map.find_exn hyp.ivars x with
+        | Top -> Some {
+            hyp with
+            ivars = Map.add hyp.ivars ~key:x ~data:(Set ss)
+          }
+        | Set xs ->
+          let ss = Set.inter ss xs in
+          if Set.is_empty ss then None
+          else Some {
+              hyp with
+              ivars = Map.add hyp.ivars ~key:x ~data:(Set ss)
+            } in
+  let dep_def x =
+    match Term.get_attr term Taint.seed with
+    | None -> None
+    | Some seed ->
+      let unified = Some {
+          hyp with
+          ivars = Map.add hyp.ivars ~key:x
+              ~data:(Set (Tid.Set.singleton seed))
+        } in
+      match Map.find_exn hyp.ivars x with
+      | Top -> unified
+      | Set seeds ->
+        if Set.mem seeds seed then unified else None in
+  let open Constr in
+  List.fold hyp.constrs ~init:(Some hyp) ~f:(fun hyp cs ->
+      match hyp with
+      | None -> None
+      | Some hyp ->
+        let sat c = Option.some_if c hyp in
+        match cs with
+        | Fun (id,v') -> sat V.(v <> v')
+        | Int _ -> sat true
+        | Var (v',e) -> V.(v' = v) ==> Var.(e = bil) |> sat
+        | Dep (v1,v2) ->  match kind with
+          | `def when V.(v2 = v) -> dep_def v2
+          | `use when V.(v = v1) -> dep_use bil v2
+          | _ -> sat true)
+
+let solution term hyp (eqs : equations) : hyp option =
+  List.fold eqs ~init:(Some hyp) ~f:(fun hyp eq ->
+      match hyp with
+      | None -> None
+      | Some hyp -> match eq with
+        | Sat_def (v,bil) -> sat term hyp `def v bil
+        | Sat_use (v,vs) ->
+          Set.to_list vs |>
+          List.filter_map ~f:(fun bil ->
+              sat term hyp `use v bil) |> function
+          | [] -> None
+          | xs -> List.reduce_exn xs ~f:(fun h1 h2 -> {
+                h1 with
+                ivars = Map.merge h1.ivars h2.ivars ~f:(fun ~key r ->
+                    Option.some @@ match r with
+                    | `Left _ | `Right _ -> assert false
+                    | `Both (Set xs, Set ys) -> Set (Set.union xs ys)
+                    | `Both (_,Set xs)
+                    | `Both  (Set xs,_) -> Set xs
+                    | `Both (Top,Top) -> Top)
+              }) |> Option.some)
+
 let fold_pats field matches term hyp =
   Set.fold (Field.get field hyp) ~init:hyp ~f:(fun hyp pat ->
-      if matches pat (sat term hyp)
-      then proof hyp pat term
-      else
+      match solution term hyp (matches pat) with
+      | Some hyp -> hyp
+      | None ->
         Set.add (Field.get field hyp) pat |> Field.fset field hyp)
 
 let decide_hyp matcher term hyp =
@@ -219,102 +260,105 @@ let run mrs f t =
 
 module Match = struct
   class matcher : object
-    method arg : arg term -> pat -> sat -> bool
-    method phi : phi term -> pat -> sat -> bool
-    method def : def term -> pat -> sat -> bool
-    method jmp : jmp term -> pat -> sat -> bool
+    method arg : arg term -> pat -> equations
+    method phi : phi term -> pat -> equations
+    method def : def term -> pat -> equations
+    method jmp : jmp term -> pat -> equations
   end = object
-    method arg _ _ _ = false
-    method phi _ _ _ = false
-    method def _ _ _ = false
-    method jmp _ _ _ = false
+    method arg _ _ = []
+    method phi _ _ = []
+    method def _ _ = []
+    method jmp _ _ = []
   end
 
-  let sat_mem sat v =
-    let sat_vars v exp = sat_any sat v (Exp.free_vars exp) in
-    Exp.fold ~init:false (object
-      inherit [bool] Bil.visitor
-      method! enter_load ~mem ~addr e s found =
-        found || match v with
-        | `load v -> sat_vars v addr
-        | `store _ -> false
-      method! enter_store ~mem ~addr ~exp e s found =
-        found || match v with
-        | `load _ -> false
-        | `store (p,v) -> sat_vars p addr && sat_vars p exp
+  let sat_mem sat v : exp -> equations =
+    let sat_vars v exp = sat_use v (Exp.free_vars exp) in
+    Exp.fold ~init:[] (object
+      inherit [equations] Bil.visitor
+      method! enter_load ~mem ~addr e s eqs =
+        match v with
+        | `load v -> sat_vars v addr :: eqs
+        | `store _ -> eqs
+      method! enter_store ~mem ~addr ~exp e s eqs =
+        match v with
+        | `load _ -> eqs
+        | `store (p,v) ->
+          sat_vars p addr :: sat_vars p exp :: eqs
     end)
 
   let move = object
     inherit matcher
-    method def t r sat =
+    method def t r =
       let lhs,rhs = Def.(lhs t, rhs t) in
       match r with
       | Pat.Move (dst,src) ->
-        sat `def dst lhs && sat_any sat src (Def.free_vars t)
+        [sat_def dst lhs; sat_use src (Def.free_vars t)]
       | Pat.Load (dst, ptr) ->
-        sat `def dst lhs && sat_mem sat (`load ptr) rhs
+        sat_def dst lhs :: sat_mem sat (`load ptr) rhs
       | Pat.Store (p,v) -> sat_mem sat (`store (p,v)) rhs
-      | _ -> false
+      | _ -> []
   end
 
   let jump = object
     inherit matcher
-    method jmp t r sat = match r with
+    method jmp t r = match r with
       | Pat.Jump (k,cv,dv) ->
-        let sat () =
+        let sat () : equations =
           let conds = Exp.free_vars (Jmp.cond t) in
           let dsts = Set.diff (Jmp.free_vars t) conds in
-          sat_any sat cv conds && sat_any sat dv dsts in
+          [sat_use cv conds; sat_use dv dsts] in
         let sat = match k, Jmp.kind t with
           | `call,Call _
           | `goto,Goto _
           | `ret,Ret _
           | `exn,Int _
           | `jmp,_     -> sat
-          | _ -> fun _ -> false in
+          | _ -> fun _ -> [] in
         sat ()
-      | _ -> false
+      | _ -> []
   end
 
-  let sat_arg intent sat args v =
-    Seq.exists args ~f:(fun arg -> match intent, Arg.intent arg with
-        | In, Some Out -> false
-        | Out, Some In -> false
-        | _ ->
-          let lhs = if intent = In then `use else `def in
-          sat lhs v (Arg.lhs arg) ||
-          sat_any sat v (Arg.rhs arg |> Exp.free_vars))
+  let sat_arg intent sat args v : equations =
+    Seq.to_list_rev args |>
+    List.concat_map ~f:(fun arg -> match intent, Arg.intent arg with
+        | In, Some Out -> []
+        | Out, Some In -> []
+        | _ -> [
+            sat_use v (Arg.rhs arg |> Exp.free_vars);
+            sat_def v (Arg.lhs arg); (* XXX: is this correct? *)
+          ])
 
   let call prog = object
     inherit matcher
-    method jmp t r sat =
-      let with_args call f =
+    method jmp t r : equations =
+      let with_args call f : equations =
         match Call.target call with
-        | Indirect _ -> false
+        | Indirect _ -> []
         | Direct tid -> match Term.find sub_t prog tid with
-          | None -> false
+          | None -> []
           | Some sub -> f (Term.enum arg_t sub) in
       let match_call call uses defs =
         with_args call (fun args ->
-            List.for_all defs ~f:(sat_arg Out sat args) &&
-            List.for_all uses ~f:(sat_arg In  sat args)) in
+            List.concat_map defs ~f:(sat_arg Out sat args) @
+            List.concat_map uses ~f:(sat_arg In  sat args)) in
       let match_move call v1 v2 =
         with_args call (fun args ->
-            sat_arg Out sat args v1 && sat_arg In sat args v2) in
+            sat_arg Out sat args v1 @ sat_arg In sat args v2) in
       let match_wild call v =
         with_args call (fun args -> sat_arg In sat args v) in
       match r, Jmp.kind t with
-      | Pat.Call (id,uses,defs), Call c ->
-        our_target id (Call.target c) && match_call c uses defs
+      | Pat.Call (id,uses,defs), Call c
+        when our_target id (Call.target c) ->
+        match_call c uses defs
       | Pat.Move (v1,v2), Call c -> match_move c v1 v2
       | Pat.Wild v, Call c -> match_wild c v
-      | _ -> false  (* TODO: add Load and Store pats *)
+      | _ -> []  (* TODO: add Load and Store pats *)
   end
 
   let wild =
-    let any es pat sat = match pat with
-      | Pat.Wild v -> sat_any sat v es
-      | _ -> false in
+    let any es pat = match pat with
+      | Pat.Wild v -> [sat_use v es]
+      | _ -> [] in
     object
       inherit matcher
       method def t = any (Def.free_vars t)
@@ -344,12 +388,10 @@ let hyp_of_rule constrs r =
             Map.add ivars ~key:v2 ~data:Top,
             Map.add ovars ~key:v1 ~data:v2
           | _ -> (ivars,ovars)) in
-  let ivar = Map.find ovars in
   {
     prems = Pat.Set.of_list (Rule.premises r);
     concs = Pat.Set.of_list (Rule.conclusions r);
     ivars;
-    ivar;
     proofs = Pat.Map.empty;
     constrs;
   }
