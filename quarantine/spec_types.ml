@@ -50,7 +50,7 @@ module Rule = struct
   type t = {
     name : string;
     premises : pat list;
-    conclusion : pat list;
+    conclusions : pat list;
   } with bin_io, compare, fields, sexp
 end
 

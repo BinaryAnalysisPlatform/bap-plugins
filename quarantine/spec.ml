@@ -106,7 +106,7 @@ module Rule = struct
 
       let pp ppf r =
         fprintf ppf "@[rule %s ::=@;%a@ |-@ %a@]"
-          r.name pp_pats r.premises pp_pats r.conclusion
+          r.name pp_pats r.premises pp_pats r.conclusions
     end)
 end
 
