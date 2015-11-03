@@ -22,6 +22,8 @@ type eq =
   | Set of Tid.Set.t (* invariant: set is not empty *)
 
 type hyp = {
+  defn    : Defn.t;
+  rule    : Rule.t;
   prems   : Pat.Set.t;
   concs   : Pat.Set.t;
   proofs  : tid Pat.Map.t;
@@ -254,9 +256,11 @@ let run mrs f t =
   Seq.of_list mrs |> iterm ~f:(fun mr ->
       SM.get () >>= fun s ->
       update (fun s -> {s with hyps = []}) >>= fun () ->
-      Seq.of_list s.hyps |> iterm ~f:(fun h ->
+      Seq.of_list (s.init @ s.hyps) |> iterm ~f:(fun h ->
           update (fun s ->
-              {s with hyps = decide_hyp (f mr t) t h :: s.hyps})))
+              let h = decide_hyp (f mr t) t h in
+              if Map.is_empty h.proofs then s
+              else {s with hyps = h :: s.hyps})))
 
 module Match = struct
   class matcher : object
@@ -380,7 +384,7 @@ let solver prog : state vis =
     method jmp = run rs (fun r -> r#jmp)
   end
 
-let hyp_of_rule constrs r =
+let hyp_of_rule defn constrs r =
   let ivars,ovars =
     List.fold constrs ~init:(V.Map.empty,V.Map.empty)
       ~f:(fun (ivars,ovars) cs -> match cs with
@@ -389,6 +393,7 @@ let hyp_of_rule constrs r =
             Map.add ovars ~key:v1 ~data:v2
           | _ -> (ivars,ovars)) in
   {
+    defn; rule = r;
     prems = Pat.Set.of_list (Rule.premises r);
     concs = Pat.Set.of_list (Rule.conclusions r);
     ivars;
@@ -398,9 +403,23 @@ let hyp_of_rule constrs r =
 
 let hyps_of_defn d =
   let constrs = Defn.constrs d in
-  List.map ~f:(hyp_of_rule constrs) (Defn.rules d)
+  List.map ~f:(hyp_of_rule d constrs) (Defn.rules d)
 
 let solve spec prog =
-  let state = {init = []; hyps = []} in
+  let init = List.concat_map spec ~f:hyps_of_defn in
+  let state = {init; hyps = []} in
   let solver = solver prog in
   SM.exec (search prog solver) state
+
+let pp_hyp ppf h =
+  let proved = Set.is_empty in
+  let result =
+    if proved h.prems && proved h.concs then "was proved" else
+    if proved h.prems && not (proved h.concs) then "wasn't proved"
+    else "wasn't recognized" in
+  Format.fprintf ppf "hypothesis %s %s@;"
+    (Rule.name h.rule) result
+
+
+let pp_solution ppf {hyps} =
+  List.iter hyps ~f:(fun hyp -> pp_hyp ppf hyp)

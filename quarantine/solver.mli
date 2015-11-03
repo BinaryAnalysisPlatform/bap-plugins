@@ -13,3 +13,5 @@ val seed_sub : t -> sub term -> sub term
 val seed : t -> program term -> program term
 
 val solve : t -> program term -> solution
+
+val pp_solution : Format.formatter -> solution -> unit

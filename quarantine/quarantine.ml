@@ -74,8 +74,10 @@ let main proj =
       mark_if_tainted ctxt;
       if_seeded;
     ] in
-  Project.program proj |>
-  mark_terms mark |>
-  Project.with_program proj
+  let prog = Project.program proj |>
+             mark_terms mark in
+  let sol = Solver.solve s prog in
+  printf "Solution:@.%a@." Solver.pp_solution sol;
+  Project.with_program proj prog
 
 let () = Project.register_pass "quarantine" main
