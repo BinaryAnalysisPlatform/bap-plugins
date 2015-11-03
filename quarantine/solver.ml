@@ -10,6 +10,33 @@ open SM.Monad_infix
 
 type t = spec
 
+type sat = [`def | `use] -> v -> var -> bool
+
+(* three rule sets shouldn't intersect.  If a user provided the same
+   rule under premise and and conclusion, then shame on him. *)
+type hyp = {
+  prems   : Pat.Set.t;
+  concs   : Pat.Set.t;
+  proofs  : tid Pat.Map.t;
+  sat     : sat;
+} with fields
+
+type state = {
+  init : hyp list;
+  hyps : hyp list;
+}
+
+type solution = state
+
+
+class type ['a] vis = object
+  method arg : arg term -> (unit,'a) SM.t
+  method phi : phi term -> (unit,'a) SM.t
+  method def : def term -> (unit,'a) SM.t
+  method jmp : jmp term -> (unit,'a) SM.t
+end
+
+
 
 let create = ident
 
@@ -19,7 +46,7 @@ let input_of_constr = function
   | _ -> None
 
 let inputs_of_defn rule =
-  Definition.constrs rule |>
+  Defn.constrs rule |>
   List.filter_map  ~f:input_of_constr |>
   V.Set.of_list
 
@@ -46,7 +73,7 @@ let def_of_cons v cons =
 
 let self_seed t = Term.set_attr t Taint.seed (Term.tid t)
 
-let insert_seeds vars cons v blk =
+let insert_seeds vars cons blk v =
   if Set.mem vars v then match def_of_cons v cons with
     | None -> blk
     | Some def -> Term.prepend def_t blk (self_seed def)
@@ -57,16 +84,14 @@ let seed_jmp jmp cons vars sub pat =
     | Ret _ | Int _ | Goto _ -> sub
     | Call call when not (our_target id (Call.target call)) -> sub
     | Call call ->
-      List.filter es ~f:(fun (E.Ptr v | E.Reg v) ->
-          Set.mem vars v) |> function
+      List.filter es ~f:(Set.mem vars) |> function
       | [] -> sub
       | es -> match Call.return call with
         | None | Some (Indirect _) -> sub
         | Some (Direct ret) -> match Term.find blk_t sub ret with
           | None -> sub
           | Some blk ->
-            List.fold es ~init:blk ~f:(fun blk -> fun (E.Ptr v | E.Reg v) ->
-                insert_seeds vars cons v blk) |>
+            List.fold es ~init:blk ~f:(insert_seeds vars cons) |>
             Term.update blk_t sub in
   match pat with
   | Pat.Call (id,e1,[]) -> sub
@@ -88,8 +113,8 @@ let seed_def def cons vars blk pat =
 let fold_patts spec ~init ~f =
   List.fold spec ~init ~f:(fun init defn ->
       let vars = inputs_of_defn defn in
-      let cons = Definition.constrs defn in
-      Definition.rules defn |>
+      let cons = Defn.constrs defn in
+      Defn.rules defn |>
       List.fold ~init ~f:(fun init rule ->
           let rules = Rule.premises rule @
                       Rule.conclusions rule in
@@ -109,48 +134,9 @@ let seed spec prog =
   Term.map sub_t prog ~f:(seed_sub spec)
 
 
-type sat = [`def | `use] -> v -> var -> bool
-
-(* three rule sets shouldn't intersect.  If a user provided the same
-   rule under premise and and conclusion, then shame on him. *)
-type hyp = {
-  prems   : Rule.Set.t;
-  concs   : Rule.Set.t;
-  proofs  : tid Rule.Map.t;
-  sat     : sat;
-  ivars   : Var.Set.t;
-  ovars   : Var.Set.t;
-} with fields
-
-class type ['a] vis = object
-  method arg : arg term -> (unit,'a) SM.t
-  method phi : phi term -> (unit,'a) SM.t
-  method def : def term -> (unit,'a) SM.t
-  method jmp : jmp term -> (unit,'a) SM.t
-end
-
-type state = {
-  id : string;
-  hyps : hyp list;
-}
-
-let fold_rules field matches term hyp =
-  Set.fold (Field.get field hyp) ~init:hyp ~f:(fun hyp rule ->
-      if matches rule hyp.sat
-      then {
-        hyp with
-        proofs = Map.add hyp.proofs ~key:rule ~data:(Term.tid term);
-      } else
-        Set.add (Field.get field hyp) rule |> Field.fset field hyp)
-
-let decide_hyp matcher term hyp =
-  fold_rules Fields_of_hyp.prems matcher term hyp |>
-  fold_rules Fields_of_hyp.concs matcher term
-
 
 
 let update f = SM.get () >>= fun s -> SM.put (f s)
-
 
 let iterm ~f =
   Seq.fold ~init:(SM.return ()) ~f:(fun m v ->
@@ -167,16 +153,131 @@ let search prog (vis : 'a vis) =
           foreach jmp_t blk ~f:vis#jmp))
 
 class matcher : object
-  method arg : arg term -> rule -> sat -> bool
-  method phi : phi term -> rule -> sat -> bool
-  method def : def term -> rule -> sat -> bool
-  method jmp : jmp term -> rule -> sat -> bool
+  method arg : arg term -> pat -> sat -> bool
+  method phi : phi term -> pat -> sat -> bool
+  method def : def term -> pat -> sat -> bool
+  method jmp : jmp term -> pat -> sat -> bool
 end = object
   method arg _ _ _ = false
   method phi _ _ _ = false
   method def _ _ _ = false
   method jmp _ _ _ = false
 end
+
+
+let sat_any sat v uses =
+  Set.exists uses ~f:(sat `use v)
+
+module Match = struct
+
+  let sat_mem sat v =
+    let sat_vars v exp = sat_any sat v (Exp.free_vars exp) in
+    Exp.fold ~init:false (object
+      inherit [bool] Bil.visitor
+      method! enter_load ~mem ~addr e s found =
+        found || match v with
+        | `load v -> sat_vars v addr
+        | `store _ -> false
+      method! enter_store ~mem ~addr ~exp e s found =
+        found || match v with
+        | `load _ -> false
+        | `store (p,v) -> sat_vars p addr || sat_vars p exp
+    end)
+
+  let move = object
+    inherit matcher
+    method def t r sat =
+      let lhs,rhs = Def.(lhs t, rhs t) in
+      match r with
+      | Pat.Move (dst,src) ->
+        sat `def dst lhs || sat_any sat src (Def.free_vars t)
+      | Pat.Load (dst, ptr) ->
+        sat `def dst lhs || sat_mem sat (`load ptr) rhs
+      | Pat.Store (p,v) -> sat_mem sat (`store (p,v)) rhs
+      | _ -> false
+  end
+
+  let jump = object
+    inherit matcher
+    method jmp t r sat = match r with
+      | Pat.Jump (k,cv,dv) ->
+        let sat () =
+          let conds = Exp.free_vars (Jmp.cond t) in
+          let dsts = Set.diff (Jmp.free_vars t) conds in
+          sat_any sat cv conds || sat_any sat dv dsts in
+        let sat = match k, Jmp.kind t with
+          | `call,Call _ -> sat
+          | `goto,Goto _ -> sat
+          | `ret,Ret _   -> sat
+          | `exn,Int _  -> sat
+          | `jmp,_     -> sat
+          | _ -> fun _ -> false in
+        sat ()
+      | _ -> false
+  end
+
+  let sat_arg intent sat args v =
+    Seq.exists args ~f:(fun arg -> match intent, Arg.intent arg with
+        | In, Some Out -> false
+        | Out, Some In -> false
+        | _ ->
+          let lhs = if intent = In then `use else `def in
+          sat lhs v (Arg.lhs arg) ||
+          sat_any sat v (Arg.rhs arg |> Exp.free_vars))
+
+  let call prog = object
+    inherit matcher
+    method jmp t r sat =
+      let with_args call f =
+        match Call.target call with
+        | Indirect _ -> false
+        | Direct tid -> match Term.find sub_t prog tid with
+          | None -> false
+          | Some sub -> f (Term.enum arg_t sub) in
+      let match_call call uses defs =
+        with_args call (fun args ->
+            List.for_all defs ~f:(sat_arg Out sat args) &&
+            List.for_all uses ~f:(sat_arg In  sat args)) in
+      let match_move call v1 v2 =
+        with_args call (fun args ->
+            sat_arg Out sat args v1 && sat_arg In sat args v2) in
+      let match_wild call v =
+        with_args call (fun args -> sat_arg In sat args v) in
+      match r, Jmp.kind t with
+      | Pat.Call (id,uses,defs), Call c ->
+        our_target id (Call.target c) && match_call c uses defs
+      | Pat.Move (v1,v2), Call c -> match_move c v1 v2
+      | Pat.Wild v, Call c -> match_wild c v
+      | _ -> false  (* TODO: add Load and Store pats *)
+  end
+
+  let wild =
+    let any es pat sat = match pat with
+      | Pat.Wild v -> sat_any sat v es
+      | _ -> false in
+    object
+      inherit matcher
+      method def t = any (Def.free_vars t)
+      method jmp t = any (Jmp.free_vars t)
+      method arg t = any (Exp.free_vars (Arg.rhs t))
+      method phi t = any (Phi.free_vars t)
+    end
+
+  let rules prog = [wild;jump;move;call prog]
+
+end
+
+let fold_pats field matches term hyp =
+  Set.fold (Field.get field hyp) ~init:hyp ~f:(fun hyp pat ->
+      if matches pat hyp.sat then {
+        hyp with
+        proofs = Map.add hyp.proofs ~key:pat ~data:(Term.tid term);
+      } else
+        Set.add (Field.get field hyp) pat |> Field.fset field hyp)
+
+let decide_hyp matcher term hyp =
+  fold_pats Fields_of_hyp.prems matcher term hyp |>
+  fold_pats Fields_of_hyp.concs matcher term
 
 let run (mrs : matcher list) f t =
   Seq.of_list mrs |> iterm ~f:(fun mr ->
@@ -186,12 +287,21 @@ let run (mrs : matcher list) f t =
           update (fun s ->
               {s with hyps = decide_hyp (f mr t) t h :: s.hyps})))
 
-let solver (rs : matcher list) : state vis  = object
-  method arg = run rs (fun r -> r#arg)
-  method phi = run rs (fun r -> r#phi)
-  method def = run rs (fun r -> r#def)
-  method jmp = run rs (fun r -> r#jmp)
-end
+let solver prog : state vis =
+  let rs = Match.rules prog in
+  object
+    method arg = run rs (fun r -> r#arg)
+    method phi = run rs (fun r -> r#phi)
+    method def = run rs (fun r -> r#def)
+    method jmp = run rs (fun r -> r#jmp)
+  end
+
+let hyp_of_rule sat r = {
+  prems = Pat.Set.of_list (Rule.premises r);
+  concs = Pat.Set.of_list (Rule.conclusions r);
+  proofs = Pat.Map.empty;
+  sat;
+}
 
 let sat_def constr v def =
   let open Constr in
@@ -200,62 +310,22 @@ let sat_def constr v def =
       | Fun _ -> false
       | Var (v',var) -> V.(v' = v) ==> Var.(def = var))
 
-let sat_use v constr satdep use =
+let sat_use satdep constr v use =
   let open Constr in
   List.for_all constr ~f:(function
       | Fun _ -> false | Int _ -> true
-      | Dep (v1,v2)  -> V.(v = v1) ==> satdep v2 use
+      | Dep (v1,v2)  -> V.(v = v1) ==> satdep use v2
       | Var (v',var) -> V.(v = v') ==> Var.(use = var))
 
-(* let matches_move t src dst constr hyp  = *)
-(*   let def = Def.lhs t in *)
-(*   let use = Def.free_vars t in *)
-(*   sat_def src constr def || *)
-(*   Set.exists use ~f:(sat_use dst constr hyp.satdep) *)
+let hyps_of_defn d =
+  let constrs = Defn.constrs d in
+  let dep _ _ = false in
+  let sat t = match t with
+    | `use -> sat_use dep constrs
+    | `def -> sat_def constrs in
+  List.map ~f:(hyp_of_rule sat) (Defn.rules d)
 
-let sat_any sat v uses =
-  Set.exists uses ~f:(sat `use v)
-
-(* module Match = struct *)
-(*   let move = object *)
-(*     inherit matcher *)
-(*     method def t r sat = match r with *)
-(*       | Pat.Move (dst,src) -> *)
-(*         let def = Def.lhs t in *)
-(*         let use = Def.free_vars t in *)
-(*         sat `def dst def || sat_any sat src use *)
-(*       | _ -> false *)
-(*   end *)
-
-(*   let jump = object *)
-(*     inherit matcher *)
-(*     method jmp t r sat = match r with *)
-(*       | Pat.Jump (k,cv,dv) -> *)
-(*         let sat () = *)
-(*           let conds = Exp.free_vars (Jmp.cond t) in *)
-(*           let dsts = Set.diff (Jmp.free_vars t) conds in *)
-(*           sat_any sat cv conds || sat_any sat dv dsts in *)
-(*         let sat = match k, Jmp.kind t with *)
-(*           | `call,Call _ -> sat *)
-(*           | `goto,Goto _ -> sat *)
-(*           | `ret,Ret _   -> sat *)
-(*           | `exn,Int _  -> sat *)
-(*           | `jmp,_     -> sat *)
-(*           | _ -> fun _ -> false in *)
-(*         sat () *)
-(*       | _ -> false *)
-(*   end *)
-
-(*   let load = object *)
-(*     inherit matcher *)
-(*     method def t r sat = *)
-(*       match r with *)
-(*       | Pat.Load (dst, {Ptr.base; off}) -> *)
-(*         sat `def dst (Def.lhs t) || *)
-(*         Exp.fold ~init:false (object *)
-(*           inherit [bool] Bil.visitor *)
-(*         end) (Def.rhs t) *)
-(*       | _ -> false *)
-(*   end *)
-
-(* end *)
+let solve spec prog =
+  let state = {init = []; hyps = []} in
+  let solver = solver prog in
+  SM.exec (search prog solver) state

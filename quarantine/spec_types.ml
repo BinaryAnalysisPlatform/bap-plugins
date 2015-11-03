@@ -34,7 +34,7 @@ with bin_io, compare, sexp
 
 module Pat = struct
   type t =
-    | Call of id * e list * e list
+    | Call of id * v list * v list
     | Jump of [`call | `goto | `ret | `exn | `jmp] * v * v
     | Move of v * v
     | Load of v * v
@@ -57,15 +57,16 @@ end
 type rule = Rule.t
 with bin_io, compare, sexp
 
-module Definition = struct
+module Defn = struct
   type t = {
     name : string;
+    vars : v list;
     constrs  : constr list;
     rules : rule list
   } with bin_io, compare, fields, sexp
 end
 
-type definition = Definition.t
+type defn = Defn.t
 with bin_io, compare, sexp
 
-type spec = definition list
+type spec = defn list

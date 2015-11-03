@@ -2,8 +2,9 @@ open Bap.Std
 open Spec
 
 let spec = [
-  Definition.({
+  Defn.({
       name = "malloc_is_safe";
+      vars = ["p"; "c"];
       constrs = [
         Constr.var "p" ARM.CPU.r0;
         Constr.int "p" (Word.of_int32 0x0l);
@@ -12,7 +13,7 @@ let spec = [
       rules = [
         Rule.({
             name = "when_checked";
-            premises = [Pat.call "malloc" [] [E.Reg "p"]];
+            premises = [Pat.call "malloc" [] ["p"]];
             conclusions = [Pat.jump `jmp "c" "dst"];
           })
       ]

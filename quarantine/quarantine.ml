@@ -62,7 +62,7 @@ let mark_terms {mark} prog  =
           Term.map jmp_t ~f:mark))
 
 let main proj =
-  eprintf "Specification:@.@.%a" Spec.pp spec;
+  eprintf "Specification:@.%a@." Spec.pp spec;
   let s = Solver.create spec in
   let proj =
     Project.program proj |>

@@ -28,13 +28,13 @@ module Rule : sig
   include Regular with type t := t
 end
 
-module Definition : sig
-  include module type of Definition with type t = Definition.t
+module Defn : sig
+  include module type of Defn with type t = Defn.t
   include Regular with type t := t
 end
 
 module Spec : sig
-  type t = definition list
+  type t = defn list
   with bin_io, compare, sexp
   include Regular with type t := t
 end

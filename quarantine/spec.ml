@@ -76,11 +76,11 @@ module Pat = struct
         | `exn  -> "exn"
         | `jmp  -> "jmp"
 
-      let pp_args ppf = pp_list pp_comma E.pp ppf
+      let pp_args ppf = pp_list pp_comma V.pp ppf
 
       let pp ppf = function
         | Call (id,as1,as2) ->
-          fprintf ppf "%a = %a(%a)" pp_args as2 Id.pp id pp_args as1
+          fprintf ppf "%a := %a(%a)" pp_args as2 Id.pp id pp_args as1
         | Jump (k,c,d) ->
           fprintf ppf "when %a %s %a" V.pp c (string_of_kind k) V.pp d
         | Move (t,s) ->
@@ -110,31 +110,36 @@ module Rule = struct
     end)
 end
 
-module Definition = struct
-  include Definition
+module Defn = struct
+  include Defn
   include Regular.Make(struct
       type nonrec t = t with bin_io, compare, sexp
       let module_name = None
       let hash d = Id.hash d.name
 
-      let pp_cons = pp_list pp_break Constr.pp
-      let pp_rules = pp_list pp_break Rule.pp
+      let pp_vars p = pp_list pp_comma V.pp p
+      let pp_cons p = pp_list pp_comma Constr.pp p
+      let pp_rules p = pp_list pp_break Rule.pp p
+
+      let pp_constrs ppf d =
+        fprintf ppf "@[var @[{%a}@]@ s.t.@ @[{%a}@]@]"
+          pp_vars d.vars pp_cons d.constrs
 
       let pp ppf d =
-        Format.fprintf ppf "@[<v>define %s ::= @;%a@;%a@]"
-          d.name  pp_cons d.constrs pp_rules d.rules
+        fprintf ppf "@[<v2>define %s ::= @;%a@;%a@]"
+          d.name pp_constrs d pp_rules d.rules
     end)
 end
 
 module Spec = struct
-  type t = definition list
+  type t = defn list
   with bin_io, compare, sexp
   include Regular.Make(struct
       type nonrec t = t with bin_io, compare, sexp
       let module_name = None
       let hash = Hashtbl.hash
-      let pp_defs = pp_list pp_break Definition.pp
+      let pp_defs ppf spec = pp_list pp_break Defn.pp ppf spec
       let pp ppf spec =
-        fprintf ppf "@[<v>%a@]" pp_defs spec
+        fprintf ppf "@[<v2>%a@]@." pp_defs spec
     end)
 end

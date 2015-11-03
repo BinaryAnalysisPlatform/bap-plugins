@@ -352,6 +352,33 @@ define sql_exec_is_safe ::=
   x := u, sql_exec(p) |- z := sql_escape(y)
 ```
 
+## Unchecked user input
+
+User input, that may pass to sensible code paths, e.g., to malloc
+input, load or store operations, must be checked and, ideally, checked
+and then redefined. For example, the following code:
+
+```c
+char *img;
+int rows, cols, size, has_color;
+fscanf(fp, "%d %d %d", &rows, &cols, &size);
+has_color = size != (rows * cols);
+img = malloc(size);
+```
+
+the `size` variable is checked, but its result is not redefined,
+so the check cannot sanitize the user input
+
+```
+define user_input_is_sanitized ::=
+  var  {x,y,u,u',v,v'}
+  s.t. {user_input(u), critical(v), u'/x, v/x, v'/y}
+  rule if_checked  ::= x := u, v |- when u' jmp _
+  rule if_assigned ::= y := u, v |- x := v'
+```
+
+
+
 # Three value logic
 
 In general the proposition of form `y / x` is not a true logic
