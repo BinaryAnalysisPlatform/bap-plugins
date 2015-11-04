@@ -29,6 +29,7 @@ type hyp = {
   concs   : Pat.Set.t;
   proofs  : tid Pat.Map.t;
   ivars   : eq V.Map.t;
+  cvars   : V.Set.t;
   constrs : constr list;
 } with fields
 
@@ -161,8 +162,11 @@ let sat term hyp kind v bil : hyp option =
     Term.get_attr term Taint.vars >>= fun vars ->
     Map.find vars y >>= function
     | ss when Set.is_empty ss -> None
-    | ss -> match Map.find_exn hyp.ivars x with
-      | Top -> Some {
+    | ss ->
+      match Map.find_exn hyp.ivars x with
+      | Top ->
+        eprintf "%s: %a/%s -> SAT@." (Term.name term) Var.pp y x;
+        Some {
           hyp with
           ivars = Map.add hyp.ivars ~key:x ~data:(Set ss)
         }
@@ -181,7 +185,10 @@ let sat term hyp kind v bil : hyp option =
             ~data:(Set (Tid.Set.singleton seed))
       } in
     match Map.find_exn hyp.ivars x with
-    | Top -> unified
+    | Top ->
+      eprintf "%s: _/%s -> SAT@." (Term.name term) x;
+
+      unified
     | Set seeds ->
       if Set.mem seeds seed then unified else None in
   let open Constr in
@@ -190,17 +197,22 @@ let sat term hyp kind v bil : hyp option =
       let sat c = Option.some_if c hyp in
       match cs with
       | Fun (id,v') -> sat V.(v <> v')
-      | Int _ -> sat true
       | Var (v',e) -> (V.(v' = v) ==> Var.(e = bil)) |> sat
       | Dep (v1,v2) ->  match kind with
         | `def when V.(v2 = v) -> dep_def v2
-        | `use when V.(v = v1) -> dep_use bil v2
+        | `use when V.(v = v1) ->
+          let r = dep_use bil v2 in
+          if Caml.(r <> None)
+          then printf "%s dep is sat@." (Term.name term);
+          r
         | _ -> sat true)
 
 let solution term hyp (eqs : match_res) : hyp option =
   let open Option.Monad_infix in
   eqs >>= List.fold ~init:(Some hyp) ~f:(fun hyp eq ->
       hyp >>= fun hyp -> match eq with
+      | Sat_def (v,_) | Sat_use (v,_)
+        when not (Set.mem hyp.cvars v) -> Some hyp
       | Sat_def (v,bil) -> sat term hyp `def v bil
       | Sat_use (v,vs) ->
         Set.to_list vs |>
@@ -218,10 +230,13 @@ let solution term hyp (eqs : match_res) : hyp option =
                     | `Both (Top,Top) -> Top)
               }))
 
-let proved hyp pat term = {
-  hyp with
-  proofs = Map.add hyp.proofs ~key:pat ~data:(Term.tid term);
-}
+let proved hyp pat term =
+  eprintf "Proposition `%a' proved by %s@."
+    Pat.pp pat (Term.name term);
+  {
+    hyp with
+    proofs = Map.add hyp.proofs ~key:pat ~data:(Term.tid term);
+  }
 
 let fold_pats field matches term hyp =
   Set.fold (Field.get field hyp) ~init:hyp ~f:(fun hyp pat ->
@@ -309,10 +324,13 @@ module Match = struct
     List.concat_map ~f:(fun arg -> match intent, Arg.intent arg with
         | In, Some Out -> []
         | Out, Some In -> []
-        | _ -> [
-            sat_use v (Arg.rhs arg |> Exp.free_vars);
-            sat_def v (Arg.lhs arg);
-          ])
+        | _ -> match Arg.rhs arg with
+          | Bil.Var var -> [sat_def v var]
+          | _ -> []
+          (* [ *)
+          (*   (\* sat_use v (Arg.rhs arg |> Exp.free_vars); *\) *)
+          (*   sat_def v (Arg.lhs arg); *)
+          (* ] *))
 
   let call prog = object
     inherit matcher
@@ -328,8 +346,14 @@ module Match = struct
             else Some (f args) in
       let match_call call uses defs =
         with_args call (fun args ->
-            List.concat_map defs ~f:(sat_arg Out sat args) @
-            List.concat_map uses ~f:(sat_arg In  sat args)) in
+            let eqs =
+              List.concat_map defs ~f:(sat_arg Out sat args) in
+            eprintf "%s:@.%a@." (Term.name t) pp_equations eqs;
+
+            eqs
+
+           (* @ List.concat_map uses ~f:(sat_arg In  sat args) *)
+          ) in
       let match_move call v1 v2 =
         with_args call (fun args ->
             sat_arg Out sat args v1 @ sat_arg In sat args v2) in
@@ -342,6 +366,17 @@ module Match = struct
       | Pat.Move (v1,v2), Call c -> match_move c v1 v2
       | Pat.Wild v, Call c -> match_wild c v
       | _ -> None  (* TODO: add Load and Store pats *)
+
+    method arg t r : equations option =
+      let match_sub v sub =
+        match Arg.rhs t with
+        | Bil.Var var -> Some [sat_def v var]
+        | _ -> None in
+      match r, Program.parent arg_t prog (Term.tid t) with
+      | Pat.Call (id,uses,[v]), Some sub
+        when Sub.name sub = id -> match_sub v sub
+      | _ -> None
+
   end
 
   let wild =
@@ -370,18 +405,20 @@ let solver prog : state vis =
   end
 
 let hyp_of_rule defn constrs r =
-  let ivars,ovars =
-    List.fold constrs ~init:(V.Map.empty,V.Map.empty)
-      ~f:(fun (ivars,ovars) cs -> match cs with
+  let ivars,cvars =
+    List.fold constrs ~init:(V.Map.empty,V.Set.empty)
+      ~f:(fun (ivars,cvars) cs -> match cs with
           | Constr.Dep (v1,v2) ->
             Map.add ivars ~key:v2 ~data:Top,
-            Map.add ovars ~key:v1 ~data:v2
-          | _ -> (ivars,ovars)) in
+            Set.add (Set.add cvars v1) v2
+          | Constr.Var (v,_)
+          | Constr.Fun (v,_) -> (ivars,Set.add cvars v)) in
   {
     defn; rule = r;
     prems = Pat.Set.of_list (Rule.premises r);
     concs = Pat.Set.of_list (Rule.conclusions r);
     ivars;
+    cvars;
     proofs = Pat.Map.empty;
     constrs;
   }
@@ -397,12 +434,13 @@ let solve spec prog =
   SM.exec (search prog solver) state
 
 let pp_hyp ppf h =
-  let proved = Set.is_empty in
+  let proofs = Pat.Set.of_list (Map.keys h.proofs) in
+  let proved s = Set.is_empty (Set.diff s proofs) in
   let result =
     if proved h.prems && proved h.concs then "was proved" else
     if proved h.prems && not (proved h.concs) then "wasn't proved"
     else "wasn't recognized" in
-  Format.fprintf ppf "hypothesis %s %s@;"
+  Format.fprintf ppf "hypothesis %s %s@."
     (Rule.name h.rule) result
 
 

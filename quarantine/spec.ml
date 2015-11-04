@@ -31,7 +31,6 @@ module Constr = struct
       let hash = function
         | Dep (v1,v2) -> V.hash v1 lxor V.hash v2
         | Var (v,var) -> V.hash v lxor Var.hash var
-        | Int (v,w) -> V.hash v lxor Word.hash w
         | Fun (id,_) -> Id.hash id
 
       let module_name = None
@@ -39,7 +38,6 @@ module Constr = struct
       let pp ppf = function
         | Dep (v1,v2) -> fprintf ppf "%a/%a" V.pp v1 V.pp v2
         | Var (v,var) -> fprintf ppf "%a = %a" V.pp v Var.pp var
-        | Int (v,int) -> fprintf ppf "%a = %a" V.pp v Word.pp int
         | Fun (id,v) -> fprintf ppf "%a(%a)" Id.pp id V.pp v
     end)
 end

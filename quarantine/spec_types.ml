@@ -15,7 +15,6 @@ module Constr = struct
   type t =
     | Dep of v * v
     | Var of v * var
-    | Int of v * word
     | Fun of id * v
   with bin_io, compare, sexp, variants
 end

@@ -28,8 +28,11 @@ let mark_if_visited ctxt =
 
 let mark_if_tainted (ctxt : Main.context) =
   let mark t =
-    if Map.is_empty (ctxt#taints_of_term (Term.tid t))
-    then t else Term.set_attr t foreground `red in
+    let vars = ctxt#taints_of_term (Term.tid t) in
+    if Map.is_empty (vars)
+    then t else
+      Term.set_attr (Term.set_attr t foreground `red)
+        Taint.vars vars in
   {mark}
 
 let if_seeded =
