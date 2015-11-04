@@ -48,6 +48,23 @@ end
 
 let create = ident
 
+let pp_equation ppf = function
+  | Sat_def (v,var) -> fprintf ppf "%a <- %a@." V.pp v Var.pp var
+  | Sat_use (v,vars)->
+    fprintf ppf "%a ->  %a@." V.pp v Var.pp_seq (Set.to_sequence vars)
+
+let pp_equations ppf eqs =
+  List.iter eqs ~f:(pp_equation ppf)
+
+let update f = SM.get () >>= fun s -> SM.put (f s)
+
+let iterm ~f =
+  Seq.fold ~init:(SM.return ()) ~f:(fun m v ->
+      m >>= fun () -> f v)
+
+let foreach cls t ~f = Term.enum cls t |> iterm ~f
+
+
 let input_of_constr = function
   | Constr.Dep (_,v) -> Some v
   | _ -> None
@@ -61,47 +78,36 @@ let our_target id = function
   | Indirect _ -> false
   | Direct tid -> Tid.name tid = "@"^id
 
-let unknown_of_var msg var =
-  Def.create var (Bil.unknown msg (Var.typ var))
-
-let def_of_cons v cons =
-  let var = List.find_map cons ~f:(function
-      | Constr.Var (v',var) when V.(v' = v) -> Some var
-      | _ -> None) in
-  let int = List.find_map cons ~f:(function
-      | Constr.Int (v',int) when V.(v' = v) -> Some int
-      | _ -> None) in
-  match var,int with
-  | Some x, Some w -> Some (Def.create x (Bil.int w))
-  | Some x, None -> Some (unknown_of_var "undefined after call" x)
-  | _ -> None
-
 let self_seed t = Term.set_attr t Taint.seed (Term.tid t)
 
-let insert_seeds vars cons blk v =
-  if Set.mem vars v then match def_of_cons v cons with
-    | None -> blk
-    | Some def -> Term.prepend def_t blk (self_seed def)
-  else blk
-
-let seed_jmp jmp cons vars sub pat =
-  let seed_call id es cons = match Jmp.kind jmp with
-    | Ret _ | Int _ | Goto _ -> sub
-    | Call call when not (our_target id (Call.target call)) -> sub
+let seed_jmp jmp cons vars prog pat =
+  let seed_call id es = match Jmp.kind jmp with
+    | Ret _ | Int _ | Goto _ -> prog
+    | Call call when not (our_target id (Call.target call)) -> prog
     | Call call ->
       List.filter es ~f:(Set.mem vars) |> function
-      | [] -> sub
-      | es -> match Call.return call with
-        | None | Some (Indirect _) -> sub
-        | Some (Direct ret) -> match Term.find blk_t sub ret with
-          | None -> sub
-          | Some blk ->
-            List.fold es ~init:blk ~f:(insert_seeds vars cons) |>
-            Term.update blk_t sub in
+      | [] -> prog
+      | es -> match Call.target call with
+        | Indirect _ -> prog
+        | Direct ret -> match Term.find sub_t prog ret with
+          | None -> prog
+          | Some sub ->
+            let sub = Term.map arg_t sub ~f:(fun arg ->
+                List.fold cons ~init:arg ~f:(fun arg c ->
+                    let lhs = Arg.lhs arg in
+                    let rhs = (Arg.rhs arg |> Exp.free_vars) in
+                    match c with
+                    | Constr.Var (v,var) when
+                        Arg.intent arg <> Some In &&
+                        Set.mem vars v &&
+                        (Set.mem rhs var || Var.(lhs = var)) ->
+                      Term.set_attr arg Taint.seed (Term.tid jmp)
+                    | _ -> arg)) in
+            Term.update sub_t prog sub in
   match pat with
-  | Pat.Call (id,e1,[]) -> sub
-  | Pat.Call (id,_,es) -> seed_call id es cons
-  | _ -> sub
+  | Pat.Call (id,e1,[]) -> prog
+  | Pat.Call (id,_,es) -> seed_call id es
+  | _ -> prog
 
 let seed_def def cons vars blk pat =
   let hit = Set.mem vars in
@@ -125,34 +131,21 @@ let fold_patts spec ~init ~f =
                       Rule.conclusions rule in
           List.fold rules ~init ~f:(fun init rule -> f cons vars init rule)))
 
-let seed_sub (spec : t) sub =
+let seed_sub (spec : t) prog sub =
   let sub = Term.enum blk_t sub |> Seq.fold ~init:sub ~f:(fun sub blk ->
-      Term.enum jmp_t blk |> Seq.fold ~init:sub ~f:(fun sub jmp ->
-          fold_patts spec ~init:sub ~f:(seed_jmp jmp))) in
-  Term.enum blk_t sub |> Seq.fold ~init:sub ~f:(fun sub blk ->
       Term.enum def_t blk |> Seq.fold ~init:blk ~f:(fun blk def ->
           fold_patts spec ~init:blk ~f:(seed_def def)) |>
-      Term.update blk_t sub)
+      Term.update blk_t sub) in
+  let prog = Term.update sub_t prog sub in
+  Term.enum blk_t sub |>
+  Seq.fold ~init:prog ~f:(fun prog blk ->
+      Term.enum jmp_t blk |>
+      Seq.fold ~init:prog ~f:(fun prog jmp ->
+          fold_patts spec ~init:prog ~f:(seed_jmp jmp)))
 
 
 let seed spec prog =
-  Term.map sub_t prog ~f:(seed_sub spec)
-
-let pp_equation ppf = function
-  | Sat_def (v,var) -> fprintf ppf "%a <- %a@." V.pp v Var.pp var
-  | Sat_use (v,vars)->
-    fprintf ppf "%a ->  %a@." V.pp v Var.pp_seq (Set.to_sequence vars)
-
-let pp_equations ppf eqs =
-  List.iter eqs ~f:(pp_equation ppf)
-
-let update f = SM.get () >>= fun s -> SM.put (f s)
-
-let iterm ~f =
-  Seq.fold ~init:(SM.return ()) ~f:(fun m v ->
-      m >>= fun () -> f v)
-
-let foreach cls t ~f = Term.enum cls t |> iterm ~f
+  Term.enum sub_t prog |> Seq.fold ~init:prog ~f:(seed_sub spec)
 
 let search prog (vis : 'a vis) =
   foreach sub_t prog ~f:(fun sub ->
@@ -318,7 +311,7 @@ module Match = struct
         | Out, Some In -> []
         | _ -> [
             sat_use v (Arg.rhs arg |> Exp.free_vars);
-            sat_def v (Arg.lhs arg); (* XXX: is this correct? *)
+            sat_def v (Arg.lhs arg);
           ])
 
   let call prog = object
@@ -329,7 +322,10 @@ module Match = struct
         | Indirect _ -> None
         | Direct tid -> match Term.find sub_t prog tid with
           | None -> None
-          | Some sub -> Some (f (Term.enum arg_t sub)) in
+          | Some sub ->
+            let args = Term.enum arg_t sub in
+            if Seq.is_empty args then None
+            else Some (f args) in
       let match_call call uses defs =
         with_args call (fun args ->
             List.concat_map defs ~f:(sat_arg Out sat args) @

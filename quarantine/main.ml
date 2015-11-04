@@ -109,9 +109,23 @@ class ['a] main summary memory tid_of_addr const = object(self)
       SM.put ctxt >>= fun () ->
       super#eval_jmp jmp
 
-  method eval_call call =
+  method! eval_call call =
     self#shortcut_indirect call >>= fun () ->
     self#summarize_call call
+
+  method! eval_arg arg =
+    super#eval_arg arg >>= fun () ->
+    match Term.get_attr arg Taint.seed with
+    | None -> SM.return ()
+    | Some s -> match Arg.rhs arg with
+      | Bil.Var v -> self#taint_arg s v
+      | _ -> SM.return ()
+
+  method private taint_arg s v =
+    let taints = Tid.Set.singleton s in
+    self#lookup v >>= fun r ->
+    SM.get () >>= fun ctxt ->
+    SM.put (ctxt#taint_val r taints)
 
   method! eval_indirect exp =
     self#eval_exp exp >>| Bil.Result.value >>= function
