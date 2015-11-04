@@ -58,7 +58,7 @@ Without `header`:
 ```
 
 With `header`:
-
+```
 00000017: sub malloc(size, res)
 000001ed: size :: in u32 = R0
 000001ee: res :: out u32 = R0
