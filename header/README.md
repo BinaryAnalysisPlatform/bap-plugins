@@ -18,7 +18,12 @@ After this, just issue `make` command to get the plugin file.
 # Usage
 
 You can use the `stdlib.h` file, that enumerates about 250 functions
-from C standard libary. You can write your own file.
+from C standard libary. You can write your own file. The typical usage
+pattern will look like this:
+
+```
+$ bap binary -lheader --header-file=libc.h -dbir
+```
 
 You can even try to feed in a system header file, but FrontC is
 usually not capable of parsing them (neither do I), so it is easier
