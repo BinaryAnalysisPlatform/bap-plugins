@@ -163,51 +163,46 @@ let search prog (vis : 'a vis) =
           foreach jmp_t blk ~f:vis#jmp))
 
 let sat term hyp kind v bil : hyp option =
+  let open Option.Monad_infix in
   let dep_use y x =
-    match Term.get_attr term Taint.vars with
-    | None -> None
-    | Some vars -> match Map.find vars y with
-      | None -> None
-      | Some ss when Set.is_empty ss -> None
-      | Some ss -> match Map.find_exn hyp.ivars x with
-        | Top -> Some {
+    Term.get_attr term Taint.vars >>= fun vars ->
+    Map.find vars y >>= function
+    | ss when Set.is_empty ss -> None
+    | ss -> match Map.find_exn hyp.ivars x with
+      | Top -> Some {
+          hyp with
+          ivars = Map.add hyp.ivars ~key:x ~data:(Set ss)
+        }
+      | Set xs ->
+        let ss = Set.inter ss xs in
+        if Set.is_empty ss then None
+        else Some {
             hyp with
             ivars = Map.add hyp.ivars ~key:x ~data:(Set ss)
-          }
-        | Set xs ->
-          let ss = Set.inter ss xs in
-          if Set.is_empty ss then None
-          else Some {
-              hyp with
-              ivars = Map.add hyp.ivars ~key:x ~data:(Set ss)
-            } in
+          } in
   let dep_def x =
-    match Term.get_attr term Taint.seed with
-    | None -> None
-    | Some seed ->
-      let unified = Some {
-          hyp with
-          ivars = Map.add hyp.ivars ~key:x
-              ~data:(Set (Tid.Set.singleton seed))
-        } in
-      match Map.find_exn hyp.ivars x with
-      | Top -> unified
-      | Set seeds ->
-        if Set.mem seeds seed then unified else None in
+    Term.get_attr term Taint.seed >>= fun seed ->
+    let unified = Some {
+        hyp with
+        ivars = Map.add hyp.ivars ~key:x
+            ~data:(Set (Tid.Set.singleton seed))
+      } in
+    match Map.find_exn hyp.ivars x with
+    | Top -> unified
+    | Set seeds ->
+      if Set.mem seeds seed then unified else None in
   let open Constr in
   List.fold hyp.constrs ~init:(Some hyp) ~f:(fun hyp cs ->
-      match hyp with
-      | None -> None
-      | Some hyp ->
-        let sat c = Option.some_if c hyp in
-        match cs with
-        | Fun (id,v') -> sat V.(v <> v')
-        | Int _ -> sat true
-        | Var (v',e) -> (V.(v' = v) ==> Var.(e = bil)) |> sat
-        | Dep (v1,v2) ->  match kind with
-          | `def when V.(v2 = v) -> dep_def v2
-          | `use when V.(v = v1) -> dep_use bil v2
-          | _ -> sat true)
+      hyp >>= fun hyp ->
+      let sat c = Option.some_if c hyp in
+      match cs with
+      | Fun (id,v') -> sat V.(v <> v')
+      | Int _ -> sat true
+      | Var (v',e) -> (V.(v' = v) ==> Var.(e = bil)) |> sat
+      | Dep (v1,v2) ->  match kind with
+        | `def when V.(v2 = v) -> dep_def v2
+        | `use when V.(v = v1) -> dep_use bil v2
+        | _ -> sat true)
 
 let solution term hyp (eqs : match_res) : hyp option =
   let open Option.Monad_infix in
@@ -218,24 +213,22 @@ let solution term hyp (eqs : match_res) : hyp option =
         Set.to_list vs |>
         List.filter_map ~f:(sat term hyp `use v) |> function
         | [] -> None
-        | xs -> List.reduce_exn xs ~f:(fun h1 h2 -> {
-              h1 with
-              ivars = Map.merge h1.ivars h2.ivars ~f:(fun ~key r ->
-                  Option.some @@ match r with
-                  | `Left _ | `Right _ -> assert false
-                  | `Both (Set xs, Set ys) -> Set (Set.union xs ys)
-                  | `Both (_,Set xs)
-                  | `Both  (Set xs,_) -> Set xs
-                  | `Both (Top,Top) -> Top)
-            }) |> Option.some)
+        | xs ->
+          Option.some @@ List.reduce_exn xs ~f:(fun h1 h2 -> {
+                h1 with
+                ivars = Map.merge h1.ivars h2.ivars ~f:(fun ~key r ->
+                    Option.some @@ match r with
+                    | `Left _ | `Right _ -> assert false
+                    | `Both (Set xs, Set ys) -> Set (Set.union xs ys)
+                    | `Both (_,Set xs)
+                    | `Both  (Set xs,_) -> Set xs
+                    | `Both (Top,Top) -> Top)
+              }))
 
-let proved hyp pat term =
-  printf "proposition %a is proved by term %s@."
-    Pat.pp pat (Term.name term);
-  {
-    hyp with
-    proofs = Map.add hyp.proofs ~key:pat ~data:(Term.tid term);
-  }
+let proved hyp pat term = {
+  hyp with
+  proofs = Map.add hyp.proofs ~key:pat ~data:(Term.tid term);
+}
 
 let fold_pats field matches term hyp =
   Set.fold (Field.get field hyp) ~init:hyp ~f:(fun hyp pat ->
