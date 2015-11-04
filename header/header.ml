@@ -44,15 +44,17 @@ let size_of_type typ = match typ with
   | DOUBLE true -> Size `r128
   | _ -> Word
 
-let arg_of_name n (name,typ,_,_) = {
-  arg_name = if name <> "" then name else sprintf "x%d" (n+1);
-  arg_intent = intent_of_type typ;
-  arg_size = size_of_type typ;
-}
+let arg_of_name n = function
+  | (_,VOID,_,_) -> None
+  | (name,typ,_,_) -> Some {
+      arg_name = if name <> "" then name else sprintf "x%d" (n+1);
+      arg_intent = intent_of_type typ;
+      arg_size = size_of_type typ;
+    }
 
 let string_of_single_name n (_,_,name) = arg_of_name n name
 
-let args_of_single_names = List.mapi ~f:string_of_single_name
+let args_of_single_names = List.filter_mapi ~f:string_of_single_name
 
 let fn_of_definition = function
   | DECDEF (_,_,[(name, PROTO (ret,args,false),[],NOTHING)]) ->
@@ -102,33 +104,33 @@ let fill_args arch fns program =
         | Some ret ->
           Term.append arg_t sub (term_of_arg arch 0 ret))
 
-module Cmdline = struct
-  include Cmdliner
-  let file : string option Term.t =
-    let doc = "C header with function prototypes" in
-    Arg.(value & opt (some file) None & info ["file"] ~doc)
+(* module Cmdline = struct *)
+(*   include Cmdliner *)
+(*   let file : string option Term.t = *)
+(*     let doc = "C header with function prototypes" in *)
+(*     Arg.(value & opt (some file) None & info ["file"] ~doc) *)
 
-  let doc =
-    "Extract C function prototypes from a specified file,
-     infer arguments and fill in arg terms in matching \
-     subroutines"
+(*   let doc = *)
+(*     "Extract C function prototypes from a specified file, *)
+       (*      infer arguments and fill in arg terms in matching \ *)
+       (*      subroutines" *)
 
-  let parse argv =
-    let info = Term.info ~doc "header" in
-    let spec = Term.(pure ident $file) in
-    match Term.eval ~argv (spec,info) with
-    | `Ok Some file -> file
-    | `Ok None -> invalid_arg "Please, specify file"
-    | _ -> assert false
-end
+(*   let parse argv = *)
+(*     let info = Term.info ~doc "header" in *)
+(*     let spec = Term.(pure ident $file) in *)
+(*     match Term.eval ~argv (spec,info) with *)
+(*     | `Ok Some file -> file *)
+(*     | `Ok None -> invalid_arg "Please, specify file" *)
+(*     | _ -> assert false *)
+(* end *)
 
-let main argv proj =
-  let prog = Project.program proj in
-  let arch = Project.arch proj in
-  let file = Cmdline.parse argv in
-  let args = args_of_file file in
-  fill_args arch args prog |>
-  Project.with_program proj
+(* let main argv proj = *)
+(*   let prog = Project.program proj in *)
+(*   let arch = Project.arch proj in *)
+(*   let file = Cmdline.parse argv in *)
+(*   let args = args_of_file file in *)
+(*   fill_args arch args prog |> *)
+(*   Project.with_program proj *)
 
 
-let () = Project.register_pass_with_args "header" main
+(* let () = Project.register_pass_with_args "header" main *)
