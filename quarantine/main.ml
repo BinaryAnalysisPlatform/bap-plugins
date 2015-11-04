@@ -26,7 +26,7 @@ class context p k  = object(self)
   inherit Biri.context p as super
 
   val k = k
-  val cps : tid list = []
+  val next : tid option = None
   val tv : Tid.Set.t Var.Map.t Tid.Map.t = Tid.Map.empty
 
   method step =
@@ -34,10 +34,15 @@ class context p k  = object(self)
     then Some {< k = k - 1 >}
     else None
 
-  method set_restore tid = {< cps = tid :: cps >}
-  method pop_restore = match cps with
-    | [] -> None
-    | c :: cps -> Some (c, {< cps = cps >})
+  method set_restore tid = {< next = Some tid >}
+  method pop_restore = match next with
+    | None -> None
+    | Some c -> Some (c, {< next = None >})
+
+  method check_restore tid =
+    match next with
+    | Some next when Tid.(next = tid) -> {< next = None >}
+    | _ -> self
 
   method taint_var tid v r =
     let ts = taints#val_taints r in
@@ -49,7 +54,6 @@ class context p k  = object(self)
             | None -> Some ts
             | Some ts' -> Some (Set.union ts ts'))) in
     {< tv = tv >}
-
 
   method taints_of_term tid =
     Map.find tv tid |> function
@@ -66,6 +70,12 @@ class ['a] main summary memory tid_of_addr const = object(self)
   constraint 'a = #context
   inherit ['a] biri as super
   inherit ['a] Taint.propagator
+
+
+  method! enter_term cls t =
+    SM.get () >>= fun c ->
+    SM.put (c#check_restore (Term.tid t)) >>= fun () ->
+    super#enter_term cls t
 
   method! eval_unknown _ t = self#emit t
 

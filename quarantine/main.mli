@@ -9,6 +9,7 @@ class context : program term -> int -> object('s)
     method step : 's option
     method set_restore : tid -> 's
     method pop_restore : (tid * 's) option
+    method check_restore : tid -> 's
 
     method taint_var : tid -> var -> Bil.result -> 's
     method taints_of_term : tid -> taints Var.Map.t
