@@ -12,6 +12,7 @@ type t = spec
 type equation =
   | Sat_def of v * var
   | Sat_use of v * Var.Set.t
+  | Unsat
 with variants
 
 type equations = equation list
@@ -45,8 +46,6 @@ class type ['a] vis = object
   method jmp : jmp term -> (unit,'a) SM.t
 end
 
-
-
 let create = ident
 
 let input_of_constr = function
@@ -58,11 +57,9 @@ let inputs_of_defn rule =
   List.filter_map  ~f:input_of_constr |>
   V.Set.of_list
 
-
 let our_target id = function
   | Indirect _ -> false
   | Direct tid -> Tid.name tid = "@"^id
-
 
 let unknown_of_var msg var =
   Def.create var (Bil.unknown msg (Var.typ var))
@@ -141,6 +138,15 @@ let seed_sub (spec : t) sub =
 let seed spec prog =
   Term.map sub_t prog ~f:(seed_sub spec)
 
+let pp_equation ppf = function
+  | Unsat -> fprintf ppf "unsat@."
+  | Sat_def (v,var) -> fprintf ppf "%a <- %a@." V.pp v Var.pp var
+  | Sat_use (v,vars)->
+    fprintf ppf "%a ->  %a@." V.pp v Var.pp_seq (Set.to_sequence vars)
+
+let pp_equations ppf eqs =
+  List.iter eqs ~f:(pp_equation ppf)
+
 let update f = SM.get () >>= fun s -> SM.put (f s)
 
 let iterm ~f =
@@ -157,22 +163,7 @@ let search prog (vis : 'a vis) =
           foreach def_t blk ~f:vis#def >>= fun () ->
           foreach jmp_t blk ~f:vis#jmp))
 
-let ivars_of_pat f = function
-  | Pat.Call (_,_,ys) -> List.filter ~f ys
-  | Pat.Move (v,_)
-  | Pat.Load (v,_)
-  | Pat.Store (v,_) when f v -> [v]
-  | _ -> []
-
-
-
-let proved hyp pat term =
-  {
-    hyp with
-    proofs = Map.add hyp.proofs ~key:pat ~data:(Term.tid term);
-  }
-
-let sat term hyp kind v bil =
+let sat term hyp kind v bil : hyp option =
   let dep_use y x =
     match Term.get_attr term Taint.vars with
     | None -> None
@@ -213,7 +204,7 @@ let sat term hyp kind v bil =
         match cs with
         | Fun (id,v') -> sat V.(v <> v')
         | Int _ -> sat true
-        | Var (v',e) -> V.(v' = v) ==> Var.(e = bil) |> sat
+        | Var (v',e) -> (V.(v' = v) ==> Var.(e = bil)) |> sat
         | Dep (v1,v2) ->  match kind with
           | `def when V.(v2 = v) -> dep_def v2
           | `use when V.(v = v1) -> dep_use bil v2
@@ -224,6 +215,7 @@ let solution term hyp (eqs : equations) : hyp option =
       match hyp with
       | None -> None
       | Some hyp -> match eq with
+        | Unsat -> None
         | Sat_def (v,bil) -> sat term hyp `def v bil
         | Sat_use (v,vs) ->
           Set.to_list vs |>
@@ -241,10 +233,18 @@ let solution term hyp (eqs : equations) : hyp option =
                     | `Both (Top,Top) -> Top)
               }) |> Option.some)
 
+let proved hyp pat term =
+  printf "proposition %a is proved by term %s@."
+    Pat.pp pat (Term.name term);
+  {
+    hyp with
+    proofs = Map.add hyp.proofs ~key:pat ~data:(Term.tid term);
+  }
+
 let fold_pats field matches term hyp =
   Set.fold (Field.get field hyp) ~init:hyp ~f:(fun hyp pat ->
       match solution term hyp (matches pat) with
-      | Some hyp -> hyp
+      | Some hyp -> proved hyp pat term
       | None ->
         Set.add (Field.get field hyp) pat |> Field.fset field hyp)
 
@@ -269,10 +269,10 @@ module Match = struct
     method def : def term -> pat -> equations
     method jmp : jmp term -> pat -> equations
   end = object
-    method arg _ _ = []
-    method phi _ _ = []
-    method def _ _ = []
-    method jmp _ _ = []
+    method arg _ _ = [unsat]
+    method phi _ _ = [unsat]
+    method def _ _ = [unsat]
+    method jmp _ _ = [unsat]
   end
 
   let sat_mem sat v : exp -> equations =
@@ -300,7 +300,7 @@ module Match = struct
       | Pat.Load (dst, ptr) ->
         sat_def dst lhs :: sat_mem sat (`load ptr) rhs
       | Pat.Store (p,v) -> sat_mem sat (`store (p,v)) rhs
-      | _ -> []
+      | _ -> [unsat]
   end
 
   let jump = object
@@ -317,9 +317,9 @@ module Match = struct
           | `ret,Ret _
           | `exn,Int _
           | `jmp,_     -> sat
-          | _ -> fun _ -> [] in
+          | _ -> fun _ -> [unsat] in
         sat ()
-      | _ -> []
+      | _ -> [unsat]
   end
 
   let sat_arg intent sat args v : equations =
@@ -337,9 +337,9 @@ module Match = struct
     method jmp t r : equations =
       let with_args call f : equations =
         match Call.target call with
-        | Indirect _ -> []
+        | Indirect _ -> [unsat]
         | Direct tid -> match Term.find sub_t prog tid with
-          | None -> []
+          | None -> [unsat]
           | Some sub -> f (Term.enum arg_t sub) in
       let match_call call uses defs =
         with_args call (fun args ->
@@ -356,13 +356,13 @@ module Match = struct
         match_call c uses defs
       | Pat.Move (v1,v2), Call c -> match_move c v1 v2
       | Pat.Wild v, Call c -> match_wild c v
-      | _ -> []  (* TODO: add Load and Store pats *)
+      | _ -> [unsat]  (* TODO: add Load and Store pats *)
   end
 
   let wild =
     let any es pat = match pat with
       | Pat.Wild v -> [sat_use v es]
-      | _ -> [] in
+      | _ -> [unsat] in
     object
       inherit matcher
       method def t = any (Def.free_vars t)
