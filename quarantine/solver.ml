@@ -196,9 +196,7 @@ let sat term hyp kind v bil : hyp option =
     | ss when Set.is_empty ss -> None
     | ss ->
       match Map.find_exn hyp.ivars x with
-      | Top ->
-        eprintf "%s: %a/%s -> SAT@." (Term.name term) Var.pp y x;
-        Some {
+      | Top -> Some {
           hyp with
           ivars = Map.add hyp.ivars ~key:x ~data:(Set ss)
         }
@@ -217,9 +215,7 @@ let sat term hyp kind v bil : hyp option =
             ~data:(Set (Tid.Set.singleton seed))
       } in
     match Map.find_exn hyp.ivars x with
-    | Top ->
-      eprintf "%s: _/%s -> SAT@." (Term.name term) x;
-      unified
+    | Top -> unified
     | Set seeds ->
       if Set.mem seeds seed then unified else None in
   let open Constr in
@@ -231,11 +227,7 @@ let sat term hyp kind v bil : hyp option =
       | Var (v',e) -> (V.(v' = v) ==> Var.(e = bil)) |> sat
       | Dep (v1,v2) ->  match kind with
         | `def when V.(v2 = v) -> dep_def v2
-        | `use when V.(v = v1) ->
-          let r = dep_use bil v2 in
-          if Caml.(r <> None)
-          then printf "%s dep is sat@." (Term.name term);
-          r
+        | `use when V.(v = v1) -> dep_use bil v2
         | _ -> sat true)
 
 let solution term hyp (eqs : match_res) : hyp option =
@@ -261,13 +253,10 @@ let solution term hyp (eqs : match_res) : hyp option =
                     | `Both (Top,Top) -> Top)
               }))
 
-let proved hyp pat term =
-  eprintf "Proposition `%a' proved by %s@."
-    Pat.pp pat (Term.name term);
-  {
-    hyp with
-    proofs = Map.add hyp.proofs ~key:pat ~data:(Term.tid term);
-  }
+let proved hyp pat term = {
+  hyp with
+  proofs = Map.add hyp.proofs ~key:pat ~data:(Term.tid term);
+}
 
 let fold_pats field matches term hyp =
   Set.fold (Field.get field hyp) ~init:hyp ~f:(fun hyp pat ->
@@ -365,38 +354,32 @@ module Match = struct
 
   let call prog = object
     inherit matcher
-    method jmp t r : equations option =
-      let with_args call f : equations option =
-        match Call.target call with
-        | Indirect _ -> None
-        | Direct tid -> match Term.find sub_t prog tid with
-          | None -> None
-          | Some sub ->
-            let args = Term.enum arg_t sub in
-            if Seq.is_empty args then None
-            else Some (f args) in
-      let match_call call uses defs =
-        with_args call (fun args ->
-            let eqs =
-              List.concat_map defs ~f:(sat_arg Out sat args) in
-            eprintf "%s:@.%a@." (Term.name t) pp_equations eqs;
-
-            eqs
-
-           (* @ List.concat_map uses ~f:(sat_arg In  sat args) *)
-          ) in
-      let match_move call v1 v2 =
-        with_args call (fun args ->
-            sat_arg Out sat args v1 @ sat_arg In sat args v2) in
-      let match_wild call v =
-        with_args call (fun args -> sat_arg In sat args v) in
-      match r, Jmp.kind t with
-      | Pat.Call (id,uses,defs), Call c
-        when our_target id (Call.target c) ->
-        match_call c uses defs
-      | Pat.Move (v1,v2), Call c -> match_move c v1 v2
-      | Pat.Wild v, Call c -> match_wild c v
-      | _ -> None  (* TODO: add Load and Store pats *)
+    (* method jmp t r : equations option = *)
+    (*   let with_args call f : equations option = *)
+    (*     match Call.target call with *)
+    (*     | Indirect _ -> None *)
+    (*     | Direct tid -> match Term.find sub_t prog tid with *)
+    (*       | None -> None *)
+    (*       | Some sub -> *)
+    (*         let args = Term.enum arg_t sub in *)
+    (*         if Seq.is_empty args then None *)
+    (*         else Some (f args) in *)
+    (*   let match_call call uses defs = *)
+    (*     with_args call (fun args -> *)
+    (*         List.concat_map defs ~f:(sat_arg Out sat args) @ *)
+    (*         List.concat_map uses ~f:(sat_arg In  sat args)) in *)
+    (*   let match_move call v1 v2 = *)
+    (*     with_args call (fun args -> *)
+    (*         sat_arg Out sat args v1 @ sat_arg In sat args v2) in *)
+    (*   let match_wild call v = *)
+    (*     with_args call (fun args -> sat_arg In sat args v) in *)
+    (*   match r, Jmp.kind t with *)
+    (*   | Pat.Call (id,uses,defs), Call c *)
+    (*     when our_target id (Call.target c) -> *)
+    (*     match_call c uses defs *)
+    (*   | Pat.Move (v1,v2), Call c -> match_move c v1 v2 *)
+    (*   | Pat.Wild v, Call c -> match_wild c v *)
+    (*   | _ -> None  (\* TODO: add Load and Store pats *\) *)
 
     method def term pat : equations option =
       let match_call id v =
