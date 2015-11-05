@@ -57,14 +57,15 @@ let string_of_single_name n (_,_,name) = arg_of_name n name
 let args_of_single_names = List.filter_mapi ~f:string_of_single_name
 
 let fn_of_definition = function
-  | DECDEF (_,_,[(name, PROTO (ret,args,false),[],NOTHING)]) ->
+  | DECDEF (_,_,[(name, PROTO (ret,args,false),[],NOTHING)])
+  | FUNDEF ((_,_,(name, PROTO (ret,args,false),[], NOTHING)), _) ->
     let args = args_of_single_names args in
     let ret = match ret with
       | VOID -> None
       | _ -> Some {
           arg_name = "res";
           arg_intent = Some Out;
-          arg_size = size_of_type ret;
+          arg_size = Word;
         }  in
     Some (name,{ret;args})
   | _ -> None
@@ -81,7 +82,13 @@ let args_of_file file =
   | PARSING_ERROR -> raise Parsing.Parse_error
   | PARSING_OK ds -> fns_of_definitions ds
 
-let term_of_arg arch n {arg_name; arg_size; arg_intent} =
+let (>:) s1 s2 e =
+  match Size.(to_bits s2 - to_bits s1) with
+  | 0 -> e
+  | n when n > 0 -> Bil.(cast high n e)
+  | n -> Bil.(cast low n e)
+
+let term_of_arg arch n sub {arg_name; arg_size; arg_intent} =
   let word_size = Arch.addr_size arch in
   let size = match arg_size with
     | Word -> (word_size :> Size.t)
@@ -89,7 +96,11 @@ let term_of_arg arch n {arg_name; arg_size; arg_intent} =
   let typ = Type.imm (Size.to_bits size) in
   let exp = try (abi arch).(n) with
       exn -> Bil.unknown "unkown abi" typ in
-  let var = Var.create arg_name typ in
+  (* so far we assume, that [abi] returns expressions of word size,
+     if this will ever change, then we need to extend abi function
+     to return the size for us. *)
+  let exp = (word_size >: size) exp in
+  let var = Var.create (Sub.name sub ^ "_" ^ arg_name) typ in
   Arg.create ?intent:arg_intent var exp
 
 let fill_args arch fns program =
@@ -98,11 +109,11 @@ let fill_args arch fns program =
       | None -> sub
       | Some {args;ret} ->
         let sub = List.foldi args ~init:sub ~f:(fun n sub arg ->
-            Term.append arg_t sub (term_of_arg arch n arg)) in
+            Term.append arg_t sub (term_of_arg arch n sub arg)) in
         match ret with
         | None -> sub
         | Some ret ->
-          Term.append arg_t sub (term_of_arg arch 0 ret))
+          Term.append arg_t sub (term_of_arg arch 0 sub ret))
 
 module Cmdline = struct
   include Cmdliner
