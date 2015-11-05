@@ -49,6 +49,11 @@ end
 
 let create = ident
 
+let call_result = Value.Tag.register
+    ~name:"call_result"
+    ~uuid:"b3582364-c105-4dd1-a8bd-0a38e3a3b548"
+    (module Call)
+
 let pp_equation ppf = function
   | Sat_def (v,var) -> fprintf ppf "%a <- %a@." V.pp v Var.pp var
   | Sat_use (v,vars)->
@@ -77,7 +82,6 @@ let inputs_of_defn rule =
 let our_target id = function
   | Indirect _ -> false
   | Direct tid -> Tid.name tid = "@"^id
-
 
 let seed_with s t = Term.set_attr t Taint.seed s
 let self_seed t = seed_with (Term.tid t) t
@@ -119,15 +123,18 @@ let return sub caller =
   | None | Some (Indirect _) -> None
   | Some (Direct tid) -> Term.find blk_t sub tid
 
+let tag_arg_def call term =
+  Term.set_attr (self_seed term) call_result call
+
 let seed_jmp prog jmp cons vars sub pat =
   let open Option.Monad_infix in
   let seed_call id vars =
-    caller id jmp        >>= fun caller ->
-    callee prog caller   >>= fun callee ->
-    return sub caller    >>| fun return ->
+    caller id jmp      >>= fun caller ->
+    callee prog caller >>= fun callee ->
+    return sub caller  >>| fun return ->
     Term.enum arg_t callee |>
     defs_of_args vars cons |>
-    Seq.map ~f:self_seed   |>
+    Seq.map ~f:(tag_arg_def caller) |>
     Seq.fold ~init:return ~f:(Term.prepend def_t) |>
     Term.update blk_t sub in
   match pat with
@@ -212,7 +219,6 @@ let sat term hyp kind v bil : hyp option =
     match Map.find_exn hyp.ivars x with
     | Top ->
       eprintf "%s: _/%s -> SAT@." (Term.name term) x;
-
       unified
     | Set seeds ->
       if Set.mem seeds seed then unified else None in
@@ -392,14 +398,14 @@ module Match = struct
       | Pat.Wild v, Call c -> match_wild c v
       | _ -> None  (* TODO: add Load and Store pats *)
 
-    method arg t r : equations option =
-      let match_sub v sub =
-        match Arg.rhs t with
-        | Bil.Var var -> Some [sat_def v var]
+    method def term pat : equations option =
+      let match_call id v =
+        match Term.get_attr term call_result with
+        | Some call when our_target id (Call.target call) ->
+          Some [sat_def v (Def.lhs term)]
         | _ -> None in
-      match r, Program.parent arg_t prog (Term.tid t) with
-      | Pat.Call (id,uses,[v]), Some sub
-        when Sub.name sub = id -> match_sub v sub
+      match pat with
+      | Pat.Call (id,uses,[v]) -> match_call id v
       | _ -> None
 
   end
