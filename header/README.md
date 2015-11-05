@@ -93,3 +93,19 @@ With `header`:
 00000031: R12 := R12 + 0xCE4:32
 00000032: goto mem[base_267 + 0xCE4:32, el]:u32
 ```
+
+
+# Problems
+
+
+## State of ABI support
+
+So far `arm-linux-gnueabi` is more or less supported.  The System V
+amd64 abi, is much worse, especially when we're dealing with types of
+class memory (in general, we need to know size of passed object, that
+is out of scope of this plugin). The `cdecl` abi is fairly easy, and
+looks like that it is supported, although I didn't check it very
+close.
+
+Also, there is no choice of ABI - for each target, there is only one
+ABI. This is limitation is due to a simplicity of taken approach.
