@@ -12,7 +12,7 @@ let spec = [
       rules = [
         Rule.({
             name = "when_checked";
-            premises = [Pat.call "malloc" [] ["p"]];
+            premises = [Pat.call "malloc" (Some "p") []];
             conclusions = [Pat.jump `jmp "c" "dst"];
           })
       ]

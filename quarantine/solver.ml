@@ -138,9 +138,8 @@ let seed_jmp prog jmp cons vars sub pat =
     Seq.fold ~init:return ~f:(Term.prepend def_t) |>
     Term.update blk_t sub in
   match pat with
-  | Pat.Call (id,e1,[]) -> sub
-  | Pat.Call (id,_,es) ->
-    let vars = Set.inter vars (V.Set.of_list es) in
+  | Pat.Call (id,None,_) -> sub
+  | Pat.Call (id,Some e,_) when Set.mem vars e ->
     Option.value ~default:sub (seed_call id vars)
   | _ -> sub
 
@@ -280,6 +279,8 @@ let run mrs f t =
               else {s with hyps = h :: s.hyps})))
 
 module Match = struct
+  open Option.Monad_infix
+
   class matcher : object
     method arg : arg term -> pat -> equations option
     method phi : phi term -> pat -> equations option
@@ -339,59 +340,49 @@ module Match = struct
       | _ -> None
   end
 
-  let sat_arg intent sat args v : equations =
+  let sat_arg sat args v : equations =
     Seq.to_list_rev args |>
-    List.concat_map ~f:(fun arg -> match intent, Arg.intent arg with
-        | In, Some Out -> []
-        | Out, Some In -> []
-        | _ -> match Arg.rhs arg with
-          | Bil.Var var -> [sat_def v var]
-          | _ -> []
-          (* [ *)
-          (*   (\* sat_use v (Arg.rhs arg |> Exp.free_vars); *\) *)
-          (*   sat_def v (Arg.lhs arg); *)
-          (* ] *))
+    List.concat_map ~f:(fun arg ->
+        let vars =
+          Set.add (Arg.rhs arg |> Exp.free_vars) (Arg.lhs arg) in
+        [sat_use v vars])
 
-  let call prog = object
-    inherit matcher
-    (* method jmp t r : equations option = *)
-    (*   let with_args call f : equations option = *)
-    (*     match Call.target call with *)
-    (*     | Indirect _ -> None *)
-    (*     | Direct tid -> match Term.find sub_t prog tid with *)
-    (*       | None -> None *)
-    (*       | Some sub -> *)
-    (*         let args = Term.enum arg_t sub in *)
-    (*         if Seq.is_empty args then None *)
-    (*         else Some (f args) in *)
-    (*   let match_call call uses defs = *)
-    (*     with_args call (fun args -> *)
-    (*         List.concat_map defs ~f:(sat_arg Out sat args) @ *)
-    (*         List.concat_map uses ~f:(sat_arg In  sat args)) in *)
-    (*   let match_move call v1 v2 = *)
-    (*     with_args call (fun args -> *)
-    (*         sat_arg Out sat args v1 @ sat_arg In sat args v2) in *)
-    (*   let match_wild call v = *)
-    (*     with_args call (fun args -> sat_arg In sat args v) in *)
-    (*   match r, Jmp.kind t with *)
-    (*   | Pat.Call (id,uses,defs), Call c *)
-    (*     when our_target id (Call.target c) -> *)
-    (*     match_call c uses defs *)
-    (*   | Pat.Move (v1,v2), Call c -> match_move c v1 v2 *)
-    (*   | Pat.Wild v, Call c -> match_wild c v *)
-    (*   | _ -> None  (\* TODO: add Load and Store pats *\) *)
+  let call prog =
+    let with_args call f : equations option =
+      callee prog call >>= fun sub ->
+      let args = Term.enum arg_t sub in
+      if Seq.is_empty args then None
+      else Some (f args) in
 
-    method def term pat : equations option =
-      let match_call id v =
-        match Term.get_attr term call_result with
-        | Some call when our_target id (Call.target call) ->
-          Some [sat_def v (Def.lhs term)]
-        | _ -> None in
-      match pat with
-      | Pat.Call (id,uses,[v]) -> match_call id v
-      | _ -> None
+    object
+      inherit matcher
+      method jmp t r : equations option =
+        let match_call call uses =
+          with_args call (fun args ->
+              List.concat_map uses ~f:(sat_arg sat args)) in
+        let match_move call v1 v2 =
+          with_args call (fun args -> sat_arg sat args v2) in
+        let match_wild call v =
+          with_args call (fun args -> sat_arg sat args v) in
+        match r, Jmp.kind t with
+        | Pat.Call (id,None,uses), Call c
+          when our_target id (Call.target c) ->
+          match_call c uses
+        | Pat.Move (v1,v2), Call c -> match_move c v1 v2
+        | Pat.Wild v, Call c -> match_wild c v
+        | _ -> None  (* TODO: add Load and Store pats *)
 
-  end
+      method def term pat : equations option =
+        let match_call id v =
+          match Term.get_attr term call_result with
+          | Some call when our_target id (Call.target call) ->
+            Some [sat_def v (Def.lhs term)]
+          | _ -> None in
+        match pat with    (* TODO support more than 1 def *)
+        | Pat.Call (id,Some v,uses) -> match_call id v
+        | _ -> None
+
+    end
 
   let wild =
     let any es pat = match pat with

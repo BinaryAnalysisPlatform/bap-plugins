@@ -33,7 +33,7 @@ with bin_io, compare, sexp
 
 module Pat = struct
   type t =
-    | Call of id * v list * v list
+    | Call of id * v option * v list
     | Jump of [`call | `goto | `ret | `exn | `jmp] * v * v
     | Move of v * v
     | Load of v * v

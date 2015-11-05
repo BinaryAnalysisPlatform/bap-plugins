@@ -75,10 +75,13 @@ module Pat = struct
         | `jmp  -> "jmp"
 
       let pp_args ppf = pp_list pp_comma V.pp ppf
+      let pp_ret ppf = function
+        | None -> ()
+        | Some v -> fprintf ppf "%a := " V.pp v
 
       let pp ppf = function
-        | Call (id,as1,as2) ->
-          fprintf ppf "%a := %a(%a)" pp_args as2 Id.pp id pp_args as1
+        | Call (id,def,uses) ->
+          fprintf ppf "%a%a(%a)" pp_ret def Id.pp id pp_args uses
         | Jump (k,c,d) ->
           fprintf ppf "when %a %s %a" V.pp c (string_of_kind k) V.pp d
         | Move (t,s) ->
