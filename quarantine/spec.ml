@@ -144,3 +144,58 @@ module Spec = struct
         fprintf ppf "@[<v2>%a@]@." pp_defs spec
     end)
 end
+
+module Language = struct
+
+  let a = "a"
+  let b = "b"
+  let c = "c"
+  let d = "d"
+  let p = "p"
+  let q = "q"
+  let r = "r"
+  let s = "s"
+  let t = "t"
+  let u = "u"
+  let v = "v"
+  let x = "x"
+  let y = "y"
+  let z = "z"
+
+  let a' = "a'"
+  let b' = "b'"
+  let c' = "c'"
+  let d' = "d'"
+  let p' = "p'"
+  let q' = "q'"
+  let r' = "r'"
+  let s' = "s'"
+  let t' = "t'"
+  let u' = "u'"
+  let v' = "v'"
+  let x' = "x'"
+  let y' = "y'"
+  let z' = "z'"
+
+
+  let define name constrs rules =
+    Defn.Fields.create ~name ~constrs ~rules ~vars:[]
+
+  let rule name premises conclusions =
+    Rule.Fields.create ~name ~premises ~conclusions
+
+  let that id v = Constr.Fun (id,v)
+  let such v that id = that id v
+  let case cond jmp dst = jmp cond dst
+  let goto = Pat.jump `goto
+  let ret = Pat.jump `ret
+  let exn = Pat.jump `exn
+  let jmp = Pat.jump `jmp
+  let term rhs lhs  = Pat.move lhs rhs
+  let use = Pat.wild
+  let call id args = Pat.call id None args
+  let sub id args ret = Pat.call id (Some ret) args
+  let (:=) lhs term = term lhs
+  let (/) y x = Constr.dep y x
+  let (=) v var = Constr.var v var
+end
