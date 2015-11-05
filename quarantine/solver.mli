@@ -8,7 +8,7 @@ type solution
 
 val create : spec -> t
 
-val seed_sub : t -> program term -> sub term -> program term
+val seed_sub : t -> program term -> sub term -> sub term
 
 val seed : t -> program term -> program term
 

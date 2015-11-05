@@ -65,7 +65,6 @@ let iterm ~f =
 
 let foreach cls t ~f = Term.enum cls t |> iterm ~f
 
-
 let input_of_constr = function
   | Constr.Dep (_,v) -> Some v
   | _ -> None
@@ -79,36 +78,64 @@ let our_target id = function
   | Indirect _ -> false
   | Direct tid -> Tid.name tid = "@"^id
 
-let self_seed t = Term.set_attr t Taint.seed (Term.tid t)
 
-let seed_jmp jmp cons vars prog pat =
-  let seed_call id es = match Jmp.kind jmp with
-    | Ret _ | Int _ | Goto _ -> prog
-    | Call call when not (our_target id (Call.target call)) -> prog
-    | Call call ->
-      List.filter es ~f:(Set.mem vars) |> function
-      | [] -> prog
-      | es -> match Call.target call with
-        | Indirect _ -> prog
-        | Direct ret -> match Term.find sub_t prog ret with
-          | None -> prog
-          | Some sub ->
-            let sub = Term.map arg_t sub ~f:(fun arg ->
-                List.fold cons ~init:arg ~f:(fun arg c ->
-                    let lhs = Arg.lhs arg in
-                    let rhs = (Arg.rhs arg |> Exp.free_vars) in
-                    match c with
-                    | Constr.Var (v,var) when
-                        Arg.intent arg <> Some In &&
-                        Set.mem vars v &&
-                        (Set.mem rhs var || Var.(lhs = var)) ->
-                      Term.set_attr arg Taint.seed (Term.tid jmp)
-                    | _ -> arg)) in
-            Term.update sub_t prog sub in
+let seed_with s t = Term.set_attr t Taint.seed s
+let self_seed t = seed_with (Term.tid t) t
+
+let callee prog call = match Call.target call with
+  | Indirect _ -> None
+  | Direct tid -> Term.find sub_t prog tid
+
+let arg_matches vars cs arg =
+  let free = (Arg.rhs arg |> Exp.free_vars) in
+  let free = Set.add free (Arg.lhs arg) in
+  List.exists cs ~f:(function
+      | Constr.Var (v,var) ->
+        Arg.intent arg <> Some In &&
+        Set.mem vars v &&
+        Set.mem free var
+      | _ -> false)
+
+let def_of_arg vars cs arg =
+  let x = Bil.var (Arg.lhs arg) in
+  if arg_matches vars cs arg
+  then match Arg.rhs arg with
+    | Bil.Var var -> Some (Def.create var x)
+    | Bil.Load (Bil.Var m as mem,a,e,s) ->
+      Some (Def.create m (Bil.store ~mem ~addr:a x e s))
+    | _ -> None
+  else None
+
+let defs_of_args vars cs args =
+  Seq.filter_map args ~f:(def_of_arg vars cs)
+
+let caller id jmp = match Jmp.kind jmp with
+  | Ret _ | Int _ | Goto _ -> None
+  | Call call when not (our_target id (Call.target call)) -> None
+  | Call call -> Some call
+
+let return sub caller =
+  match Call.return caller with
+  | None | Some (Indirect _) -> None
+  | Some (Direct tid) -> Term.find blk_t sub tid
+
+let seed_jmp prog jmp cons vars sub pat =
+  let open Option.Monad_infix in
+  let seed_call id vars =
+    caller id jmp        >>= fun caller ->
+    callee prog caller   >>= fun callee ->
+    return sub caller    >>| fun return ->
+    Term.enum arg_t callee |>
+    defs_of_args vars cons |>
+    Seq.map ~f:self_seed   |>
+    Seq.fold ~init:return ~f:(Term.prepend def_t) |>
+    Term.update blk_t sub in
   match pat with
-  | Pat.Call (id,e1,[]) -> prog
-  | Pat.Call (id,_,es) -> seed_call id es
-  | _ -> prog
+  | Pat.Call (id,e1,[]) -> sub
+  | Pat.Call (id,_,es) ->
+    let vars = Set.inter vars (V.Set.of_list es) in
+    Option.value ~default:sub (seed_call id vars)
+  | _ -> sub
 
 let seed_def def cons vars blk pat =
   let hit = Set.mem vars in
@@ -137,16 +164,14 @@ let seed_sub (spec : t) prog sub =
       Term.enum def_t blk |> Seq.fold ~init:blk ~f:(fun blk def ->
           fold_patts spec ~init:blk ~f:(seed_def def)) |>
       Term.update blk_t sub) in
-  let prog = Term.update sub_t prog sub in
   Term.enum blk_t sub |>
-  Seq.fold ~init:prog ~f:(fun prog blk ->
+  Seq.fold ~init:sub ~f:(fun sub blk ->
       Term.enum jmp_t blk |>
-      Seq.fold ~init:prog ~f:(fun prog jmp ->
-          fold_patts spec ~init:prog ~f:(seed_jmp jmp)))
-
+      Seq.fold ~init:sub ~f:(fun sub jmp ->
+          fold_patts spec ~init:sub ~f:(seed_jmp prog jmp)))
 
 let seed spec prog =
-  Term.enum sub_t prog |> Seq.fold ~init:prog ~f:(seed_sub spec)
+  Term.map sub_t prog ~f:(seed_sub spec prog)
 
 let search prog (vis : 'a vis) =
   foreach sub_t prog ~f:(fun sub ->
