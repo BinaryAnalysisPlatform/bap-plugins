@@ -95,7 +95,7 @@ let args_of_single_names = List.filter_mapi ~f:string_of_single_name
 
 let ret_word n = {
   arg_pos = n;
-  arg_name = "res";
+  arg_name = "result";
   arg_intent = Some Out;
   arg_size = Word; (* compiler will cast return value itself *)
 }
