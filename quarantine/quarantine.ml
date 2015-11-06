@@ -36,9 +36,9 @@ let mark_if_tainted (ctxt : Main.context) =
   {mark}
 
 let if_seeded =
-  let mark t =
-    if Term.has_attr t Taint.seed
-    then Term.set_attr t background `red else t in
+  let mark t = t in
+  (* if Term.has_attr t Taint.seed *)
+  (* then Term.set_attr t background `red else t in *)
   {mark}
 
 let seed tid =

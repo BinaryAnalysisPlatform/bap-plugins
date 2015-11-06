@@ -21,9 +21,31 @@ let seed = Value.Tag.register
 module Tainted_vars = struct
   type t = taints Var.Map.t with bin_io, compare, sexp
   include Regular.Make(struct
+      open Format
+
       type nonrec t = t with bin_io, compare, sexp
       let module_name = None
-      let pp ppf t = ()
+
+      let pp_list pp ppf xs =
+        let rec pp_rest ppf = function
+          | [] -> ()
+          | [x] -> pp ppf x
+          | x :: xs -> fprintf ppf "%a,@;%a" pp x pp_rest xs in
+        pp_rest ppf xs
+
+      let pp_taints = pp_list Taint.pp
+
+      let pp_taint_set ppf t =
+        fprintf ppf "@[<1>[%a@]]" pp_taints (Set.to_list t)
+
+      let pp_binding ppf (v,ts) =
+        fprintf ppf "%a => %a" Var.pp v pp_taint_set ts
+
+      let pp_vars ppf t =
+        pp_list pp_binding ppf (Map.to_alist t)
+
+      let pp ppf t =
+        fprintf ppf "@[<1>{%a@]}" pp_vars t
       let hash = Hashtbl.hash
     end)
 end

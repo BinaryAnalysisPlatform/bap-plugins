@@ -94,7 +94,7 @@ class ['a] main summary memory tid_of_addr const = object(self)
     super#load s a >>= fun r -> match Bil.Result.value r with
     | Bil.Imm _ | Bil.Mem _ -> SM.return r
     | Bil.Bot -> match memory a with
-      | None ->   self#emit_const 8
+      | None -> self#emit_const 8
       | Some w ->
         SM.get () >>= fun ctxt ->
         let ctxt,r = ctxt#create_word w in
@@ -139,12 +139,13 @@ class ['a] main summary memory tid_of_addr const = object(self)
         | Some (next,ctxt) ->
           SM.put ctxt >>= fun () -> self#eval_direct next
 
-  method eval_def def =
+  method! eval_def def =
     match Term.get_attr def Taint.seed with
     | None -> super#eval_def def
     | Some seed ->
+      super#eval_def def >>= fun () ->
       SM.get () >>= fun ctxt ->
-      self#eval_exp (Def.rhs def) >>= fun x ->
+      self#lookup (Def.lhs def) >>= fun x ->
       SM.put (ctxt#taint_val x (Tid.Set.singleton seed)) >>= fun () ->
       self#update (Def.lhs def) x
 
