@@ -91,19 +91,19 @@ let callee prog call = match Call.target call with
   | Indirect _ -> None
   | Direct tid -> Term.find sub_t prog tid
 
-let arg_matches vars cs arg =
+let arg_matches v cs arg =
   let free = (Arg.rhs arg |> Exp.free_vars) in
   let free = Set.add free (Arg.lhs arg) in
   List.exists cs ~f:(function
-      | Constr.Var (v,var) ->
+      | Constr.Var (v',var) ->
         Arg.intent arg <> Some In &&
-        Set.mem vars v &&
+        V.(v = v') &&
         Set.mem free var
       | _ -> false)
 
-let def_of_arg vars cs arg =
+let def_of_arg v cs arg =
   let x = Bil.var (Arg.lhs arg) in
-  if arg_matches vars cs arg
+  if arg_matches v cs arg
   then match Arg.rhs arg with
     | Bil.Var var -> Some (Def.create var x)
     | Bil.Load (Bil.Var m as mem,a,e,s) ->
@@ -111,8 +111,8 @@ let def_of_arg vars cs arg =
     | _ -> None
   else None
 
-let defs_of_args vars cs args =
-  Seq.filter_map args ~f:(def_of_arg vars cs)
+let defs_of_args v cs args =
+  Seq.filter_map args ~f:(def_of_arg v cs)
 
 let caller id jmp = match Jmp.kind jmp with
   | Ret _ | Int _ | Goto _ -> None
@@ -129,19 +129,19 @@ let tag_arg_def call term =
 
 let seed_jmp prog jmp cons vars sub pat =
   let open Option.Monad_infix in
-  let seed_call id vars =
+  let seed_call id e =
     caller id jmp      >>= fun caller ->
     callee prog caller >>= fun callee ->
     return sub caller  >>| fun return ->
     Term.enum arg_t callee |>
-    defs_of_args vars cons |>
+    defs_of_args e cons |>
     Seq.map ~f:(tag_arg_def caller) |>
     Seq.fold ~init:return ~f:(Term.prepend def_t) |>
     Term.update blk_t sub in
   match pat with
   | Pat.Call (id,None,_) -> sub
   | Pat.Call (id,Some e,_) when Set.mem vars e ->
-    Option.value ~default:sub (seed_call id vars)
+    Option.value ~default:sub (seed_call id e)
   | _ -> sub
 
 let seed_def def cons vars blk pat =
@@ -167,10 +167,13 @@ let fold_patts spec ~init ~f =
           List.fold rules ~init ~f:(fun init rule -> f cons vars init rule)))
 
 let seed_sub (spec : t) prog sub =
-  let sub = Term.enum blk_t sub |> Seq.fold ~init:sub ~f:(fun sub blk ->
-      Term.enum def_t blk |> Seq.fold ~init:blk ~f:(fun blk def ->
-          fold_patts spec ~init:blk ~f:(seed_def def)) |>
-      Term.update blk_t sub) in
+  let sub =
+    Term.enum blk_t sub |>
+    Seq.fold ~init:sub ~f:(fun sub blk ->
+        Term.enum def_t blk |>
+        Seq.fold ~init:blk ~f:(fun blk def ->
+            fold_patts spec ~init:blk ~f:(seed_def def)) |>
+        Term.update blk_t sub) in
   Term.enum blk_t sub |>
   Seq.fold ~init:sub ~f:(fun sub blk ->
       Term.enum jmp_t blk |>
