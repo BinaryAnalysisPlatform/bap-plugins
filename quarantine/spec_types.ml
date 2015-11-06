@@ -1,14 +1,15 @@
 open Core_kernel.Std
 open Bap.Std
 
+
 module Id = String
 
 type id = Id.t
 with bin_io, compare, sexp
 
-module V = struct
-  type t = id with bin_io, compare, sexp
-end
+module V = Interned_string.Make(struct
+    let initial_table_size = 32
+  end)
 type v = V.t with bin_io, compare, sexp
 
 module Constr = struct

@@ -9,7 +9,8 @@ module Constr : sig
 end
 
 module V : sig
-  include module type of V with type t = V.t
+  type t = V.t
+  val create : string -> t
   include Regular with type t := t
 end
 
@@ -41,6 +42,7 @@ end
 
 
 module Language : sig
+
   val (/) : v -> v -> constr
   val (=) : v -> var -> constr
   val (:=) : v -> (v -> pat) -> pat

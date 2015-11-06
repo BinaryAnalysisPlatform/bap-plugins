@@ -16,7 +16,7 @@ let spec = [
     [c/p; p = r0] [
     rule "if_some_jmp_depeds"
       [p := sub "malloc" []; use t]
-      []
+      [case c jmp x]
   ];
 
   define "magic_door_exists" [

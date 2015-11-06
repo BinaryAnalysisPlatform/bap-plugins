@@ -418,7 +418,7 @@ let hyp_of_rule defn constrs r =
             Map.add ivars ~key:v2 ~data:Top,
             Set.add (Set.add cvars v1) v2
           | Constr.Var (v,_)
-          | Constr.Fun (v,_) -> (ivars,Set.add cvars v)) in
+          | Constr.Fun (_,v) -> (ivars,Set.add cvars v)) in
   {
     defn; rule = r;
     prems = Pat.Set.of_list (Rule.premises r);

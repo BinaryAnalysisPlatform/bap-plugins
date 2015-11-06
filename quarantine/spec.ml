@@ -5,12 +5,13 @@ open Format
 
 
 module V = struct
-  type t = Id.t with bin_io, compare, sexp
+  type t = V.t with bin_io, compare, sexp
+  let create = V.of_string
   include Regular.Make(struct
-      type t = Id.t with bin_io, compare, sexp
+      type t = V.t with bin_io, compare, sexp
       let module_name = None
-      let pp = Id.pp
-      let hash = Id.hash
+      let pp = V.pp
+      let hash = V.hash
     end)
 end
 
@@ -147,35 +148,38 @@ end
 
 module Language = struct
 
-  let a = "a"
-  let b = "b"
-  let c = "c"
-  let d = "d"
-  let p = "p"
-  let q = "q"
-  let r = "r"
-  let s = "s"
-  let t = "t"
-  let u = "u"
-  let v = "v"
-  let x = "x"
-  let y = "y"
-  let z = "z"
+  let id = ident
+  let var = V.create
 
-  let a' = "a'"
-  let b' = "b'"
-  let c' = "c'"
-  let d' = "d'"
-  let p' = "p'"
-  let q' = "q'"
-  let r' = "r'"
-  let s' = "s'"
-  let t' = "t'"
-  let u' = "u'"
-  let v' = "v'"
-  let x' = "x'"
-  let y' = "y'"
-  let z' = "z'"
+  let a = var "a"
+  let b = var "b"
+  let c = var "c"
+  let d = var "d"
+  let p = var "p"
+  let q = var "q"
+  let r = var "r"
+  let s = var "s"
+  let t = var "t"
+  let u = var "u"
+  let v = var "v"
+  let x = var "x"
+  let y = var "y"
+  let z = var "z"
+
+  let a' = var "a'"
+  let b' = var "b'"
+  let c' = var "c'"
+  let d' = var "d'"
+  let p' = var "p'"
+  let q' = var "q'"
+  let r' = var "r'"
+  let s' = var "s'"
+  let t' = var "t'"
+  let u' = var "u'"
+  let v' = var "v'"
+  let x' = var "x'"
+  let y' = var "y'"
+  let z' = var "z'"
 
 
   let define name constrs rules =
