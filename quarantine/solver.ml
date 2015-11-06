@@ -439,16 +439,74 @@ let solve spec prog =
   let solver = solver prog in
   SM.exec (search prog solver) state
 
-let pp_hyp ppf h =
-  let proofs = Pat.Set.of_list (Map.keys h.proofs) in
-  let proved s = Set.is_empty (Set.diff s proofs) in
-  let result =
-    if proved h.prems && proved h.concs then "was proved" else
-    if proved h.prems && not (proved h.concs) then "wasn't proved"
-    else "wasn't recognized" in
-  Format.fprintf ppf "hypothesis %s %s@."
-    (Rule.name h.rule) result
+
+let decide hyps =
+  List.fold hyps ~init:([],[]) ~f:(fun (p,u) h ->
+      let proofs = Pat.Set.of_list (Map.keys h.proofs) in
+      let proved s = Set.is_empty (Set.diff s proofs) in
+      if proved h.prems && proved h.concs then h :: p, u else
+      if proved h.prems && not (proved h.concs) then p, h :: u
+      else p,u)
+
+let line = "--------------------------------"
+
+type 'a pp = formatter -> ('a, formatter, unit) format -> 'a
+
+let pp_hyp (pp : 'a pp) ppf h =
+  let pp_pat ppf pat = match Map.find h.proofs pat with
+    | None -> fprintf ppf "%s: %a@;" "unproved" Pat.pp pat
+    | Some t -> fprintf ppf "%a: %a@;" Tid.pp t Pat.pp pat in
+  let pp_pats ppf pats = Set.iter pats ~f:(pp_pat ppf) in
+  pp ppf "@[<v2>rule %s ::=@;%a%s@;%a@]@;"
+    (Rule.name h.rule) pp_pats h.prems line pp_pats h.concs
 
 
-let pp_solution ppf {hyps} =
-  List.iter hyps ~f:(fun hyp -> pp_hyp ppf hyp)
+let gather_by_rule hyps rule =
+  List.filter hyps ~f:(fun h -> Rule.(h.rule = rule))
+
+let gather_by_defn hyps defn =
+  List.filter hyps ~f:(fun h -> Defn.(h.defn = defn))
+
+let collect field init =
+  List.fold ~init ~f:(fun rules h -> Set.add rules (Field.get field h))
+
+let rules = collect Fields_of_hyp.rule Rule.Set.empty
+let defns = collect Fields_of_hyp.defn Defn.Set.empty
+
+type category = [
+  | `satisfied
+  | `unsatisfied
+  | `unrecognized
+]
+
+let pp_solution category ppf {hyps} =
+  let make_pp expected ppf =
+    if category = expected then fprintf ppf else ifprintf ppf in
+  let pp_unr ppf = make_pp `unrecognized ppf in
+  let pp_sat ppf = make_pp `satisfied ppf in
+  let pp_uns ppf = make_pp `unsatisfied ppf in
+  fprintf ppf "@[<v2>Solution ::= @;@;";
+  Set.iter (defns hyps) ~f:(fun defn ->
+      let hyps = gather_by_defn hyps defn in
+      let defn_cat = ref `satisfied in
+      Set.iter (rules hyps) ~f:(fun rule ->
+          let hyps = gather_by_rule hyps rule in
+          let sat,uns = decide hyps in
+          match sat, uns with
+          | [],[] ->
+            defn_cat := `unrecognized;
+            pp_unr ppf "@[rule %s@]@;" @@ Rule.name rule
+          | sat,[] ->
+            List.iter sat ~f:(pp_hyp pp_sat ppf)
+          | sat,uns ->
+            defn_cat := `unsatisfied;
+            List.iter sat ~f:(pp_hyp pp_sat ppf);
+            List.iter uns ~f:(pp_hyp pp_uns ppf));
+      let line = "::" in
+      let name = Defn.name defn in
+      match defn_cat.contents with
+      | `satisfied    -> pp_sat ppf "%s model %s checked@;@;" line name
+      | `unsatisfied  -> pp_uns ppf "%s model %s failed@;@;" line name
+      | `unrecognized -> pp_unr ppf "%s model %s unchecked@;@;" line name);
+  pp_close_box ppf ();
+  pp_print_newline ppf ()

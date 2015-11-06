@@ -84,7 +84,7 @@ module Pat = struct
         | Call (id,def,uses) ->
           fprintf ppf "%a%a(%a)" pp_ret def Id.pp id pp_args uses
         | Jump (k,c,d) ->
-          fprintf ppf "when %a %s %a" V.pp c (string_of_kind k) V.pp d
+          fprintf ppf "when %a %s %a@;" V.pp c (string_of_kind k) V.pp d
         | Move (t,s) ->
           fprintf ppf "%a := %a" V.pp t V.pp s
         | Load (v,p)  ->
@@ -107,7 +107,7 @@ module Rule = struct
       let pp_pats = pp_list pp_comma Pat.pp
 
       let pp ppf r =
-        fprintf ppf "@[rule %s ::=@;%a@ |-@ %a@]"
+        fprintf ppf "@[<2>rule %s ::=@;%a |-@ %a@]"
           r.name pp_pats r.premises pp_pats r.conclusions
     end)
 end
@@ -124,12 +124,12 @@ module Defn = struct
       let pp_rules p = pp_list pp_break Rule.pp p
 
       let pp_constrs ppf d =
-        fprintf ppf "@[var @[{%a}@]@ s.t.@ @[{%a}@]@]"
-          pp_vars d.vars pp_cons d.constrs
+        fprintf ppf "@[s.t.@ @[{%a}@]@]"
+          pp_cons d.constrs
 
       let pp ppf d =
-        fprintf ppf "@[<v2>define %s ::= @;%a@;%a@]"
-          d.name pp_constrs d pp_rules d.rules
+        fprintf ppf "@[<v2>define %s ::= @;%a@;%a@]@;"
+          d.name pp_rules d.rules pp_constrs d
     end)
 end
 
@@ -142,7 +142,7 @@ module Spec = struct
       let hash = Hashtbl.hash
       let pp_defs ppf spec = pp_list pp_break Defn.pp ppf spec
       let pp ppf spec =
-        fprintf ppf "@[<v2>%a@]@." pp_defs spec
+        fprintf ppf "@[<v2>Specification ::= @;%a@]@." pp_defs spec
     end)
 end
 
@@ -182,8 +182,8 @@ module Language = struct
   let z' = var "z'"
 
 
-  let define name constrs rules =
-    Defn.Fields.create ~name ~constrs ~rules ~vars:[]
+  let define name rules constrs =
+    Defn.Fields.create ~name ~constrs ~rules
 
   let rule name premises conclusions =
     Rule.Fields.create ~name ~premises ~conclusions

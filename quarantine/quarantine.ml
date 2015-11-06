@@ -65,7 +65,7 @@ let mark_terms {mark} prog  =
           Term.map jmp_t ~f:mark))
 
 let main proj =
-  eprintf "Specification:@.%a@." Spec.pp spec;
+  eprintf "%a" Spec.pp spec;
   let s = Solver.create spec in
   let proj =
     Project.program proj |>
@@ -80,7 +80,7 @@ let main proj =
   let prog = Project.program proj |>
              mark_terms mark in
   let sol = Solver.solve s prog in
-  printf "Solution:@.%a@." Solver.pp_solution sol;
+  printf "%a" (Solver.pp_solution `satisfied) sol;
   Project.with_program proj prog
 
 let () = Project.register_pass "quarantine" main

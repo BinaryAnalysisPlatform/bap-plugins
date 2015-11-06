@@ -42,6 +42,9 @@ end
 
 
 module Language : sig
+  val define : id -> rule list -> constr list -> defn
+  val rule : id -> pat list -> pat list -> rule
+
 
   val (/) : v -> v -> constr
   val (=) : v -> var -> constr
@@ -60,8 +63,6 @@ module Language : sig
   val such : v -> (id -> v -> constr) -> id -> constr
   val that : id -> v -> constr
 
-  val define : id -> constr list -> rule list -> defn
-  val rule : id -> pat list -> pat list -> rule
 
 
   val a : v

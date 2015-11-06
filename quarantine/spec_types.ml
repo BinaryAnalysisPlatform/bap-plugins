@@ -60,7 +60,6 @@ with bin_io, compare, sexp
 module Defn = struct
   type t = {
     name : string;
-    vars : v list;
     constrs  : constr list;
     rules : rule list
   } with bin_io, compare, fields, sexp
