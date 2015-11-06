@@ -15,6 +15,8 @@ type equation =
   | Sat_use of v * Var.Set.t
 with variants
 
+exception Unbound_predicate of string with sexp
+
 type equations = equation list
 type match_res = equations option
 
@@ -132,6 +134,18 @@ let prepend_def blk def =
   then Term.prepend def_t blk def
   else blk
 
+let test_pred name term var =
+  let open Predicate in match lookup name with
+  | None -> raise (Unbound_predicate name)
+  | Some {sat} -> sat term var
+
+let sat_pred constr term v vars =
+  Set.exists vars ~f:(fun var ->
+      List.for_all constr ~f:(function
+          | Constr.Fun (id,v') ->
+            V.(v = v') ==> test_pred id term var
+          | _ -> true))
+
 let seed_jmp prog jmp cons vars sub pat =
   let open Option.Monad_infix in
   let seed_call id e =
@@ -150,12 +164,15 @@ let seed_jmp prog jmp cons vars sub pat =
   | _ -> sub
 
 let seed_def def cons vars blk pat =
-  let hit = Set.mem vars in
+  let hit v = Set.mem vars v  in
+  let free = Def.free_vars def in
+  let pred v = sat_pred cons def v free in
   let seed = Some (self_seed def) in
   let def = match pat with
     | Pat.Move (v1,v2)
     | Pat.Load (v1,v2)
-    | Pat.Store (v1,v2) when hit v1 || hit v2 -> seed
+    | Pat.Store (v1,v2)
+      when pred v1 && pred v2 && (hit v1 || hit v2) -> seed
     | _ -> None in
   match def with
   | None -> blk
@@ -196,6 +213,8 @@ let search prog (vis : 'a vis) =
           foreach def_t blk ~f:vis#def >>= fun () ->
           foreach jmp_t blk ~f:vis#jmp))
 
+
+
 let sat term hyp kind v bil : hyp option =
   let open Option.Monad_infix in
   let dep_use y x =
@@ -231,7 +250,7 @@ let sat term hyp kind v bil : hyp option =
       hyp >>= fun hyp ->
       let sat c = Option.some_if c hyp in
       match cs with
-      | Fun (id,v') -> sat V.(v <> v')
+      | Fun (id,v') -> V.(v = v') ==> test_pred id term bil |> sat
       | Var (v',e) -> (V.(v' = v) ==> Var.(e = bil)) |> sat
       | Dep (v1,v2) ->  match kind with
         | `def when V.(v2 = v) -> dep_def v2
@@ -280,7 +299,6 @@ let decide_hyp matcher term hyp =
 
 let is_done h =
   Map.length h.proofs = Set.length h.prems + Set.length h.concs
-
 
 let run mrs f t =
   Seq.of_list mrs |> iterm ~f:(fun mr ->
@@ -472,8 +490,9 @@ let pp_hyp (pp : 'a pp) ppf h =
     | None -> fprintf ppf "%s: %a@;" "unproved" Pat.pp pat
     | Some t -> fprintf ppf "%a: %a@;" Tid.pp t Pat.pp pat in
   let pp_pats ppf pats = Set.iter pats ~f:(pp_pat ppf) in
-  pp ppf "@[<v2>rule %s ::=@;%a%s@;%a@]@;"
-    (Rule.name h.rule) pp_pats h.prems line pp_pats h.concs
+  pp ppf "@[<v2>rule %s_%s ::=@;%a%s@;%a@]@;"
+    (Defn.name h.defn) (Rule.name h.rule)
+    pp_pats h.prems line pp_pats h.concs
 
 
 let gather_by_rule hyps rule =
@@ -510,7 +529,8 @@ let pp_solution category ppf {hyps} =
           match sat, uns with
           | [],[] ->
             defn_cat := `unrecognized;
-            pp_unr ppf "@[rule %s@]@;" @@ Rule.name rule
+            pp_unr ppf "@[rule %s_%s@]@;"
+              (Defn.name defn) (Rule.name rule)
           | sat,[] ->
             List.iter sat ~f:(pp_hyp pp_sat ppf)
           | sat,uns ->

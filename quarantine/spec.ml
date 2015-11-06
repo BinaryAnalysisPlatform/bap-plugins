@@ -182,6 +182,17 @@ module Language = struct
   let z' = var "z'"
 
 
+  let is_marked = "is_marked"
+  let is_black = "is_black"
+  let is_red = "is_red"
+  let is_green = "is_green"
+  let is_yellow = "is_yellow"
+  let is_blue = "is_blue"
+  let is_magenta = "is_magenta"
+  let is_cyan = "is_cyan"
+  let is_white = "is_white"
+
+
   let define name rules constrs =
     Defn.Fields.create ~name ~constrs ~rules
 

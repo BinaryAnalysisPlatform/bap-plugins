@@ -3,7 +3,6 @@ open Bap.Std
 open ARM.CPU
 open Spec.Language
 
-
 let spec = [
   define "malloc_is_safe" [
     rule "if_some_jmp_depends"
@@ -25,7 +24,7 @@ let spec = [
       case c jmp d
     ]
   ][
-    such v that "is_magic";
+    such v that is_black;
     x = r0;
     c / x;
     c / p;
@@ -38,5 +37,5 @@ let spec = [
     ][
       z := sub "sql_escape"[y]
     ]
-  ] [p = r0; p/x; y/x; p/z]
+  ] [p = r0; p/x; y/x; p/z; such u that is_black]
 ]

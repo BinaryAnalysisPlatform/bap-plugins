@@ -36,9 +36,9 @@ let mark_if_tainted (ctxt : Main.context) =
   {mark}
 
 let if_seeded =
-  let mark t = t in
-  (* if Term.has_attr t Taint.seed *)
-  (* then Term.set_attr t background `red else t in *)
+  let mark t =
+    if Term.has_attr t Taint.seed
+    then Term.set_attr t background `red else t in
   {mark}
 
 let seed tid =
@@ -47,6 +47,10 @@ let seed tid =
     then Term.set_attr t Taint.seed tid else t in
   {mark}
 
+let colorize c tid = { mark = fun t ->
+    if Term.has_attr t Taint.seed
+    then Term.set_attr t color c else t
+  }
 
 
 let marker_of_markers markers =

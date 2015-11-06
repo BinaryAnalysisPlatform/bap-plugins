@@ -63,7 +63,15 @@ module Language : sig
   val such : v -> (id -> v -> constr) -> id -> constr
   val that : id -> v -> constr
 
-
+  val is_marked : id
+  val is_black : id
+  val is_red : id
+  val is_green : id
+  val is_yellow : id
+  val is_blue : id
+  val is_magenta : id
+  val is_cyan : id
+  val is_white : id
 
   val a : v
   val b : v
