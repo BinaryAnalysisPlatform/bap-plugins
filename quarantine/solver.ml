@@ -127,6 +127,11 @@ let return sub caller =
 let tag_arg_def call term =
   Term.set_attr (self_seed term) call_result call
 
+let prepend_def blk def =
+  if Set.mem (Blk.free_vars blk) (Def.lhs def)
+  then Term.prepend def_t blk def
+  else blk
+
 let seed_jmp prog jmp cons vars sub pat =
   let open Option.Monad_infix in
   let seed_call id e =
@@ -136,7 +141,7 @@ let seed_jmp prog jmp cons vars sub pat =
     Term.enum arg_t callee |>
     defs_of_args e cons |>
     Seq.map ~f:(tag_arg_def caller) |>
-    Seq.fold ~init:return ~f:(Term.prepend def_t) |>
+    Seq.fold ~init:return ~f:prepend_def |>
     Term.update blk_t sub in
   match pat with
   | Pat.Call (id,None,_) -> sub
@@ -265,11 +270,7 @@ let fold_pats field matches term hyp =
   Set.fold (Field.get field hyp) ~init:hyp ~f:(fun hyp pat ->
       if Map.mem hyp.proofs pat then hyp
       else match solution term hyp (matches pat) with
-        | Some hyp ->
-          eprintf "%a matches %a of %s_%s@."
-            Tid.pp (Term.tid term) Pat.pp pat
-            (Defn.name hyp.defn) (Rule.name hyp.rule);
-          proved hyp pat term
+        | Some hyp -> proved hyp pat term
         | None ->
           Set.add (Field.get field hyp) pat |> Field.fset field hyp)
 
