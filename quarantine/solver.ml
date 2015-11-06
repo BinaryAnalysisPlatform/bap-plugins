@@ -260,14 +260,23 @@ let proved hyp pat term = {
 
 let fold_pats field matches term hyp =
   Set.fold (Field.get field hyp) ~init:hyp ~f:(fun hyp pat ->
-      match solution term hyp (matches pat) with
-      | Some hyp -> proved hyp pat term
-      | None ->
-        Set.add (Field.get field hyp) pat |> Field.fset field hyp)
+      if Map.mem hyp.proofs pat then hyp
+      else match solution term hyp (matches pat) with
+        | Some hyp ->
+          eprintf "%a matches %a of %s_%s@."
+            Tid.pp (Term.tid term) Pat.pp pat
+            (Defn.name hyp.defn) (Rule.name hyp.rule);
+          proved hyp pat term
+        | None ->
+          Set.add (Field.get field hyp) pat |> Field.fset field hyp)
 
 let decide_hyp matcher term hyp =
   fold_pats Fields_of_hyp.prems matcher term hyp |>
   fold_pats Fields_of_hyp.concs matcher term
+
+let is_done h =
+  Map.length h.proofs = Set.length h.prems + Set.length h.concs
+
 
 let run mrs f t =
   Seq.of_list mrs |> iterm ~f:(fun mr ->
@@ -275,9 +284,11 @@ let run mrs f t =
       update (fun s -> {s with hyps = []}) >>= fun () ->
       Seq.of_list (s.init @ s.hyps) |> iterm ~f:(fun h ->
           update (fun s ->
-              let h = decide_hyp (f mr t) t h in
-              if Map.is_empty h.proofs then s
-              else {s with hyps = h :: s.hyps})))
+              if is_done h then {s with hyps = h :: s.hyps}
+              else
+                let h = decide_hyp (f mr t) t h in
+                if Map.is_empty h.proofs then s
+                else {s with hyps = h :: s.hyps})))
 
 module Match = struct
   open Option.Monad_infix
