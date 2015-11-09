@@ -21,11 +21,11 @@ let def_summary call = match Call.target call with
   | Direct tid ->
     Map.find summaries (Tid.name tid)
 
-class context p k  = object(self)
+class context p total  = object(self)
   inherit Taint.context as taints
   inherit Biri.context p as super
 
-  val k = k
+  val k = total
   val next : tid option = None
   val tv : Tid.Set.t Var.Map.t Tid.Map.t = Tid.Map.empty
 
@@ -104,7 +104,8 @@ class ['a] main summary memory tid_of_addr const = object(self)
   method! eval_jmp jmp =
     SM.get () >>= fun ctxt ->
     match ctxt#step with
-    | None -> SM.return ()
+    | None ->
+      SM.put (ctxt#set_next None)
     | Some ctxt ->
       SM.put ctxt >>= fun () ->
       super#eval_jmp jmp

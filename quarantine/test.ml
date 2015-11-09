@@ -73,7 +73,7 @@ let build_file file =
 
 let mtime file =
   let file = expand (sprintf "%s" file) subst in
-  try Unix.((stat file).st_mtime) with exn -> Float.nan
+  try Unix.((stat file).st_mtime) with exn -> 0.0
 
 let needs_rebuild f =
   let s =

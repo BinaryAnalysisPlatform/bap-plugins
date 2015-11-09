@@ -519,7 +519,6 @@ let pp_solution category ppf {hyps} =
   let pp_unr ppf = make_pp `unrecognized ppf in
   let pp_sat ppf = make_pp `satisfied ppf in
   let pp_uns ppf = make_pp `unsatisfied ppf in
-  fprintf ppf "@[<v2>Solution ::= @;@;";
   Set.iter (defns hyps) ~f:(fun defn ->
       let hyps = gather_by_defn hyps defn in
       let defn_cat = ref `satisfied in
@@ -543,5 +542,3 @@ let pp_solution category ppf {hyps} =
       | `satisfied    -> pp_sat ppf "%s model %s checked@;@;" line name
       | `unsatisfied  -> pp_uns ppf "%s model %s failed@;@;" line name
       | `unrecognized -> pp_unr ppf "%s model %s unchecked@;@;" line name);
-  pp_close_box ppf ();
-  pp_print_newline ppf ()
