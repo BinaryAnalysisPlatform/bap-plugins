@@ -1,5 +1,5 @@
-//! c:malloc@00000165
-//! u:malloc@00000181
+//! :: rule malloc_is_safe is satisfied
+//! :: rule malloc_is_safe is unsatisfied
 
 
 #include <stdlib.h>

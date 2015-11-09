@@ -95,7 +95,7 @@ let seeded callgraph subs =
       Set.union subs @@ callers sub)
 
 let main proj =
-  eprintf "%a" Spec.pp spec;
+  printf "%a" Spec.pp spec;
   let s = Solver.create spec in
   let prog = Project.program proj |>
              Solver.seed s in

@@ -7,7 +7,7 @@ let compile =
   "$(arch)-$(abi)-$(cc)-$(ver) $opt -g $(file).c -o $(dir)$(file)"
 
 let bap =
-  "bap $(options) $(dir)$(file) $(ida) $(symfile) $(plugin)"
+  "bap $(user_options) $(options) $(dir)$(file) $(ida) $(symfile) $(plugin) $(redirect)"
 
 let test_folder = "/tmp/bap/tests/"
 
@@ -18,10 +18,12 @@ let subst = [
   "ver", "4.7";
   "opt", "";
   "dir", test_folder;
+  "user_options", "";
   "options", "";
   "ida", "";
   "symfile", "";
   "plugin", "";
+  "redirect", "";
 
 ]
 
@@ -87,7 +89,7 @@ let pipe_bap plugin file =
   pipe @@ expand bap @@ [
     "file", chop_extension file;
     "symfile", with_syms file;
-    "options", sprintf "-l%s" plugin] @
+    "options", sprintf "-l%s" plugin ] @
     subst
 
 let print_result ~exp ~got =
@@ -96,11 +98,16 @@ let print_result ~exp ~got =
   printf "Got:\n";
   Set.iter ~f:print_endline got
 
+let set_of_list xs =
+  List.fold xs ~init:String.Set.empty ~f:(fun set s ->
+      Set.add set (String.strip s))
+
+
 let ok plugin file =
   let exp = expected_results file in
-  let got = String.Set.of_list (pipe_bap plugin file) in
+  let got = set_of_list (pipe_bap plugin file) in
   if verbose <> "0" then print_result ~exp ~got;
-  Set.equal exp got
+  Set.is_empty @@ Set.diff exp got
 
 let check plugin file =
   if file <> Sys.argv.(0) then

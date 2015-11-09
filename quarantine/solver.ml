@@ -301,16 +301,16 @@ let is_done h =
   Map.length h.proofs = Set.length h.prems + Set.length h.concs
 
 let run mrs f t =
+  let step mr h = update (fun s ->
+      if is_done h then {s with hyps = h :: s.hyps}
+      else
+        let h = decide_hyp (f mr t) t h in
+        if Map.is_empty h.proofs then s
+        else {s with hyps = h :: s.hyps}) in
   Seq.of_list mrs |> iterm ~f:(fun mr ->
       SM.get () >>= fun s ->
       update (fun s -> {s with hyps = []}) >>= fun () ->
-      Seq.of_list (s.init @ s.hyps) |> iterm ~f:(fun h ->
-          update (fun s ->
-              if is_done h then {s with hyps = h :: s.hyps}
-              else
-                let h = decide_hyp (f mr t) t h in
-                if Map.is_empty h.proofs then s
-                else {s with hyps = h :: s.hyps})))
+      Seq.of_list (s.init @ s.hyps) |> iterm ~f:(step mr))
 
 module Match = struct
   open Option.Monad_infix
@@ -481,6 +481,13 @@ let decide hyps =
       if proved h.prems && not (proved h.concs) then p, h :: u
       else p,u)
 
+let fix_decision (sats,unsats) =
+  sats,List.filter unsats ~f:(fun unsat ->
+      not (List.exists sats ~f:(fun sat ->
+          let ps1 = Tid.Set.of_list (Map.data sat.proofs) in
+          let ps2 = Tid.Set.of_list (Map.data unsat.proofs) in
+          Set.is_empty @@ Set.diff ps2 ps1)))
+
 let line = "--------------------------------"
 
 type 'a pp = formatter -> ('a, formatter, unit) format -> 'a
@@ -524,7 +531,7 @@ let pp_solution category ppf {hyps} =
       let defn_cat = ref `satisfied in
       Set.iter (rules hyps) ~f:(fun rule ->
           let hyps = gather_by_rule hyps rule in
-          let sat,uns = decide hyps in
+          let sat,uns = fix_decision (decide hyps) in
           match sat, uns with
           | [],[] ->
             defn_cat := `unrecognized;
@@ -539,6 +546,6 @@ let pp_solution category ppf {hyps} =
       let line = "::" in
       let name = Defn.name defn in
       match defn_cat.contents with
-      | `satisfied    -> pp_sat ppf "%s model %s checked@;@;" line name
-      | `unsatisfied  -> pp_uns ppf "%s model %s failed@;@;" line name
-      | `unrecognized -> pp_unr ppf "%s model %s unchecked@;@;" line name);
+      | `satisfied    -> pp_sat ppf "%s rule %s is satisfied@;@;" line name
+      | `unsatisfied  -> pp_uns ppf "%s rule %s is unsatisfied@;@;" line name
+      | `unrecognized -> pp_unr ppf "%s rule %s has no models@;@;" line name);

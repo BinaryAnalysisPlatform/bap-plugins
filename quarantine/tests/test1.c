@@ -1,4 +1,4 @@
-//! u:malloc@00000170
+//! :: rule malloc_is_safe is unsatisfied
 
 #include <stdlib.h>
 
