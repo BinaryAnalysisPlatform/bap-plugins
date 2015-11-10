@@ -1,5 +1,10 @@
-//! :: rule malloc_is_safe is satisfied
-//! :: rule malloc_is_safe is unsatisfied
+//!  00000208: p := malloc()
+//!  --------------------------------
+//!  unproved: when c jmp x
+//!
+//!  00000207: p := malloc()
+//!  --------------------------------
+//!  0000014c: when c jmp x
 
 
 #include <stdlib.h>
