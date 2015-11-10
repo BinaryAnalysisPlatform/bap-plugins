@@ -21,6 +21,11 @@ let def_summary call = match Call.target call with
   | Direct tid ->
     Map.find summaries (Tid.name tid)
 
+class type result = object
+  method trace : tid list
+  method taints_of_term : tid -> Taint.taints Var.Map.t
+end
+
 class context p total  = object(self)
   inherit Taint.context as taints
   inherit Biri.context p as super
@@ -255,4 +260,4 @@ let run proj k point =
   let biri = new main def_summary memory mapping def_const in
   let map _ = None in
   let res = run_from_point map p biri point in
-  SM.exec res ctxt
+  (SM.exec res ctxt :> result)

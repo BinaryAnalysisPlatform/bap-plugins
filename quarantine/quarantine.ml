@@ -30,7 +30,8 @@ let mark_if_visited ctxt =
     then Term.set_attr t foreground `green else t in
   {mark}
 
-let mark_if_tainted (ctxt : Main.context) =
+
+let mark_if_tainted (ctxt : Main.result) =
   let mark t =
     let vars = ctxt#taints_of_term (Term.tid t) in
     if Map.is_empty (vars)
@@ -94,6 +95,58 @@ let seeded callgraph subs =
   Seq.fold ~init:Tid.Set.empty ~f:(fun subs sub ->
       Set.union subs @@ callers sub)
 
+let tids_of_sub sub =
+  let terms t p =
+    Term.enum t p |> Seq.map ~f:Term.tid |> Seq.to_list_rev in
+  let (++) = List.rev_append in
+  let init = terms arg_t sub in
+  Term.enum blk_t sub |> Seq.fold ~init ~f:(fun sum blk ->
+      terms phi_t blk ++
+      terms def_t blk ++
+      terms jmp_t blk ++ sum)
+
+type stats = {
+  sub_count : int;
+  sub_total : int;
+  visited : Tid.Set.t;
+  terms : Tid.Set.t;
+}
+
+let stats sub_total = {
+  sub_count = 0;
+  sub_total;
+  visited = Tid.Set.empty;
+  terms = Tid.Set.empty;
+}
+
+let percent (x,y) =
+  Int.of_float (100. *. (float x /. float y))
+
+let pp_ratio ppf (x,y) =
+  fprintf ppf "[%d/%d] %3d%%" x y (percent (x,y))
+
+let pp_progressbar ppf {sub_count=x; sub_total=y} =
+  fprintf ppf "%a" pp_ratio (x,y)
+
+let pp_coverage ppf {visited; terms} =
+  let x = Set.length visited in
+  let y = Set.length terms in
+  pp_ratio ppf (x,y)
+
+let add_list ss xs =
+  Set.union ss @@ Tid.Set.of_list xs
+
+let entered_sub stat sub = {
+  stat with
+  sub_count = stat.sub_count + 1;
+  terms = add_list stat.terms (tids_of_sub sub)
+}
+let visited_sub stat res = {
+  stat with
+  visited = Set.union stat.visited (Tid.Set.of_list res#trace)
+}
+
+
 let main proj =
   printf "%a" Spec.pp spec;
   let s = Solver.create spec in
@@ -104,25 +157,24 @@ let main proj =
   let subs = Term.enum sub_t prog |>
              Seq.filter ~f:is_interesting_sub |>
              seeded callgraph in
-  let total = Set.length subs in
-  let count = ref 0 in
-  let proj =
+  let proj,stat =
     Term.enum sub_t prog |>
     Seq.filter ~f:(fun sub -> Set.mem subs (Term.tid sub)) |>
-    Seq.fold ~init:proj ~f:(fun proj point ->
-        incr count;
-        let perc = (float !count /. float total) *. 100. |>
-                   Int.of_float in
-        eprintf "%-40s [%d/%d] %3d%%\r%!"
-          (Sub.name point) !count total perc;
-        let ctxt = Main.run proj k (`Term (Term.tid point)) in
-        let mark = marker_of_markers [
-            mark_if_visited ctxt;
-            mark_if_tainted ctxt;
-          ] in
-        let prog = Project.program proj |> mark_terms mark in
-        Project.with_program proj prog) in
-  eprintf "\r%-80s\r%!" "Solving...";
+    Seq.fold ~init:(proj,stats (Set.length subs))
+      ~f:(fun (proj,stat) sub ->
+          let stat = entered_sub stat sub in
+          eprintf "%-40s %a\r%!"
+            (Sub.name sub) pp_progressbar stat;
+          let ctxt = Main.run proj k (`Term (Term.tid sub)) in
+          let mark = marker_of_markers [
+              mark_if_visited ctxt;
+              mark_if_tainted ctxt;
+            ] in
+          let prog = Project.program proj |> mark_terms mark in
+          let stat = visited_sub stat ctxt in
+          Project.with_program proj prog, stat) in
+  printf "Coverage: %a@." pp_coverage stat;
+  eprintf "Solving...@.";
   let prog = Project.program proj |> mark_terms unseed_if_nongreen in
   let sol = Solver.solve s prog in
   printf "%a" (Solver.pp_solution `unsatisfied) sol;
