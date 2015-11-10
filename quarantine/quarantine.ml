@@ -3,7 +3,7 @@ open Bap.Std
 open Format
 open Spec
 open Specification
-let k = 1000
+let k = 200
 
 let any_of pts =
   List.map pts ~f:Re_posix.re |>
@@ -18,18 +18,14 @@ let is_interesting = any_of [
 let is_interesting_sub sub =
   is_interesting (Sub.name sub)
 
-let print_trace trace =
-  List.iter trace ~f:(Format.printf "%a@." Tid.pp)
 
 type marker = {mark : 'a. 'a term -> 'a term}
 
 let mark_if_visited ctxt =
-  let vis = Tid.Set.of_list ctxt#trace in
   let mark t =
-    if Set.mem vis (Term.tid t)
+    if Set.mem ctxt#visited (Term.tid t)
     then Term.set_attr t foreground `green else t in
   {mark}
-
 
 let mark_if_tainted (ctxt : Main.result) =
   let mark t =
@@ -120,7 +116,8 @@ let stats sub_total = {
 }
 
 let percent (x,y) =
-  Int.of_float (100. *. (float x /. float y))
+  if y = 0 then 0
+  else Int.of_float (100. *. (float x /. float y))
 
 let pp_ratio ppf (x,y) =
   fprintf ppf "[%d/%d] %3d%%" x y (percent (x,y))
@@ -143,7 +140,7 @@ let entered_sub stat sub = {
 }
 let visited_sub stat res = {
   stat with
-  visited = Set.union stat.visited (Tid.Set.of_list res#trace)
+  visited = Set.union stat.visited res#visited
 }
 
 
@@ -156,6 +153,7 @@ let main proj =
   let callgraph = Program.to_graph prog in
   let subs = Term.enum sub_t prog |>
              Seq.filter ~f:is_interesting_sub |>
+             (* Seq.map ~f:Term.tid |> Seq.to_list_rev |> Tid.Set.of_list in *)
              seeded callgraph in
   let proj,stat =
     Term.enum sub_t prog |>
@@ -174,7 +172,7 @@ let main proj =
           let stat = visited_sub stat ctxt in
           Project.with_program proj prog, stat) in
   printf "Coverage: %a@." pp_coverage stat;
-  eprintf "Solving...@.";
+  printf "Solving...@.";
   let prog = Project.program proj |> mark_terms unseed_if_nongreen in
   let sol = Solver.solve s prog in
   printf "%a" (Solver.pp_solution `unsatisfied) sol;

@@ -22,53 +22,77 @@ let def_summary call = match Call.target call with
     Map.find summaries (Tid.name tid)
 
 class type result = object
-  method trace : tid list
+  method visited : Tid.Set.t
   method taints_of_term : tid -> Taint.taints Var.Map.t
 end
 
-class context p total  = object(self)
+type vars = Tid.Set.t Var.Map.t Tid.Map.t
+
+let union_map m1 m2 ~f =
+  Map.merge m1 m2 ~f:(fun ~key -> function
+      | `Both (v1,v2) -> Some (f v1 v2)
+      | `Left v | `Right v -> Some v)
+
+let union_vars : vars -> vars -> vars =
+  union_map ~f:(union_map ~f:Set.union)
+
+class context p total  = object(self : 's)
   inherit Taint.context as taints
   inherit Biri.context p as super
 
   val k = total
-  val next : tid option = None
-  val tv : Tid.Set.t Var.Map.t Tid.Map.t = Tid.Map.empty
+  val vis : Tid.Set.t = Tid.Set.empty (* visited *)
+  val cps : 's Tid.Map.t = Tid.Map.empty (* checkpoints *)
+  val tvs : vars = Tid.Map.empty
+
+
+  method k   = k
+  method tvs = tvs
+  method cps = cps
+  method visited = vis
 
   method step =
     if k > 0
     then Some {< k = k - 1 >}
     else None
 
-  method set_restore tid = {< next = Some tid >}
-  method pop_restore = match next with
-    | None -> None
-    | Some c -> Some (c, {< next = None >})
+  method visit_term tid =
+    {< vis = Set.add vis tid; cps = Map.remove cps tid; >}
 
-  method check_restore tid =
-    match next with
-    | Some next when Tid.(next = tid) -> {< next = None >}
-    | _ -> self
+  method checkpoint tid =
+    if Set.mem vis tid then self
+    else {< cps = Map.add cps ~key:tid ~data:self>}
+
+  method backtrack : (tid * 's) option =
+    match Map.min_elt cps with
+    | None -> None
+    | Some (tid,other) ->
+      Some (tid,other#merge self tid)
+
+  method merge runner tid =
+    {<
+      k   = runner#k;
+      vis = Set.union vis runner#visited;
+      tvs = union_vars tvs runner#tvs;
+      cps = runner#cps
+    >}
 
   method taint_var tid v r =
     let ts = taints#val_taints r in
-    let tv = Map.change tv tid (function
+    let tvs = Map.change tvs tid (function
         | None when Set.is_empty ts -> None
         | None -> Some (Var.Map.of_alist_exn [v, ts])
         | Some vs -> Option.some @@ Map.change vs v (function
             | None when Set.is_empty ts -> None
             | None -> Some ts
             | Some ts' -> Some (Set.union ts ts'))) in
-    {< tv = tv >}
+    {< tvs = tvs >}
 
   method taints_of_term tid =
-    Map.find tv tid |> function
+    Map.find tvs tid |> function
     | None -> Var.Map.empty
     | Some ts -> ts
 
-  method taints_of_var tid v =
-    Option.(Map.find tv tid >>= fun vs -> Map.find vs v) |> function
-    | None -> Tid.Set.empty
-    | Some ts -> ts
 end
 
 class ['a] main summary memory tid_of_addr const = object(self)
@@ -76,10 +100,10 @@ class ['a] main summary memory tid_of_addr const = object(self)
   inherit ['a] biri as super
   inherit ['a] Taint.propagator
 
-
   method! enter_term cls t =
+    let tid = Term.tid t in
     SM.get () >>= fun c ->
-    SM.put (c#check_restore (Term.tid t)) >>= fun () ->
+    SM.put (c#visit_term tid) >>= fun () ->
     super#enter_term cls t
 
   method! eval_unknown _ t = self#emit t
@@ -109,8 +133,7 @@ class ['a] main summary memory tid_of_addr const = object(self)
   method! eval_jmp jmp =
     SM.get () >>= fun ctxt ->
     match ctxt#step with
-    | None ->
-      SM.put (ctxt#set_next None)
+    | None -> SM.put (ctxt#set_next None)
     | Some ctxt ->
       SM.put ctxt >>= fun () ->
       super#eval_jmp jmp
@@ -135,15 +158,18 @@ class ['a] main summary memory tid_of_addr const = object(self)
 
   method! eval_indirect exp =
     self#eval_exp exp >>| Bil.Result.value >>= function
-    | Bil.Bot | Bil.Mem _ -> SM.return ()
+    | Bil.Bot | Bil.Mem _ -> self#backtrack exp
     | Bil.Imm dst ->
       match tid_of_addr dst with
       | Some dst -> self#eval_direct dst
-      | None ->
-        SM.get () >>= fun ctxt -> match ctxt#pop_restore with
-        | None -> super#eval_indirect exp
-        | Some (next,ctxt) ->
-          SM.put ctxt >>= fun () -> self#eval_direct next
+      | None -> self#backtrack exp
+
+  method private backtrack exp =
+    SM.get () >>= fun ctxt ->
+    match ctxt#backtrack with
+    | None -> super#eval_indirect exp
+    | Some (next,ctxt) ->
+      SM.put ctxt >>= fun () -> super#eval_direct next
 
   method! eval_def def =
     match Term.get_attr def Taint.seed with
@@ -183,7 +209,7 @@ class ['a] main summary memory tid_of_addr const = object(self)
     | None | Some (Indirect _) -> super#eval_call call
     | Some (Direct ret) ->
       SM.get () >>= fun ctxt ->
-      SM.put (ctxt#set_restore ret) >>= fun () ->
+      SM.put (ctxt#checkpoint ret) >>= fun () ->
       super#eval_call call
 
   method private summarize_call call =

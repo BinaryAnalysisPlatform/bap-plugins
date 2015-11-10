@@ -1,15 +1,15 @@
-options = -L../header -lheader --header-file=../header/libc.h
+OPTS = -L../header -lheader --header-file=../header/libc.h ${options}
+case = *
+TEST = tests/test${case}.c
 
 quarantine : *.ml
 		bapbuild quarantine.plugin
 
 test : quarantine test.ml
-		@TEST_USER_OPTIONS="${options}" bapbuild test.native -- quarantine tests/*
+		@TEST_USER_OPTIONS="${OPTS}" bapbuild test.native -- quarantine $(TEST)
 
-
-article: quarantine
-		bap ${options} --use-ida -lquarantine ${article}
-
+bap: quarantine
+		bap ${OPTS} --use-ida -lquarantine ${binary}
 
 clean:
 		bapbuild -clean

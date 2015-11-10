@@ -4,7 +4,7 @@ open Spec_types
 open Taint
 
 class type result = object
-  method trace : tid list
+  method visited : Tid.Set.t
   method taints_of_term : tid -> taints Var.Map.t
 end
 
