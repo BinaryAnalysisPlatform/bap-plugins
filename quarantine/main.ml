@@ -21,6 +21,10 @@ let def_summary call = match Call.target call with
   | Direct tid ->
     Map.find summaries (Tid.name tid)
 
+let target_of_goto jmp = match Jmp.kind jmp with
+  | Goto (Direct tid) -> Some tid
+  | _ -> None
+
 class type result = object
   method visited : Tid.Set.t
   method taints_of_term : tid -> Taint.taints Var.Map.t
@@ -40,16 +44,20 @@ class context p total  = object(self : 's)
   inherit Taint.context as taints
   inherit Biri.context p as super
 
+  val blk : blk term option = None
   val k = total
   val vis : Tid.Set.t = Tid.Set.empty (* visited *)
   val cps : 's Tid.Map.t = Tid.Map.empty (* checkpoints *)
   val tvs : vars = Tid.Map.empty
 
-
   method k   = k
   method tvs = tvs
   method cps = cps
   method visited = vis
+
+  method enter_blk blk = {< blk = Some blk >}
+
+  method blk = blk
 
   method step =
     if k > 0
@@ -72,8 +80,8 @@ class context p total  = object(self : 's)
   method merge runner tid =
     {<
       k   = runner#k;
-      vis = Set.union vis runner#visited;
-      tvs = union_vars tvs runner#tvs;
+      vis = runner#visited;
+      tvs = runner#tvs;
       cps = runner#cps
     >}
 
@@ -92,7 +100,6 @@ class context p total  = object(self : 's)
     Map.find tvs tid |> function
     | None -> Var.Map.empty
     | Some ts -> ts
-
 end
 
 class ['a] main summary memory tid_of_addr const = object(self)
@@ -130,6 +137,12 @@ class ['a] main summary memory tid_of_addr const = object(self)
         SM.put ctxt >>= fun () ->
         SM.return r
 
+
+  method! eval_blk blk =
+    SM.get () >>= fun ctxt ->
+    SM.put (ctxt#enter_blk blk) >>= fun () ->
+    super#eval_blk blk
+
   method! eval_jmp jmp =
     SM.get () >>= fun ctxt ->
     match ctxt#step with
@@ -137,39 +150,37 @@ class ['a] main summary memory tid_of_addr const = object(self)
     | Some ctxt ->
       SM.put ctxt >>= fun () ->
       super#eval_jmp jmp
+      >>= fun () ->
+      match ctxt#blk with
+      | None -> assert false
+      | Some blk ->
+        Term.enum jmp_t blk |>
+        Seq.fold ~init:(SM.return ()) ~f:(fun m jmp ->
+            m >>= fun () ->
+            match target_of_goto jmp with
+            | None -> SM.return ()
+            | Some tid ->
+              SM.get () >>= fun ctxt ->
+              SM.put (ctxt#checkpoint tid))
 
   method! eval_call call =
     self#shortcut_indirect call >>= fun () ->
     self#summarize_call call
 
-  method! eval_arg arg =
-    super#eval_arg arg >>= fun () ->
-    match Term.get_attr arg Taint.seed with
-    | None -> SM.return ()
-    | Some s -> match Arg.rhs arg with
-      | Bil.Var v -> self#taint_arg s v
-      | _ -> SM.return ()
-
-  method private taint_arg s v =
-    let taints = Tid.Set.singleton s in
-    self#lookup v >>= fun r ->
-    SM.get () >>= fun ctxt ->
-    SM.put (ctxt#taint_val r taints)
-
   method! eval_indirect exp =
     self#eval_exp exp >>| Bil.Result.value >>= function
-    | Bil.Bot | Bil.Mem _ -> self#backtrack exp
+    | Bil.Bot | Bil.Mem _ -> self#backtrack
     | Bil.Imm dst ->
       match tid_of_addr dst with
       | Some dst -> self#eval_direct dst
-      | None -> self#backtrack exp
+      | None -> self#backtrack
 
-  method private backtrack exp =
+  method private backtrack  =
     SM.get () >>= fun ctxt ->
     match ctxt#backtrack with
-    | None -> super#eval_indirect exp
+    | None -> SM.put (ctxt#set_next None)
     | Some (next,ctxt) ->
-      SM.put ctxt >>= fun () -> super#eval_direct next
+      SM.put ctxt >>= fun () -> self#eval_direct next
 
   method! eval_def def =
     match Term.get_attr def Taint.seed with
@@ -177,7 +188,7 @@ class ['a] main summary memory tid_of_addr const = object(self)
     | Some seed ->
       super#eval_def def >>= fun () ->
       SM.get () >>= fun ctxt ->
-      self#lookup (Def.lhs def) >>= fun x ->
+      super#lookup (Def.lhs def) >>= fun x ->
       SM.put (ctxt#taint_val x (Tid.Set.singleton seed)) >>= fun () ->
       self#update (Def.lhs def) x
 

@@ -129,10 +129,15 @@ let return sub caller =
 let tag_arg_def call term =
   Term.set_attr (self_seed term) call_result call
 
+let already_seeded blk var =
+  Term.enum def_t blk |> Seq.exists ~f:(fun def ->
+      Set.mem (Def.free_vars def) var &&
+      Term.has_attr def Taint.seed)
+
 let prepend_def blk def =
-  if Set.mem (Blk.free_vars blk) (Def.lhs def)
-  then Term.prepend def_t blk def
-  else blk
+  if already_seeded blk (Def.lhs def)
+  then blk
+  else Term.prepend def_t blk def
 
 let test_pred name term var =
   let open Predicate in match lookup name with
@@ -236,15 +241,14 @@ let sat term hyp kind v bil : hyp option =
           } in
   let dep_def x =
     Term.get_attr term Taint.seed >>= fun seed ->
-    let unified = Some {
+    match Map.find_exn hyp.ivars x with
+    | Top -> Some {
         hyp with
         ivars = Map.add hyp.ivars ~key:x
             ~data:(Set (Tid.Set.singleton seed))
-      } in
-    match Map.find_exn hyp.ivars x with
-    | Top -> unified
+      }
     | Set seeds ->
-      if Set.mem seeds seed then unified else None in
+      if Set.mem seeds seed then (Some hyp) else None in
   let open Constr in
   List.fold hyp.constrs ~init:(Some hyp) ~f:(fun hyp cs ->
       hyp >>= fun hyp ->
@@ -412,7 +416,7 @@ module Match = struct
           | Some call when our_target id (Call.target call) ->
             Some [sat_def v (Def.lhs term)]
           | _ -> None in
-        match pat with    (* TODO support more than 1 def *)
+        match pat with          (* TODO support uses *)
         | Pat.Call (id,Some v,uses) -> match_call id v
         | _ -> None
 

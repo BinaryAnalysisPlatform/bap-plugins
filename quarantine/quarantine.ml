@@ -3,20 +3,15 @@ open Bap.Std
 open Format
 open Spec
 open Specification
-let k = 200
+let k = 500
 
-let any_of pts =
-  List.map pts ~f:Re_posix.re |>
-  Re.alt |>
-  Re.compile |>
-  Re.execp
 
-let is_interesting = any_of [
-    ".*"
+let interesting = String.Set.of_list [
+    ".*";
   ]
 
-let is_interesting_sub sub =
-  is_interesting (Sub.name sub)
+let is_interesting_sub sub = true
+(* Set.mem interesting (Sub.name sub) *)
 
 
 type marker = {mark : 'a. 'a term -> 'a term}
@@ -53,9 +48,9 @@ let colorize c tid = { mark = fun t ->
     then Term.set_attr t color c else t
   }
 
-let unseed_if_nongreen = {
+let unseed_if_non_visited vis = {
   mark = fun t ->
-    if Term.get_attr t foreground = Some `green then t
+    if Set.mem vis (Term.tid t) then t
     else Term.del_attr t Taint.seed
 }
 
@@ -173,7 +168,8 @@ let main proj =
           Project.with_program proj prog, stat) in
   printf "Coverage: %a@." pp_coverage stat;
   printf "Solving...@.";
-  let prog = Project.program proj |> mark_terms unseed_if_nongreen in
+  let prog = Project.program proj |>
+             mark_terms (unseed_if_non_visited stat.visited) in
   let sol = Solver.solve s prog in
   printf "%a" (Solver.pp_solution `unsatisfied) sol;
   printf "%a" (Solver.pp_solution `satisfied) sol;
