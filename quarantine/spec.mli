@@ -14,8 +14,27 @@ module V : sig
   include Regular with type t := t
 end
 
-module E : sig
-  include module type of E with type t = E.t
+(** variable sort ::= reg | ptr
+    variables of type reg represent values stored in registers.
+    variables of type ptr represent values stored at addresses,
+    that are stored in a given register, e.g.,
+
+    [{
+      reg x, *p s.t. x=R0, p=R0;
+      x = malloc()
+      p = fgets()
+    }]
+
+    In case of malloc, we're interested in the pointer itself,
+    not in the value, that is stored at address [x] (in fact, malloc
+    usually doesn't touch anything at this address).
+
+    In case of `fgets()` we're not interested in the value of register
+    [R0], but we're interested in data, that is stored at address
+    [R0].
+*)
+module S : sig
+  include module type of S with type t = S.t
   include Regular with type t := t
 end
 
@@ -42,22 +61,28 @@ end
 
 
 module Language : sig
-  val define : id -> rule list -> constr list -> defn
-  val rule : id -> pat list -> pat list -> rule
+  (** {2 Keywords}  *)
+
+  type that val that : that
+  type such val such : such
+  type vars val vars : vars
 
   (** {2 Type system}  *)
 
-  type typ = v -> e
+  type dec = v * s
 
-  val reg : typ
-  val ( * ) : typ -> typ
+  val reg : v -> dec
+  val ( * ) : (v -> dec) -> v -> dec
+
+
+  val define : id -> rule list -> vars -> dec list -> such -> that -> constr list -> defn
+  val rule : id -> pat list -> pat list -> rule
+
 
   (** {2 Constraints}  *)
-  type that
-  val that : that
   val (/) : v -> v -> constr
   val (=) : v -> var -> constr
-  val such : v -> that -> id -> constr
+  val forall : v -> such -> that -> id -> constr
 
 
   (** {2 Term patterns}  *)
@@ -65,13 +90,13 @@ module Language : sig
   type rhs
 
   (** {3 Definitions}  *)
-  val (:=) : e -> rhs -> pat
-  val use : e -> rhs
+  val (:=) : v -> rhs -> pat
+  val use : v -> rhs
   val any : v -> pat
 
   (** {3 Calls}  *)
-  val sub : id -> e list -> rhs
-  val call : id -> e list -> pat
+  val sub : id -> v list -> rhs
+  val call : id -> v list -> pat
 
   (** {3 Jumps}  *)
   val case : v -> (v -> v -> pat) -> v -> pat

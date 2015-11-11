@@ -22,19 +22,19 @@ end
 type constr = Constr.t
 with bin_io, compare, sexp
 
-module E = struct
+module S = struct
   type t =
-    | Reg of v
-    | Ptr of v
+    | Reg
+    | Ptr
   with bin_io, compare, sexp, variants
 end
 
-type e = E.t
+type s = S.t
 with bin_io, compare, sexp
 
 module Pat = struct
   type t =
-    | Call of id * e option * e list
+    | Call of id * v option * v list
     | Jump of [`call | `goto | `ret | `exn | `jmp] * v * v
     | Move of v * v
     | Load of v * v
@@ -60,6 +60,7 @@ with bin_io, compare, sexp
 module Defn = struct
   type t = {
     name : string;
+    vars : (v * s) list;
     constrs  : constr list;
     rules : rule list
   } with bin_io, compare, fields, sexp

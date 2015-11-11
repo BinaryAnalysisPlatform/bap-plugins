@@ -38,22 +38,21 @@ module Constr = struct
 
       let pp ppf = function
         | Dep (v1,v2) -> fprintf ppf "%a/%a" V.pp v1 V.pp v2
-        | Var (v,var) -> fprintf ppf "%a = %a" V.pp v Var.pp var
+        | Var (v,var) -> fprintf ppf "%a=%a" V.pp v Var.pp var
         | Fun (id,v) -> fprintf ppf "%a(%a)" Id.pp id V.pp v
     end)
 end
 
-module E = struct
-  include E
+module S = struct
+  include S
   include Regular.Make(struct
       type nonrec t = t with bin_io, compare, sexp
-      let hash = function
-        | Reg v | Ptr v -> V.hash v
+      let hash = Hashtbl.hash
 
       let module_name = None
       let pp ppf = function
-        | Reg v -> fprintf ppf "reg %a" V.pp v
-        | Ptr v -> fprintf ppf "reg *%a" V.pp v
+        | Reg -> fprintf ppf "reg "
+        | Ptr -> fprintf ppf "reg *"
     end)
 end
 
@@ -76,10 +75,10 @@ module Pat = struct
         | `exn  -> "exn"
         | `jmp  -> "jmp"
 
-      let pp_args ppf = pp_list pp_comma E.pp ppf
+      let pp_args ppf = pp_list pp_comma V.pp ppf
       let pp_ret ppf = function
         | None -> ()
-        | Some e -> fprintf ppf "%a := " E.pp e
+        | Some e -> fprintf ppf "%a := " V.pp e
 
       let pp ppf = function
         | Call (id,def,uses) ->
@@ -108,7 +107,7 @@ module Rule = struct
       let pp_pats = pp_list pp_comma Pat.pp
 
       let pp ppf r =
-        fprintf ppf "@[<2>rule %s ::=@;%a |-@ %a@]"
+        fprintf ppf "@[<4>rule %s ::=@;%a |-@ %a@]"
           r.name pp_pats r.premises pp_pats r.conclusions
     end)
 end
@@ -120,17 +119,22 @@ module Defn = struct
       let module_name = None
       let hash d = Id.hash d.name
 
-      let pp_vars p = pp_list pp_comma V.pp p
+      let pp_decl ppf (v,t) = S.pp ppf t; V.pp ppf v
+      let pp_vars p = pp_list pp_comma pp_decl p
+
       let pp_cons p = pp_list pp_comma Constr.pp p
       let pp_rules p = pp_list pp_break Rule.pp p
 
+      let pp_variables ppf d =
+        fprintf ppf "@[<2>vars@ @[{%a}@]@]"
+          pp_vars d.vars
       let pp_constrs ppf d =
-        fprintf ppf "@[s.t.@ @[{%a}@]@]"
+        fprintf ppf "@[<2>s.t.@ @[{%a}@]@]"
           pp_cons d.constrs
 
       let pp ppf d =
-        fprintf ppf "@[<v2>define %s ::= @;%a@;%a@]@;"
-          d.name pp_rules d.rules pp_constrs d
+        fprintf ppf "@[<v2>define %s ::= @;%a@;%a@;%a@]@;"
+          d.name pp_rules d.rules pp_variables d pp_constrs d
     end)
 end
 
@@ -193,21 +197,25 @@ module Language = struct
   let is_cyan = "is_cyan"
   let is_white = "is_white"
 
-  type typ = v -> e
 
-  let reg  : typ = fun v -> E.Reg v
-  let ( * ) : typ -> typ = fun _t -> fun v -> E.Ptr v
+  type dec = v * s
 
-  type that = That
+
+  let reg  : v -> dec = fun v -> v,S.Reg
+  let ( * ) : (v -> dec) -> v -> dec = fun _t -> fun v -> v,S.Ptr
+
+  type that = That type such = Such type vars = Vars
   let that = That
-  let such v That id = Constr.Fun (id,v)
+  let such = Such
+  let vars = Vars
+
+
+  let forall v Such That id = Constr.Fun (id,v)
   let (/) y x = Constr.dep y x
   let (=) v var = Constr.var v var
 
-
-
-  let define name rules constrs =
-    Defn.Fields.create ~name ~constrs ~rules
+  let define name rules Vars vars Such That constrs =
+    Defn.Fields.create ~name ~constrs ~vars ~rules
 
   let rule name premises conclusions =
     Rule.Fields.create ~name ~premises ~conclusions
@@ -218,15 +226,9 @@ module Language = struct
   let exn = Pat.jump `exn
   let jmp = Pat.jump `jmp
 
-  type rhs = e -> pat
+  type rhs = v -> pat
 
-  let use rhs lhs = match lhs, rhs with
-    | E.Reg lhs, E.Reg rhs -> Pat.move lhs rhs
-    | E.Reg lhs, E.Ptr rhs -> Pat.load lhs rhs
-    | E.Ptr lhs, E.Reg rhs -> Pat.store lhs rhs
-    | E.Ptr lhs, E.Ptr rhs ->
-      invalid_arg "Can't move from memory to memory"
-
+  let use rhs lhs = Pat.move lhs rhs
   let any = Pat.wild
   let call id args = Pat.call id None args
   let sub id args ret = Pat.call id (Some ret) args

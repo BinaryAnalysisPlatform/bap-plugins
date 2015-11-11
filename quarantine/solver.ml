@@ -2,7 +2,6 @@ open Core_kernel.Std
 open Bap.Std
 open Spec_types
 open Spec
-
 open Format
 
 module SM = Monad.State
@@ -64,9 +63,9 @@ let call_result = Value.Tag.register
     (module Call)
 
 let pp_equation ppf = function
-  | Sat_def (v,var) -> fprintf ppf "%a <- %a@." V.pp v Var.pp var
+  | Sat_def (v,var) -> fprintf ppf "%a <- %a@;" V.pp v Var.pp var
   | Sat_use (v,vars)->
-    fprintf ppf "%a ->  %a@." V.pp v Var.pp_seq (Set.to_sequence vars)
+    fprintf ppf "%a ->  %a@;" V.pp v Var.pp_seq (Set.to_sequence vars)
 
 let pp_equations ppf eqs =
   List.iter eqs ~f:(pp_equation ppf)
@@ -170,7 +169,7 @@ let seed_jmp prog jmp cons vars sub pat =
     Term.update blk_t sub in
   match pat with
   | Pat.Call (id,None,_) -> sub
-  | Pat.Call (id,Some (E.Reg e),_) when Set.mem vars e ->
+  | Pat.Call (id,Some e,_) when Set.mem vars e ->
     Option.value ~default:sub (seed_call id e)
   | _ -> sub
 
@@ -388,12 +387,25 @@ module Match = struct
       | _ -> None
   end
 
-  let sat_arg sat args v : equations =
+  let args_free_vars =
+    Seq.fold ~init:Var.Set.empty ~f:(fun vars arg ->
+        let vars = Set.union vars (Arg.rhs arg |> Exp.free_vars) in
+        Set.add  vars (Arg.lhs arg))
+
+  let sat_arg args v : equations =
     Seq.to_list_rev args |>
     List.concat_map ~f:(fun arg ->
         let vars =
           Set.add (Arg.rhs arg |> Exp.free_vars) (Arg.lhs arg) in
         [sat_use v vars])
+
+
+  module Equation = struct
+    let (&&) e1 e2 = match e1,e2 with
+      | None,_ | _,None -> None
+      | Some xs, Some ys -> Some (xs @ ys)
+  end
+
 
   let call prog =
     let with_args call f : equations option =
@@ -402,38 +414,40 @@ module Match = struct
       if Seq.is_empty args then None
       else Some (f args) in
 
+    let match_call_uses call use =
+      with_args call (fun args ->
+          [sat_use use (args_free_vars args)]) in
+
     object
       inherit matcher
       method jmp t r : equations option =
-        let match_call call uses =
-          with_args call (fun args ->
-              List.concat_map uses ~f:(fun (E.Reg v | E.Ptr v) ->
-                  sat_arg sat args v)) in
         let match_move call v1 v2 =
-          with_args call (fun args -> sat_arg sat args v2) in
+          with_args call (fun args -> sat_arg args v2) in
         let match_wild call v =
-          with_args call (fun args -> sat_arg sat args v) in
+          with_args call (fun args -> sat_arg args v) in
         match r, Jmp.kind t with
-        | Pat.Call (id,None,uses), Call c
+        | Pat.Call (id,None,[use]), Call c
           when our_target id (Call.target c) ->
-          match_call c uses
+          match_call_uses c use
         | Pat.Move (v1,v2), Call c -> match_move c v1 v2
         | Pat.Wild v, Call c -> match_wild c v
         | _ -> None  (* TODO: add Load and Store pats *)
 
       method def def pat : equations option =
-        let sat op id v =
+        let sat rule_def rule_use id v u =
           match Term.get_attr def call_result with
-          | Some call when our_target id (Call.target call) -> op v
+          | Some call when our_target id (Call.target call) ->
+            Equation.(rule_def call v && rule_use call u)
           | _ -> None in
-        let move v = Some [sat_def v (Def.lhs def)] in
-        let store v = match Def.rhs def with
-          | Bil.Store (_m,Bil.Var a,_v,_e,_s) ->
-            Some [sat_def v a]
-          | _ -> None in
+        let move call = function
+          | Some v -> Some [sat_def v (Def.lhs def)]
+          | None -> Some [] in
+        let use call = function
+          | Some v -> match_call_uses call v
+          | None -> Some [] in
         match pat with          (* TODO support uses *)
-        | Pat.Call (id,Some (E.Reg v),[]) -> sat move id v
-        | Pat.Call (id,Some (E.Ptr v),[]) -> sat store id v
+        | Pat.Call (id,v,[]) -> sat move use id v None
+        | Pat.Call (id,v,[u]) -> sat move use id v (Some u)
         | _ -> None
 
     end
