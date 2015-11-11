@@ -1,9 +1,7 @@
 (** Given a sequence of expected strings [E] and test corpora [S], we
     want to ensure, that each expected string matches at least one
     substring in a testing corpora, that is not matched by other
-    expected string. In other words, the same string in testing
-    corpora shouldn't satisfy two different strings in the expected
-    corpora.
+    expected string.
 
     This is a Maximum Bipartile Matching problem. First we find a MBP
     solution, and if in this solution all persons got a job, then we

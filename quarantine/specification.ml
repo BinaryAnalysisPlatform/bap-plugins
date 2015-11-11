@@ -4,7 +4,7 @@ open ARM.CPU
 open Spec.Language
 
 
-let checked_call name =
+let maybe_checked name =
   define (sprintf "%s_maybe_checked" name) [
     rule "if_some_jmp_depends"
       [p := sub name []]
@@ -12,8 +12,8 @@ let checked_call name =
   ] [c/p; p = r0]
 
 let spec = [
-  checked_call "malloc";
-  checked_call "calloc";
+  maybe_checked "malloc";
+  maybe_checked "calloc";
 
   define "malloc_is_safe_and_used" [
     rule "if_used_and_some_jmp_depends"

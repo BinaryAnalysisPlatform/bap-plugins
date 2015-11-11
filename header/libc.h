@@ -60,7 +60,7 @@ int           rand(void);
 int           rand_r(unsigned *);
 long          random(void);
 void         *realloc(void *ptr, size_t size);
-char         *realpath(const char *, char *);
+char         *realpath(const char *input, char *output);
 unsigned short *seed48(unsigned short [3]);
 int           setenv(const char *, const char *, int);
 void          setkey(const char *);
