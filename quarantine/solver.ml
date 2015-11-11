@@ -18,7 +18,13 @@ with variants
 exception Unbound_predicate of string with sexp
 
 type equations = equation list
-type match_res = equations option
+
+(**
+   None    -> false              (* Bot *)
+   Some [] -> true               (* Top *)
+   Some [p1,p2,..,pN] -> p1 /\ p2 /\ .. /\ pN
+*)
+type constraints = equations option
 
 (* a lattice for dependency equality class.*)
 type eq =
@@ -259,7 +265,7 @@ let sat term hyp kind v bil : hyp option =
         | `use when V.(v = v1) -> dep_use bil v2
         | _ -> sat true)
 
-let solution term hyp (eqs : match_res) : hyp option =
+let solution term hyp (eqs : constraints) : hyp option =
   let open Option.Monad_infix in
   eqs >>= List.fold ~init:(Some hyp) ~f:(fun hyp eq ->
       hyp >>= fun hyp -> match eq with
@@ -415,14 +421,19 @@ module Match = struct
         | Pat.Wild v, Call c -> match_wild c v
         | _ -> None  (* TODO: add Load and Store pats *)
 
-      method def term pat : equations option =
-        let match_call id v =
-          match Term.get_attr term call_result with
-          | Some call when our_target id (Call.target call) ->
-            Some [sat_def v (Def.lhs term)]
+      method def def pat : equations option =
+        let sat op id v =
+          match Term.get_attr def call_result with
+          | Some call when our_target id (Call.target call) -> op v
+          | _ -> None in
+        let move v = Some [sat_def v (Def.lhs def)] in
+        let store v = match Def.rhs def with
+          | Bil.Store (_m,Bil.Var a,_v,_e,_s) ->
+            Some [sat_def v a]
           | _ -> None in
         match pat with          (* TODO support uses *)
-        | Pat.Call (id,Some (E.Reg v),uses) -> match_call id v
+        | Pat.Call (id,Some (E.Reg v),[]) -> sat move id v
+        | Pat.Call (id,Some (E.Ptr v),[]) -> sat store id v
         | _ -> None
 
     end

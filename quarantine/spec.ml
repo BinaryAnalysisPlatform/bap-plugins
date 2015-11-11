@@ -52,7 +52,8 @@ module E = struct
 
       let module_name = None
       let pp ppf = function
-        | Reg v | Ptr v -> V.pp ppf v
+        | Reg v -> fprintf ppf "reg %a" V.pp v
+        | Ptr v -> fprintf ppf "reg *%a" V.pp v
     end)
 end
 
