@@ -126,8 +126,8 @@ let return sub caller =
   | None | Some (Indirect _) -> None
   | Some (Direct tid) -> Term.find blk_t sub tid
 
-let tag_arg_def call term =
-  Term.set_attr (self_seed term) call_result call
+let tag_arg_def jmp call term =
+  Term.set_attr (seed_with (Term.tid jmp) term) call_result call
 
 let already_seeded blk var =
   Term.enum def_t blk |> Seq.exists ~f:(fun def ->
@@ -159,7 +159,7 @@ let seed_jmp prog jmp cons vars sub pat =
     return sub caller  >>| fun return ->
     Term.enum arg_t callee |>
     defs_of_args e cons |>
-    Seq.map ~f:(tag_arg_def caller) |>
+    Seq.map ~f:(tag_arg_def jmp caller) |>
     Seq.fold ~init:return ~f:prepend_def |>
     Term.update blk_t sub in
   match pat with
@@ -217,8 +217,6 @@ let search prog (vis : 'a vis) =
           foreach phi_t blk ~f:vis#phi >>= fun () ->
           foreach def_t blk ~f:vis#def >>= fun () ->
           foreach jmp_t blk ~f:vis#jmp))
-
-
 
 let sat term hyp kind v bil : hyp option =
   let open Option.Monad_infix in
@@ -284,10 +282,16 @@ let solution term hyp (eqs : match_res) : hyp option =
                     | `Both (Top,Top) -> Top)
               }))
 
-let proved hyp pat term = {
-  hyp with
-  proofs = Map.add hyp.proofs ~key:pat ~data:(Term.tid term);
-}
+let proved hyp pat term =
+  let proof =
+    match Term.get_attr term Taint.seed,
+          Term.get_attr term call_result
+    with Some t, Some _ -> t
+       | _ -> Term.tid term in
+  {
+    hyp with
+    proofs = Map.add hyp.proofs ~key:pat ~data:proof;
+  }
 
 let fold_pats field matches term hyp =
   Set.fold (Field.get field hyp) ~init:hyp ~f:(fun hyp pat ->

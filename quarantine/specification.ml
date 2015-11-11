@@ -10,32 +10,38 @@ let spec = [
       [case c jmp x]
   ] [c/p; p = r0];
 
-  define "malloc_is_safe_and_used" [
-    rule "if_used_and_some_jmp_depends"
-      [p := sub "malloc" []; use t]
+  define "calloc_is_safe" [
+    rule "if_some_jmp_depends"
+      [p := sub "calloc" []]
       [case c jmp x]
-  ] [c/p; t/p; p = r0];
+  ] [c/p; p = r0];
 
-  define "magic_door_exists" [
-    rule "when_magic_meets_user_input" [
-      p := term v;
-      x := sub "read" []
-    ][
-      case c jmp d
-    ]
-  ][
-    such v that is_black;
-    x = r0;
-    c / x;
-    c / p;
-  ];
+  (* define "malloc_is_safe_and_used" [ *)
+  (*   rule "if_used_and_some_jmp_depends" *)
+  (*     [p := sub "malloc" []; use t] *)
+  (*     [case c jmp x] *)
+  (* ] [c/p; t/p; p = r0]; *)
 
-  define "sql_exec_is_safe" [
-    rule "if_escaped_before_exec" [
-      x := term u;
-      call "sql_exec"[p]
-    ][
-      z := sub "sql_escape"[y]
-    ]
-  ] [p = r0; p/x; y/x; p/z; such u that is_black]
+  (* define "magic_door_exists" [ *)
+  (*   rule "when_magic_meets_user_input" [ *)
+  (*     p := term v; *)
+  (*     x := sub "read" [] *)
+  (*   ][ *)
+  (*     case c jmp d *)
+  (*   ] *)
+  (* ][ *)
+  (*   such v that is_black; *)
+  (*   x = r0; *)
+  (*   c / x; *)
+  (*   c / p; *)
+  (* ]; *)
+
+  (* define "sql_exec_is_safe" [ *)
+  (*   rule "if_escaped_before_exec" [ *)
+  (*     x := term u; *)
+  (*     call "sql_exec"[p] *)
+  (*   ][ *)
+  (*     z := sub "sql_escape"[y] *)
+  (*   ] *)
+  (* ] [p = r0; p/x; y/x; p/z; such u that is_black] *)
 ]
