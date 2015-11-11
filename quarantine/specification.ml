@@ -3,45 +3,44 @@ open Bap.Std
 open ARM.CPU
 open Spec.Language
 
+
+let checked_call name =
+  define (sprintf "%s_maybe_checked" name) [
+    rule "if_some_jmp_depends"
+      [p := sub name []]
+      [case c jmp x]
+  ] [c/p; p = r0]
+
 let spec = [
-  define "malloc_is_safe" [
-    rule "if_some_jmp_depends"
-      [p := sub "malloc" []]
+  checked_call "malloc";
+  checked_call "calloc";
+
+  define "malloc_is_safe_and_used" [
+    rule "if_used_and_some_jmp_depends"
+      [p := sub "malloc" []; use t]
       [case c jmp x]
-  ] [c/p; p = r0];
+  ] [c/p; t/p; p = r0];
 
-  define "calloc_is_safe" [
-    rule "if_some_jmp_depends"
-      [p := sub "calloc" []]
-      [case c jmp x]
-  ] [c/p; p = r0];
+  define "magic_door_exists" [
+    rule "when_magic_meets_user_input" [
+      p := term v;
+      x := sub "read" []
+    ][
+      case c jmp d
+    ]
+  ][
+    such v that is_black;
+    x = r0;
+    c / x;
+    c / p;
+  ];
 
-  (* define "malloc_is_safe_and_used" [ *)
-  (*   rule "if_used_and_some_jmp_depends" *)
-  (*     [p := sub "malloc" []; use t] *)
-  (*     [case c jmp x] *)
-  (* ] [c/p; t/p; p = r0]; *)
-
-  (* define "magic_door_exists" [ *)
-  (*   rule "when_magic_meets_user_input" [ *)
-  (*     p := term v; *)
-  (*     x := sub "read" [] *)
-  (*   ][ *)
-  (*     case c jmp d *)
-  (*   ] *)
-  (* ][ *)
-  (*   such v that is_black; *)
-  (*   x = r0; *)
-  (*   c / x; *)
-  (*   c / p; *)
-  (* ]; *)
-
-  (* define "sql_exec_is_safe" [ *)
-  (*   rule "if_escaped_before_exec" [ *)
-  (*     x := term u; *)
-  (*     call "sql_exec"[p] *)
-  (*   ][ *)
-  (*     z := sub "sql_escape"[y] *)
-  (*   ] *)
-  (* ] [p = r0; p/x; y/x; p/z; such u that is_black] *)
+  define "sql_exec_is_safe" [
+    rule "if_escaped_before_exec" [
+      x := term u;
+      call "sql_exec"[p]
+    ][
+      z := sub "sql_escape"[y]
+    ]
+  ] [p = r0; p/x; y/x; p/z; such u that is_black]
 ]

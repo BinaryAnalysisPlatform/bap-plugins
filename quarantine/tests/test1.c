@@ -1,4 +1,4 @@
-//! :: rule malloc_is_safe is unsatisfied
+//! :: rule malloc_maybe_checked is unsatisfied
 
 #include <stdlib.h>
 
