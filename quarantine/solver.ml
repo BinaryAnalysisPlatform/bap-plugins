@@ -164,7 +164,7 @@ let seed_jmp prog jmp cons vars sub pat =
     Term.update blk_t sub in
   match pat with
   | Pat.Call (id,None,_) -> sub
-  | Pat.Call (id,Some e,_) when Set.mem vars e ->
+  | Pat.Call (id,Some (E.Reg e),_) when Set.mem vars e ->
     Option.value ~default:sub (seed_call id e)
   | _ -> sub
 
@@ -401,7 +401,8 @@ module Match = struct
       method jmp t r : equations option =
         let match_call call uses =
           with_args call (fun args ->
-              List.concat_map uses ~f:(sat_arg sat args)) in
+              List.concat_map uses ~f:(fun (E.Reg v | E.Ptr v) ->
+                  sat_arg sat args v)) in
         let match_move call v1 v2 =
           with_args call (fun args -> sat_arg sat args v2) in
         let match_wild call v =
@@ -421,7 +422,7 @@ module Match = struct
             Some [sat_def v (Def.lhs term)]
           | _ -> None in
         match pat with          (* TODO support uses *)
-        | Pat.Call (id,Some v,uses) -> match_call id v
+        | Pat.Call (id,Some (E.Reg v),uses) -> match_call id v
         | _ -> None
 
     end

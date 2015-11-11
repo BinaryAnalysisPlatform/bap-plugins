@@ -75,10 +75,10 @@ module Pat = struct
         | `exn  -> "exn"
         | `jmp  -> "jmp"
 
-      let pp_args ppf = pp_list pp_comma V.pp ppf
+      let pp_args ppf = pp_list pp_comma E.pp ppf
       let pp_ret ppf = function
         | None -> ()
-        | Some v -> fprintf ppf "%a := " V.pp v
+        | Some e -> fprintf ppf "%a := " E.pp e
 
       let pp ppf = function
         | Call (id,def,uses) ->
@@ -192,6 +192,18 @@ module Language = struct
   let is_cyan = "is_cyan"
   let is_white = "is_white"
 
+  type typ = v -> e
+
+  let reg  : typ = fun v -> E.Reg v
+  let ( * ) : typ -> typ = fun _t -> fun v -> E.Ptr v
+
+  type that = That
+  let that = That
+  let such v That id = Constr.Fun (id,v)
+  let (/) y x = Constr.dep y x
+  let (=) v var = Constr.var v var
+
+
 
   let define name rules constrs =
     Defn.Fields.create ~name ~constrs ~rules
@@ -199,18 +211,23 @@ module Language = struct
   let rule name premises conclusions =
     Rule.Fields.create ~name ~premises ~conclusions
 
-  let that id v = Constr.Fun (id,v)
-  let such v that id = that id v
   let case cond jmp dst = jmp cond dst
   let goto = Pat.jump `goto
   let ret = Pat.jump `ret
   let exn = Pat.jump `exn
   let jmp = Pat.jump `jmp
-  let term rhs lhs  = Pat.move lhs rhs
-  let use = Pat.wild
+
+  type rhs = e -> pat
+
+  let use rhs lhs = match lhs, rhs with
+    | E.Reg lhs, E.Reg rhs -> Pat.move lhs rhs
+    | E.Reg lhs, E.Ptr rhs -> Pat.load lhs rhs
+    | E.Ptr lhs, E.Reg rhs -> Pat.store lhs rhs
+    | E.Ptr lhs, E.Ptr rhs ->
+      invalid_arg "Can't move from memory to memory"
+
+  let any = Pat.wild
   let call id args = Pat.call id None args
   let sub id args ret = Pat.call id (Some ret) args
   let (:=) lhs term = term lhs
-  let (/) y x = Constr.dep y x
-  let (=) v var = Constr.var v var
 end

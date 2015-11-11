@@ -45,23 +45,42 @@ module Language : sig
   val define : id -> rule list -> constr list -> defn
   val rule : id -> pat list -> pat list -> rule
 
+  (** {2 Type system}  *)
 
+  type typ = v -> e
+
+  val reg : typ
+  val ( * ) : typ -> typ
+
+  (** {2 Constraints}  *)
+  type that
+  val that : that
   val (/) : v -> v -> constr
   val (=) : v -> var -> constr
-  val (:=) : v -> (v -> pat) -> pat
-  val jmp : v -> v -> pat
-  val sub : id -> v list -> v -> pat
-  val call : id -> v list -> pat
+  val such : v -> that -> id -> constr
+
+
+  (** {2 Term patterns}  *)
+
+  type rhs
+
+  (** {3 Definitions}  *)
+  val (:=) : e -> rhs -> pat
+  val use : e -> rhs
+  val any : v -> pat
+
+  (** {3 Calls}  *)
+  val sub : id -> e list -> rhs
+  val call : id -> e list -> pat
+
+  (** {3 Jumps}  *)
+  val case : v -> (v -> v -> pat) -> v -> pat
   val goto : v -> v -> pat
   val ret : v -> v -> pat
+  val jmp : v -> v -> pat
 
-  val term : v -> v -> pat
-  val use : v -> pat
 
-  val case : v -> (v -> v -> pat) -> v -> pat
-
-  val such : v -> (id -> v -> constr) -> id -> constr
-  val that : id -> v -> constr
+  (** {2 Predicates}  *)
 
   val is_marked : id
   val is_black : id
@@ -73,6 +92,8 @@ module Language : sig
   val is_cyan : id
   val is_white : id
 
+
+  (** {2 Predefined Variables} *)
   val a : v
   val b : v
   val c : v
