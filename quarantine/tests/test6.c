@@ -1,7 +1,7 @@
-//!  0000020b: p := malloc()
+//!  ........: p := malloc()
 //!  unproved: when c jmp x
-//!  0000020a: p := malloc()
-//!  0000014c: when c jmp x
+//!  ........: p := malloc()
+//!  ........: when c jmp x
 
 
 #include <stdlib.h>
