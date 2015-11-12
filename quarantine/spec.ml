@@ -3,18 +3,6 @@ open Bap.Std
 open Spec_types
 open Format
 
-
-module V = struct
-  type t = V.t with bin_io, compare, sexp
-  let create = V.of_string
-  include Regular.Make(struct
-      type t = V.t with bin_io, compare, sexp
-      let module_name = None
-      let pp = V.pp
-      let hash = V.hash
-    end)
-end
-
 let pp_list pp_sep pp_elem ppf xs =
   let rec pp ppf = function
     | [] -> ()
@@ -76,9 +64,9 @@ module Pat = struct
         | `jmp  -> "jmp"
 
       let pp_args ppf = pp_list pp_comma V.pp ppf
-      let pp_ret ppf = function
-        | None -> ()
-        | Some e -> fprintf ppf "%a := " V.pp e
+      let pp_ret ppf v = match (v : v :> int) with
+        | 0 -> ()
+        | e -> fprintf ppf "%a := " V.pp v
 
       let pp ppf = function
         | Call (id,def,uses) ->
@@ -171,6 +159,7 @@ module Language = struct
   let y = var "y"
   let z = var "z"
 
+  let _' = var ""
   let a' = var "a'"
   let b' = var "b'"
   let c' = var "c'"
@@ -230,7 +219,9 @@ module Language = struct
 
   let use rhs lhs = Pat.move lhs rhs
   let any = Pat.wild
-  let sub id args = Pat.call id None args
-  let call id args ret = Pat.call id (Some ret) args
+  let sub id args = Pat.call id V.null args
+  let call id args (ret : v) = match (ret :> int) with
+    | 0 -> sub id args
+    | _ -> Pat.call id ret args
   let (:=) lhs term = term lhs
 end

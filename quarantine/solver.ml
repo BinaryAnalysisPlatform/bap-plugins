@@ -9,21 +9,17 @@ open SM.Monad_infix
 
 type t = spec
 
-type equation =
+type matches =
   | Sat_def of v * var
-  | Sat_use of v * Var.Set.t
+  | Sat_use of v * var
+  | Sat_any of matches list
+  | Sat_all of matches list
 with variants
 
+let sat_bot = sat_any []
+let sat_top = sat_all []
+
 exception Unbound_predicate of string with sexp
-
-type equations = equation list
-
-(**
-   None    -> false              (* Bot *)
-   Some [] -> true               (* Top *)
-   Some [p1,p2,..,pN] -> p1 /\ p2 /\ .. /\ pN
-*)
-type constraints = equations option
 
 (* a lattice for dependency equality class.*)
 type eq =
@@ -62,13 +58,20 @@ let call_result = Value.Tag.register
     ~uuid:"b3582364-c105-4dd1-a8bd-0a38e3a3b548"
     (module Call)
 
-let pp_equation ppf = function
-  | Sat_def (v,var) -> fprintf ppf "%a <- %a@;" V.pp v Var.pp var
-  | Sat_use (v,vars)->
-    fprintf ppf "%a ->  %a@;" V.pp v Var.pp_seq (Set.to_sequence vars)
 
-let pp_equations ppf eqs =
-  List.iter eqs ~f:(pp_equation ppf)
+let rec pp_matches ppf = function
+  | Sat_all [] -> fprintf ppf "T@;"
+  | Sat_any [] -> fprintf ppf "F@;"
+  | Sat_def (v,var) -> fprintf ppf "%a <- %a@;" V.pp v Var.pp var
+  | Sat_use (v,var) -> fprintf ppf "%a -> %a@;" V.pp v Var.pp var
+  | Sat_all constrs -> fprintf ppf "%a@;" (pp_terms "/\\") constrs
+  | Sat_any constrs -> fprintf ppf "(%a)@;" (pp_terms "\\/") constrs
+and pp_terms sep ppf = function
+  | [] -> ()
+  | [c] -> pp_matches ppf c
+  | c :: cs ->
+    fprintf ppf "%a%s@;%a" pp_matches c sep (pp_terms sep) cs
+
 
 let update f = SM.get () >>= fun s -> SM.put (f s)
 
@@ -168,8 +171,8 @@ let seed_jmp prog jmp cons vars sub pat =
     Seq.fold ~init:return ~f:prepend_def |>
     Term.update blk_t sub in
   match pat with
-  | Pat.Call (id,None,_) -> sub
-  | Pat.Call (id,Some e,_) when Set.mem vars e ->
+  | Pat.Call (id,0,_) -> sub
+  | Pat.Call (id,e,_) when Set.mem vars e ->
     Option.value ~default:sub (seed_call id e)
   | _ -> sub
 
@@ -264,28 +267,45 @@ let sat term hyp kind v bil : hyp option =
         | `use when V.(v = v1) -> dep_use bil v2
         | _ -> sat true)
 
-let solution term hyp (eqs : constraints) : hyp option =
+let merge_hyps xs =
+  List.reduce_exn xs ~f:(fun h1 h2 -> {
+        h1 with
+        ivars = Map.merge h1.ivars h2.ivars ~f:(fun ~key r ->
+            Option.some @@ match r with
+            | `Left _ | `Right _ -> assert false
+            | `Both (Set xs, Set ys) -> Set (Set.union xs ys)
+            | `Both (_,Set xs)
+            | `Both  (Set xs,_) -> Set xs
+            | `Both (Top,Top) -> Top)
+      })
+
+let solution term hyp (eqs : matches) : hyp option =
   let open Option.Monad_infix in
-  eqs >>= List.fold ~init:(Some hyp) ~f:(fun hyp eq ->
-      hyp >>= fun hyp -> match eq with
-      | Sat_def (v,_) | Sat_use (v,_)
-        when not (Set.mem hyp.cvars v) -> Some hyp
-      | Sat_def (v,bil) -> sat term hyp `def v bil
-      | Sat_use (v,vs) ->
-        Set.to_list vs |>
-        List.filter_map ~f:(sat term hyp `use v) |> function
-        | [] -> None
-        | xs ->
-          Option.some @@ List.reduce_exn xs ~f:(fun h1 h2 -> {
-                h1 with
-                ivars = Map.merge h1.ivars h2.ivars ~f:(fun ~key r ->
-                    Option.some @@ match r with
-                    | `Left _ | `Right _ -> assert false
-                    | `Both (Set xs, Set ys) -> Set (Set.union xs ys)
-                    | `Both (_,Set xs)
-                    | `Both  (Set xs,_) -> Set xs
-                    | `Both (Top,Top) -> Top)
-              }))
+  let rec solve hyp = function
+    | Sat_all [] -> Some hyp
+    | Sat_any [] -> None
+    | Sat_def (v,_) | Sat_use (v,_)
+      when not (Set.mem hyp.cvars v) -> Some hyp
+    | Sat_def (v,bil) -> sat term hyp `def v bil
+    | Sat_use (v,bil) -> sat term hyp `use v bil
+    | Sat_all constrs -> forall hyp constrs
+    | Sat_any constrs -> exists hyp constrs
+  and forall hyp constrs =
+    List.map constrs ~f:(solve hyp) |>
+    Option.all |> function
+    | None -> None
+    | Some hyps -> Some (merge_hyps hyps)
+  and exists hyp constrs =
+    List.filter_map constrs ~f:(solve hyp) |> function
+    | [] -> None
+    | hyps -> Some (merge_hyps hyps) in
+
+  (* if (eqs <> Sat_any []) then *)
+  (*   eprintf "%s: %s %a@." *)
+  (*     (Term.name term) *)
+  (*     (if solve hyp eqs = None then "unsat" else "sat") *)
+  (*     pp_matches eqs; *)
+  solve hyp eqs
 
 let proved hyp pat term =
   let proof =
@@ -328,31 +348,39 @@ let run mrs f t =
 module Match = struct
   open Option.Monad_infix
 
+  let sat_any_var v vars : matches = match v with
+    | 0 -> sat_top
+    | v ->
+      Set.fold vars ~init:[] ~f:(fun cs var ->
+          sat_use v var :: cs) |>
+      sat_any
+
   class matcher : object
-    method arg : arg term -> pat -> equations option
-    method phi : phi term -> pat -> equations option
-    method def : def term -> pat -> equations option
-    method jmp : jmp term -> pat -> equations option
+    method arg : arg term -> pat -> matches
+    method phi : phi term -> pat -> matches
+    method def : def term -> pat -> matches
+    method jmp : jmp term -> pat -> matches
   end = object
-    method arg _ _ = None
-    method phi _ _ = None
-    method def _ _ = None
-    method jmp _ _ = None
+    method arg _ _ = Sat_any []
+    method phi _ _ = Sat_any []
+    method def _ _ = Sat_any []
+    method jmp _ _ = Sat_any []
   end
 
-  let sat_mem sat v : exp -> equations =
-    let sat_vars v exp = sat_use v (Exp.free_vars exp) in
-    Exp.fold ~init:[] (object
-      inherit [equations] Bil.visitor
+  let sat_mem sat v : exp -> matches =
+    let sat_vars v exp =
+      sat_any_var v (Exp.free_vars exp) in
+    Exp.fold ~init:sat_bot (object
+      inherit [matches] Bil.visitor
       method! enter_load ~mem ~addr e s eqs =
         match v with
-        | `load v -> sat_vars v addr :: eqs
+        | `load v -> sat_any [sat_vars v addr; eqs]
         | `store _ -> eqs
       method! enter_store ~mem ~addr ~exp e s eqs =
         match v with
         | `load _ -> eqs
         | `store (p,v) ->
-          sat_vars p addr :: sat_vars p exp :: eqs
+          sat_any [sat_all [sat_vars p addr; sat_vars p exp]; eqs]
     end)
 
   let move = object
@@ -361,30 +389,30 @@ module Match = struct
       let lhs,rhs = Def.(lhs t, rhs t) in
       match r with
       | Pat.Move (dst,src) ->
-        Some [sat_def dst lhs; sat_use src (Def.free_vars t)]
+        sat_all [sat_def dst lhs; sat_any_var src (Def.free_vars t)]
       | Pat.Load (dst, ptr) ->
-        Some (sat_def dst lhs :: sat_mem sat (`load ptr) rhs)
-      | Pat.Store (p,v) -> Some (sat_mem sat (`store (p,v)) rhs)
-      | _ -> None
+        sat_all [sat_def dst lhs; sat_mem sat (`load ptr) rhs]
+      | Pat.Store (p,v) ->  sat_mem sat (`store (p,v)) rhs
+      | _ -> sat_bot
   end
 
   let jump = object
     inherit matcher
     method jmp t r = match r with
       | Pat.Jump (k,cv,dv) ->
-        let sat () : equations option =
+        let sat () : matches =
           let conds = Exp.free_vars (Jmp.cond t) in
           let dsts = Set.diff (Jmp.free_vars t) conds in
-          Some [sat_use cv conds; sat_use dv dsts] in
+          sat_all [sat_any_var cv conds; sat_any_var dv dsts] in
         let sat = match k, Jmp.kind t with
           | `call,Call _
           | `goto,Goto _
           | `ret,Ret _
           | `exn,Int _
           | `jmp,_     -> sat
-          | _ -> fun _ -> None in
+          | _ -> fun _ -> Sat_any [] in
         sat ()
-      | _ -> None
+      | _ -> Sat_any []
   end
 
   let args_free_vars =
@@ -392,70 +420,69 @@ module Match = struct
         let vars = Set.union vars (Arg.rhs arg |> Exp.free_vars) in
         Set.add  vars (Arg.lhs arg))
 
-  let sat_arg args v : equations =
+
+  (* ideally, we need any bipartile matching here *)
+  let sat_arg args v : matches =
     Seq.to_list_rev args |>
     List.concat_map ~f:(fun arg ->
         let vars =
           Set.add (Arg.rhs arg |> Exp.free_vars) (Arg.lhs arg) in
-        [sat_use v vars])
-
-
-  module Equation = struct
-    let (&&) e1 e2 = match e1,e2 with
-      | None,_ | _,None -> None
-      | Some xs, Some ys -> Some (xs @ ys)
-  end
-
+        [sat_any_var v vars]) |>
+    sat_any
 
   let call prog =
-    let with_args call f : equations option =
-      callee prog call >>= fun sub ->
-      let args = Term.enum arg_t sub in
-      if Seq.is_empty args then None
-      else Some (f args) in
+    let with_args call f : matches =
+      let args =
+        callee prog call >>= fun sub ->
+        let args = Term.enum arg_t sub in
+        if Seq.is_empty args then None
+        else Some args in
+      match args with
+      | None -> sat_bot
+      | Some args -> f args in
 
-    let match_call_uses call use =
+    let match_call_uses call use : matches =
       with_args call (fun args ->
-          [sat_use use (args_free_vars args)]) in
+          sat_any_var use (args_free_vars args)) in
 
     object
       inherit matcher
-      method jmp t r : equations option =
+      method jmp t r : matches =
         let match_move call v1 v2 =
           with_args call (fun args -> sat_arg args v2) in
         let match_wild call v =
           with_args call (fun args -> sat_arg args v) in
         match r, Jmp.kind t with
-        | Pat.Call (id,None,[use]), Call c
+        | Pat.Call (id,0,[use]), Call c
           when our_target id (Call.target c) ->
           match_call_uses c use
         | Pat.Move (v1,v2), Call c -> match_move c v1 v2
         | Pat.Wild v, Call c -> match_wild c v
-        | _ -> None  (* TODO: add Load and Store pats *)
+        | _ -> Sat_any []  (* TODO: add Load and Store pats *)
 
-      method def def pat : equations option =
+      method def def pat : matches =
         let sat rule_def rule_use id v u =
           match Term.get_attr def call_result with
           | Some call when our_target id (Call.target call) ->
-            Equation.(rule_def call v && rule_use call u)
-          | _ -> None in
+            Sat_all [rule_def call v; rule_use call u]
+          | _ -> Sat_any [] in
         let move call = function
-          | Some v -> Some [sat_def v (Def.lhs def)]
-          | None -> Some [] in
+          | 0 -> Sat_all []
+          | v -> sat_def v (Def.lhs def) in
         let use call = function
           | Some v -> match_call_uses call v
-          | None -> Some [] in
+          | None -> Sat_all [] in
         match pat with          (* TODO support uses *)
         | Pat.Call (id,v,[]) -> sat move use id v None
         | Pat.Call (id,v,[u]) -> sat move use id v (Some u)
-        | _ -> None
+        | _ -> Sat_any []
 
     end
 
   let wild =
     let any es pat = match pat with
-      | Pat.Wild v -> Some [sat_use v es]
-      | _ -> None in
+      | Pat.Wild v -> sat_any_var v es
+      | _ -> sat_bot in
     object
       inherit matcher
       method def t = any (Def.free_vars t)
@@ -477,6 +504,19 @@ let solver prog : state vis =
     method jmp = run rs (fun r -> r#jmp)
   end
 
+
+let nullify_pattern cvars pat =
+  let f v = if Set.mem cvars v then v else V.null in
+  match pat with
+  | Pat.Jump  (k,x,y) -> Pat.Jump (k, f x, f y)
+  | Pat.Load  (x,y) -> Pat.Load (f x, f y)
+  | Pat.Store (x,y) -> Pat.Store (f x, f y)
+  | Pat.Move  (x,y) -> Pat.Move (f x, f y)
+  | Pat.Wild x -> Pat.Wild (f x)
+  | Pat.Call (id,r,xs) ->
+    Pat.Call (id,f r, List.filter xs ~f:(Set.mem cvars))
+
+
 let hyp_of_rule defn constrs r =
   let ivars,cvars =
     List.fold constrs ~init:(V.Map.empty,V.Set.empty)
@@ -486,10 +526,13 @@ let hyp_of_rule defn constrs r =
             Set.add (Set.add cvars v1) v2
           | Constr.Var (v,_)
           | Constr.Fun (_,v) -> (ivars,Set.add cvars v)) in
+  let nullify = List.map ~f:(nullify_pattern cvars) in
+  let prems = nullify (Rule.premises r) in
+  let concs = nullify (Rule.conclusions r) in
   {
     defn; rule = r;
-    prems = Pat.Set.of_list (Rule.premises r);
-    concs = Pat.Set.of_list (Rule.conclusions r);
+    prems = Pat.Set.of_list prems;
+    concs = Pat.Set.of_list concs;
     ivars;
     cvars;
     proofs = Pat.Map.empty;

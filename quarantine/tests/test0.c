@@ -1,6 +1,6 @@
 //!  ........: p := malloc()
 //!  --------------------------------
-//!  unproved: when c jmp x
+//!  unproved: when c jmp .
 //!
 //!   :: rule malloc_maybe_checked is unsatisfied
 

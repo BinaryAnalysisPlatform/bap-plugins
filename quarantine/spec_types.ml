@@ -7,9 +7,6 @@ module Id = String
 type id = Id.t
 with bin_io, compare, sexp
 
-module V = Interned_string.Make(struct
-    let initial_table_size = 32
-  end)
 type v = V.t with bin_io, compare, sexp
 
 module Constr = struct
@@ -34,7 +31,7 @@ with bin_io, compare, sexp
 
 module Pat = struct
   type t =
-    | Call of id * v option * v list
+    | Call of id * v * v list
     | Jump of [`call | `goto | `ret | `exn | `jmp] * v * v
     | Move of v * v
     | Load of v * v

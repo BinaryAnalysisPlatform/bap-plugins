@@ -8,11 +8,6 @@ module Constr : sig
   include Regular with type t := t
 end
 
-module V : sig
-  type t = V.t
-  val create : string -> t
-  include Regular with type t := t
-end
 
 (** variable sort ::= reg | ptr
     variables of type reg represent values stored in registers.
@@ -69,10 +64,10 @@ module Language : sig
 
   (** {2 Type system}  *)
 
-  type dec = v * s
+  type dec = V.t * s
 
-  val reg : v -> dec
-  val ( * ) : (v -> dec) -> v -> dec
+  val reg : V.t -> dec
+  val ( * ) : (V.t -> dec) -> V.t -> dec
 
 
   val define : id -> rule list -> vars -> dec list -> such -> that -> constr list -> defn
@@ -80,9 +75,9 @@ module Language : sig
 
 
   (** {2 Constraints}  *)
-  val (/) : v -> v -> constr
-  val (=) : v -> var -> constr
-  val forall : v -> such -> that -> id -> constr
+  val (/) : V.t -> V.t -> constr
+  val (=) : V.t -> var -> constr
+  val forall : V.t -> such -> that -> id -> constr
 
 
   (** {2 Term patterns}  *)
@@ -90,19 +85,19 @@ module Language : sig
   type rhs
 
   (** {3 Definitions}  *)
-  val (:=) : v -> rhs -> pat
-  val use : v -> rhs
-  val any : v -> pat
+  val (:=) : V.t -> rhs -> pat
+  val use : V.t -> rhs
+  val any : V.t -> pat
 
   (** {3 Calls}  *)
-  val call : id -> v list -> rhs
+  val call : id -> V.t list -> rhs
 
   (** {3 Jumps}  *)
-  val case : v -> (v -> v -> pat) -> v -> pat
-  val goto : v -> v -> pat
-  val ret : v -> v -> pat
-  val jmp : v -> v -> pat
-  val sub : id -> v list -> pat
+  val case : V.t -> (V.t -> V.t -> pat) -> V.t -> pat
+  val goto : V.t -> V.t -> pat
+  val ret : V.t -> V.t -> pat
+  val jmp : V.t -> V.t -> pat
+  val sub : id -> V.t list -> pat
 
 
   (** {2 Predicates}  *)
@@ -119,33 +114,34 @@ module Language : sig
 
 
   (** {2 Predefined Variables} *)
-  val a : v
-  val b : v
-  val c : v
-  val d : v
-  val p : v
-  val q : v
-  val r : v
-  val s : v
-  val t : v
-  val u : v
-  val v : v
-  val x : v
-  val y : v
-  val z : v
+  val a : V.t
+  val b : V.t
+  val c : V.t
+  val d : V.t
+  val p : V.t
+  val q : V.t
+  val r : V.t
+  val s : V.t
+  val t : V.t
+  val u : V.t
+  val v : V.t
+  val x : V.t
+  val y : V.t
+  val z : V.t
 
-  val a' : v
-  val b' : v
-  val c' : v
-  val d' : v
-  val p' : v
-  val q' : v
-  val r' : v
-  val s' : v
-  val t' : v
-  val u' : v
-  val v' : v
-  val x' : v
-  val y' : v
-  val z' : v
+  val _' : V.t
+  val a' : V.t
+  val b' : V.t
+  val c' : V.t
+  val d' : V.t
+  val p' : V.t
+  val q' : V.t
+  val r' : V.t
+  val s' : V.t
+  val t' : V.t
+  val u' : V.t
+  val v' : V.t
+  val x' : V.t
+  val y' : V.t
+  val z' : V.t
 end
