@@ -24,11 +24,11 @@ let mark_if_visited ctxt =
 
 let mark_if_tainted (ctxt : Main.result) =
   let mark t =
-    let vars = ctxt#taints_of_term (Term.tid t) in
+    let vars = ctxt#tainted_regs (Term.tid t) in
     if Map.is_empty (vars)
     then t else
       Term.set_attr (Term.set_attr t foreground `red)
-        Taint.vars vars in
+        Taint.regs vars in
   {mark}
 
 let if_seeded =

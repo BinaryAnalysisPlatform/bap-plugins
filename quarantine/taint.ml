@@ -50,9 +50,14 @@ module Tainted_vars = struct
     end)
 end
 
-let vars : taints Var.Map.t tag = Value.Tag.register
-    ~name:"taint_vars"
+let regs : taints Var.Map.t tag = Value.Tag.register
+    ~name:"tainted_regs"
     ~uuid:"03c90a60-e19f-43cc-8049-fdeb23973396"
+    (module Tainted_vars)
+
+let ptrs : taints Var.Map.t tag = Value.Tag.register
+    ~name:"tainted_ptrs"
+    ~uuid:"ecf96df5-f706-4f95-a421-3fa9b91ad8bd"
     (module Tainted_vars)
 
 let create = ident

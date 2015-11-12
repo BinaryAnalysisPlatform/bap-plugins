@@ -6,6 +6,17 @@ open SM.Monad_infix
 
 open Format
 
+type taints = Tid.Set.t Var.Map.t Tid.Map.t
+
+
+class type result = object
+  method visited : Tid.Set.t
+  method tainted_regs : tid -> Tid.Set.t Var.Map.t
+  method tainted_ptrs : tid -> Tid.Set.t Var.Map.t
+end
+
+
+
 let def_summary _ = None
 let def_const = Word.zero 8
 
@@ -25,20 +36,31 @@ let target_of_goto jmp = match Jmp.kind jmp with
   | Goto (Direct tid) -> Some tid
   | _ -> None
 
-class type result = object
-  method visited : Tid.Set.t
-  method taints_of_term : tid -> Taint.taints Var.Map.t
-end
-
-type vars = Tid.Set.t Var.Map.t Tid.Map.t
 
 let union_map m1 m2 ~f =
   Map.merge m1 m2 ~f:(fun ~key -> function
       | `Both (v1,v2) -> Some (f v1 v2)
       | `Left v | `Right v -> Some v)
 
-let union_vars : vars -> vars -> vars =
+let union_vars : taints -> taints -> taints =
   union_map ~f:(union_map ~f:Set.union)
+
+let propagate taints vars tid v r : taints =
+  let ts = taints r in
+  Map.change vars tid (function
+      | None when Set.is_empty ts -> None
+      | None -> Some (Var.Map.of_alist_exn [v, ts])
+      | Some vs -> Option.some @@ Map.change vs v (function
+          | None when Set.is_empty ts -> None
+          | None -> Some ts
+          | Some ts' -> Some (Set.union ts ts')))
+
+let taints_of_tid taints tid =
+  Map.find taints tid |> function
+  | None -> Var.Map.empty
+  | Some ts -> ts
+
+
 
 class context p total  = object(self : 's)
   inherit Taint.context as taints
@@ -48,10 +70,12 @@ class context p total  = object(self : 's)
   val k = total
   val vis : Tid.Set.t = Tid.Set.empty (* visited *)
   val cps : 's Tid.Map.t = Tid.Map.empty (* checkpoints *)
-  val tvs : vars = Tid.Map.empty
+  val tvs : taints = Tid.Map.empty
+  val tms : taints = Tid.Map.empty
 
   method k   = k
   method tvs = tvs
+  method tms = tms
   method cps = cps
   method visited = vis
 
@@ -82,24 +106,21 @@ class context p total  = object(self : 's)
       k   = runner#k;
       vis = runner#visited;
       tvs = runner#tvs;
+      tms = runner#tms;
       cps = runner#cps
     >}
 
-  method taint_var tid v r =
-    let ts = taints#val_taints r in
-    let tvs = Map.change tvs tid (function
-        | None when Set.is_empty ts -> None
-        | None -> Some (Var.Map.of_alist_exn [v, ts])
-        | Some vs -> Option.some @@ Map.change vs v (function
-            | None when Set.is_empty ts -> None
-            | None -> Some ts
-            | Some ts' -> Some (Set.union ts ts'))) in
-    {< tvs = tvs >}
+  method propagate_var tid v r =
+    {< tvs = propagate taints#val_taints tvs tid v r >}
 
-  method taints_of_term tid =
-    Map.find tvs tid |> function
-    | None -> Var.Map.empty
-    | Some ts -> ts
+  method propagate_mem tid v r : 's =
+    match Bil.Result.value r with
+    | Bil.Bot | Bil.Mem _ -> self
+    | Bil.Imm a ->
+      {< tms = propagate taints#mem_taints tms tid v a >}
+
+  method tainted_regs = taints_of_tid tvs
+  method tainted_ptrs = taints_of_tid tms
 end
 
 class ['a] main summary memory tid_of_addr const = object(self)
@@ -121,7 +142,7 @@ class ['a] main summary memory tid_of_addr const = object(self)
     match List.hd ctxt#trace with
     | None -> SM.return r
     | Some tid ->
-      SM.put (ctxt#taint_var tid v r) >>= fun () ->
+      SM.put (ctxt#propagate_var tid v r) >>= fun () ->
       match Bil.Result.value r with
       | Bil.Imm _ | Bil.Mem _ -> SM.return r
       | Bil.Bot -> self#emit (Var.typ v)

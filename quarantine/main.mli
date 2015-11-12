@@ -5,7 +5,8 @@ open Taint
 
 class type result = object
   method visited : Tid.Set.t
-  method taints_of_term : tid -> taints Var.Map.t
+  method tainted_regs : tid -> taints Var.Map.t
+  method tainted_ptrs : tid -> taints Var.Map.t
 end
 
 

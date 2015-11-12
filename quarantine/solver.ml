@@ -101,19 +101,26 @@ let callee prog call = match Call.target call with
   | Indirect _ -> None
   | Direct tid -> Term.find sub_t prog tid
 
-let arg_matches v cs arg =
+let intent_matches x y = match x with
+  | None -> true
+  | Some x -> match x,y with
+    | In,In | Out,Out -> true
+    | Both,_| _,Both -> true
+    | _ -> false
+
+let arg_matches intent v cs arg =
   let free = (Arg.rhs arg |> Exp.free_vars) in
   let free = Set.add free (Arg.lhs arg) in
   List.exists cs ~f:(function
       | Constr.Var (v',var) ->
-        Arg.intent arg <> Some In &&
+        intent_matches (Arg.intent arg) intent &&
         V.(v = v') &&
         Set.mem free var
       | _ -> false)
 
-let def_of_arg v cs arg =
+let def_of_arg intent v cs arg =
   let x = Bil.var (Arg.lhs arg) in
-  if arg_matches v cs arg
+  if arg_matches intent v cs arg
   then match Arg.rhs arg with
     | Bil.Var var -> Some (Def.create var x)
     | Bil.Load (Bil.Var m as mem,a,e,s) ->
@@ -121,8 +128,8 @@ let def_of_arg v cs arg =
     | _ -> None
   else None
 
-let defs_of_args v cs args =
-  Seq.filter_map args ~f:(def_of_arg v cs)
+let defs_of_args intent v cs args =
+  Seq.filter_map args ~f:(def_of_arg intent v cs)
 
 let caller id jmp = match Jmp.kind jmp with
   | Ret _ | Int _ | Goto _ -> None
@@ -161,15 +168,16 @@ let sat_pred constr term v vars =
 
 let seed_jmp prog jmp cons vars sub pat =
   let open Option.Monad_infix in
-  let seed_call id e =
+  let seed_call intent f id e =
     caller id jmp      >>= fun caller ->
     callee prog caller >>= fun callee ->
     return sub caller  >>| fun return ->
     Term.enum arg_t callee |>
-    defs_of_args e cons |>
+    defs_of_args intent e cons |>
     Seq.map ~f:(tag_arg_def jmp caller) |>
-    Seq.fold ~init:return ~f:prepend_def |>
+    Seq.fold ~init:return ~f |>
     Term.update blk_t sub in
+  let seed_call = seed_call In prepend_def in
   match pat with
   | Pat.Call (id,0,_) -> sub
   | Pat.Call (id,e,_) when Set.mem vars e ->
@@ -229,7 +237,7 @@ let search prog (vis : 'a vis) =
 let sat term hyp kind v bil : hyp option =
   let open Option.Monad_infix in
   let dep_use y x =
-    Term.get_attr term Taint.vars >>= fun vars ->
+    Term.get_attr term Taint.regs >>= fun vars ->
     Map.find vars y >>= function
     | ss when Set.is_empty ss -> None
     | ss ->

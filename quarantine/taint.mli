@@ -9,7 +9,8 @@ type taints = Tid.Set.t
 
 val seed : t tag
 
-val vars : taints Var.Map.t tag
+val regs : taints Var.Map.t tag
+val ptrs : taints Var.Map.t tag
 
 class context :  object('s)
   method taint_val : Bil.result -> taints -> 's
