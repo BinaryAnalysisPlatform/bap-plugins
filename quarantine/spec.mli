@@ -95,14 +95,14 @@ module Language : sig
   val any : v -> pat
 
   (** {3 Calls}  *)
-  val sub : id -> v list -> rhs
-  val call : id -> v list -> pat
+  val call : id -> v list -> rhs
 
   (** {3 Jumps}  *)
   val case : v -> (v -> v -> pat) -> v -> pat
   val goto : v -> v -> pat
   val ret : v -> v -> pat
   val jmp : v -> v -> pat
+  val sub : id -> v list -> pat
 
 
   (** {2 Predicates}  *)

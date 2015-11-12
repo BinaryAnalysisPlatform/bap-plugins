@@ -230,7 +230,7 @@ module Language = struct
 
   let use rhs lhs = Pat.move lhs rhs
   let any = Pat.wild
-  let call id args = Pat.call id None args
-  let sub id args ret = Pat.call id (Some ret) args
+  let sub id args = Pat.call id None args
+  let call id args ret = Pat.call id (Some ret) args
   let (:=) lhs term = term lhs
 end
