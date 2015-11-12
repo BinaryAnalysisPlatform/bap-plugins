@@ -36,7 +36,6 @@ let target_of_goto jmp = match Jmp.kind jmp with
   | Goto (Direct tid) -> Some tid
   | _ -> None
 
-
 let union_map m1 m2 ~f =
   Map.merge m1 m2 ~f:(fun ~key -> function
       | `Both (v1,v2) -> Some (f v1 v2)
@@ -111,17 +110,33 @@ class context p total  = object(self : 's)
     >}
 
   method propagate_var tid v r =
-    {< tvs = propagate taints#val_taints tvs tid v r >}
+    {< tvs = propagate taints#reg_taints tvs tid v r >}
 
   method propagate_mem tid v r : 's =
     match Bil.Result.value r with
     | Bil.Bot | Bil.Mem _ -> self
     | Bil.Imm a ->
-      {< tms = propagate taints#mem_taints tms tid v a >}
+      {< tms = propagate taints#ptr_taints tms tid v a >}
 
   method tainted_regs = taints_of_tid tvs
   method tainted_ptrs = taints_of_tid tms
 end
+
+let taint_reg ctxt x seed =
+  ctxt#taint_reg x (Tid.Set.singleton seed)
+
+let taint_ptr ctxt x seed =
+  match Bil.Result.value x with
+  | Bil.Mem _ | Bil.Bot -> ctxt
+  | Bil.Imm a ->
+    ctxt#taint_ptr a `r8 (Tid.Set.singleton seed)
+
+let taint_term t ctxt v =
+  match Term.get_attr t Taint.reg, Term.get_attr t Taint.ptr with
+  | None,None -> ctxt
+  | None,Some seed -> taint_ptr ctxt v seed
+  | Some seed,None -> taint_reg ctxt v seed
+  | Some x, Some y -> taint_ptr (taint_reg ctxt v x) v y
 
 class ['a] main summary memory tid_of_addr const = object(self)
   constraint 'a = #context
@@ -204,14 +219,11 @@ class ['a] main summary memory tid_of_addr const = object(self)
       SM.put ctxt >>= fun () -> self#eval_direct next
 
   method! eval_def def =
-    match Term.get_attr def Taint.seed with
-    | None -> super#eval_def def
-    | Some seed ->
-      super#eval_def def >>= fun () ->
-      SM.get () >>= fun ctxt ->
-      super#lookup (Def.lhs def) >>= fun x ->
-      SM.put (ctxt#taint_val x (Tid.Set.singleton seed)) >>= fun () ->
-      self#update (Def.lhs def) x
+    super#eval_def def >>= fun () ->
+    SM.get () >>= fun ctxt ->
+    super#lookup (Def.lhs def) >>= fun x ->
+    SM.put (taint_term def ctxt x) >>= fun () ->
+    self#update (Def.lhs def) x
 
   method private emit t =
     match t with

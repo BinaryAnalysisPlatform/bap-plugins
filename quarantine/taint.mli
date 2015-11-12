@@ -5,19 +5,30 @@ open Spec_types
 
 
 type t = tid
-type taints = Tid.Set.t
 
-val seed : t tag
+type set = Tid.Set.t with bin_io, compare, sexp
+type map = set Var.Map.t with bin_io, compare, sexp
 
-val regs : taints Var.Map.t tag
-val ptrs : taints Var.Map.t tag
+
+(** value stored in register is source of taint  *)
+val reg : t tag
+
+(** value stored at memory location, that is stored
+    in the register is tainted.*)
+val ptr : t tag
+
+val regs : map tag
+
+val ptrs : map tag
+
+val merge : map -> map -> map
 
 class context :  object('s)
-  method taint_val : Bil.result -> taints -> 's
-  method taint_mem : addr -> size -> taints -> 's
-  method val_taints : Bil.result -> taints
-  method mem_taints : addr -> taints
-  method taints : taints
+  method taint_reg : Bil.result -> set -> 's
+  method taint_ptr : addr -> size -> set -> 's
+  method reg_taints : Bil.result -> set
+  method ptr_taints : addr -> set
+  method all_taints : set
 end
 
 (** Propagate taint through expressions.
@@ -94,4 +105,8 @@ class ['a] propagator : object('s)
 end
 
 
-val pp_taints : Format.formatter -> taints -> unit
+val pp_set : Format.formatter -> set -> unit
+
+val pp_map : Format.formatter -> map -> unit
+
+module Map : Regular with type t = map

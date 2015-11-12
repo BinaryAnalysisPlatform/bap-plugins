@@ -53,11 +53,20 @@ end
 
 let create = ident
 
-let call_result = Value.Tag.register
-    ~name:"call_result"
-    ~uuid:"b3582364-c105-4dd1-a8bd-0a38e3a3b548"
-    (module Call)
+let seeded_arg = Value.Tag.register
+    ~name:"seeded_arg"
+    ~uuid:"657af506-69c7-4534-98db-c33f160aa063"
+    (module Arg)
 
+let sub_regs = Value.Tag.register
+    ~name:"sub_tainted_regs"
+    ~uuid:"e3b65d77-3a2b-44a8-81c4-76c963d8e81f"
+    (module Taint.Map)
+
+let sub_ptrs = Value.Tag.register
+    ~name:"sub_tainted_ptrs"
+    ~uuid:"5f2a0ec1-32e4-4c68-a74e-78c5604603e7"
+    (module Taint.Map)
 
 let rec pp_matches ppf = function
   | Sat_all [] -> fprintf ppf "T@;"
@@ -79,7 +88,28 @@ let iterm ~f =
   Seq.fold ~init:(SM.return ()) ~f:(fun m v ->
       m >>= fun () -> f v)
 
+type 'b folder = {app : 'a. 'b -> 'a term -> 'b}
+
+let fold cls t ~init ~f = Term.enum cls t |> Seq.fold ~init ~f
+
+let fold_terms prog ~init {app=f} =
+  fold sub_t prog ~init ~f:(fun init sub ->
+      fold arg_t sub ~init ~f |> fun init ->
+      fold blk_t sub ~init ~f:(fun init blk ->
+          fold phi_t blk ~init ~f |> fun init ->
+          fold def_t blk ~init ~f |> fun init ->
+          fold jmp_t blk ~init ~f))
+
 let foreach cls t ~f = Term.enum cls t |> iterm ~f
+
+let search prog (vis : 'a vis) =
+  foreach sub_t prog ~f:(fun sub ->
+      foreach arg_t sub ~f:vis#arg >>= fun () ->
+      foreach blk_t sub ~f:(fun blk ->
+          foreach phi_t blk ~f:vis#phi >>= fun () ->
+          foreach def_t blk ~f:vis#def >>= fun () ->
+          foreach jmp_t blk ~f:vis#jmp))
+
 
 let input_of_constr = function
   | Constr.Dep (_,v) -> Some v
@@ -94,7 +124,9 @@ let our_target id = function
   | Indirect _ -> false
   | Direct tid -> Tid.name tid = "@"^id
 
-let seed_with s t = Term.set_attr t Taint.seed s
+let seed_with s t =
+  (* eprintf "Seeding %s@." (Term.name t); *)
+  Term.set_attr t Taint.reg s
 let self_seed t = seed_with (Term.tid t) t
 
 let callee prog call = match Call.target call with
@@ -120,7 +152,7 @@ let arg_matches intent v cs arg =
 
 let def_of_arg intent v cs arg =
   let x = Bil.var (Arg.lhs arg) in
-  if arg_matches intent v cs arg
+  if intent_matches (Arg.intent arg) intent
   then match Arg.rhs arg with
     | Bil.Var var -> Some (Def.create var x)
     | Bil.Load (Bil.Var m as mem,a,e,s) ->
@@ -142,12 +174,12 @@ let return sub caller =
   | Some (Direct tid) -> Term.find blk_t sub tid
 
 let tag_arg_def jmp call term =
-  Term.set_attr (seed_with (Term.tid jmp) term) call_result call
+  seed_with (Term.tid jmp) term
 
 let already_seeded blk var =
   Term.enum def_t blk |> Seq.exists ~f:(fun def ->
       Set.mem (Def.free_vars def) var &&
-      Term.has_attr def Taint.seed)
+      Term.has_attr def Taint.reg)
 
 let prepend_def blk def =
   if already_seeded blk (Def.lhs def)
@@ -177,7 +209,7 @@ let seed_jmp prog jmp cons vars sub pat =
     Seq.map ~f:(tag_arg_def jmp caller) |>
     Seq.fold ~init:return ~f |>
     Term.update blk_t sub in
-  let seed_call = seed_call In prepend_def in
+  let seed_call = seed_call Out prepend_def in
   match pat with
   | Pat.Call (id,0,_) -> sub
   | Pat.Call (id,e,_) when Set.mem vars e ->
@@ -188,12 +220,12 @@ let seed_def def cons vars blk pat =
   let hit v = Set.mem vars v  in
   let free = Def.free_vars def in
   let pred v = sat_pred cons def v free in
-  let seed = Some (self_seed def) in
   let def = match pat with
     | Pat.Move (v1,v2)
     | Pat.Load (v1,v2)
     | Pat.Store (v1,v2)
-      when pred v1 && pred v2 && (hit v1 || hit v2) -> seed
+      when pred v1 && pred v2 && (hit v1 || hit v2) ->
+      Some (self_seed def)
     | _ -> None in
   match def with
   | None -> blk
@@ -226,22 +258,22 @@ let seed_sub (spec : t) prog sub =
 let seed spec prog =
   Term.map sub_t prog ~f:(seed_sub spec prog)
 
-let search prog (vis : 'a vis) =
-  foreach sub_t prog ~f:(fun sub ->
-      foreach arg_t sub ~f:vis#arg >>= fun () ->
-      foreach blk_t sub ~f:(fun blk ->
-          foreach phi_t blk ~f:vis#phi >>= fun () ->
-          foreach def_t blk ~f:vis#def >>= fun () ->
-          foreach jmp_t blk ~f:vis#jmp))
+
+let taint_of_sort = function
+  | S.Reg -> Taint.regs
+  | S.Ptr -> Taint.ptrs
+
+
 
 let sat term hyp kind v bil : hyp option =
   let open Option.Monad_infix in
   let dep_use y x =
-    Term.get_attr term Taint.regs >>= fun vars ->
+    List.Assoc.find (Defn.vars hyp.defn) v >>|
+    taint_of_sort >>=
+    Term.get_attr term >>= fun vars ->
     Map.find vars y >>= function
     | ss when Set.is_empty ss -> None
-    | ss ->
-      match Map.find_exn hyp.ivars x with
+    | ss -> match Map.find_exn hyp.ivars x with
       | Top -> Some {
           hyp with
           ivars = Map.add hyp.ivars ~key:x ~data:(Set ss)
@@ -254,7 +286,8 @@ let sat term hyp kind v bil : hyp option =
             ivars = Map.add hyp.ivars ~key:x ~data:(Set ss)
           } in
   let dep_def x =
-    Term.get_attr term Taint.seed >>= fun seed ->
+    (* Term.get_attr term Taint.reg >>= fun seed -> *)
+    let seed = Term.tid term in
     match Map.find_exn hyp.ivars x with
     | Top -> Some {
         hyp with
@@ -269,7 +302,7 @@ let sat term hyp kind v bil : hyp option =
       let sat c = Option.some_if c hyp in
       match cs with
       | Fun (id,v') -> V.(v = v') ==> test_pred id term bil |> sat
-      | Var (v',e) -> (V.(v' = v) ==> Var.(e = bil)) |> sat
+      | Var (v',ex) -> V.(v' = v) ==> Var.(ex = bil) |> sat
       | Dep (v1,v2) ->  match kind with
         | `def when V.(v2 = v) -> dep_def v2
         | `use when V.(v = v1) -> dep_use bil v2
@@ -288,12 +321,9 @@ let merge_hyps xs =
       })
 
 let solution term hyp (eqs : matches) : hyp option =
-  let open Option.Monad_infix in
   let rec solve hyp = function
     | Sat_all [] -> Some hyp
     | Sat_any [] -> None
-    | Sat_def (v,_) | Sat_use (v,_)
-      when not (Set.mem hyp.cvars v) -> Some hyp
     | Sat_def (v,bil) -> sat term hyp `def v bil
     | Sat_use (v,bil) -> sat term hyp `use v bil
     | Sat_all constrs -> forall hyp constrs
@@ -307,24 +337,15 @@ let solution term hyp (eqs : matches) : hyp option =
     List.filter_map constrs ~f:(solve hyp) |> function
     | [] -> None
     | hyps -> Some (merge_hyps hyps) in
-
-  (* if (eqs <> Sat_any []) then *)
-  (*   eprintf "%s: %s %a@." *)
-  (*     (Term.name term) *)
-  (*     (if solve hyp eqs = None then "unsat" else "sat") *)
-  (*     pp_matches eqs; *)
+  (* if eqs <> Sat_any [] then *)
+  (*   eprintf "%ssat %a@." *)
+  (*     (if solve hyp eqs = None then "un" else "") pp_matches eqs; *)
   solve hyp eqs
 
-let proved hyp pat term =
-  let proof =
-    match Term.get_attr term Taint.seed,
-          Term.get_attr term call_result
-    with Some t, Some _ -> t
-       | _ -> Term.tid term in
-  {
-    hyp with
-    proofs = Map.add hyp.proofs ~key:pat ~data:proof;
-  }
+let proved hyp pat term = {
+  hyp with
+  proofs = Map.add hyp.proofs ~key:pat ~data:((Term.tid term));
+}
 
 let fold_pats field matches term hyp =
   Set.fold (Field.get field hyp) ~init:hyp ~f:(fun hyp pat ->
@@ -429,8 +450,7 @@ module Match = struct
         Set.add  vars (Arg.lhs arg))
 
 
-  (* ideally, we need any bipartile matching here *)
-  let sat_arg args v : matches =
+  let sat_any_arg v args : matches =
     Seq.to_list_rev args |>
     List.concat_map ~f:(fun arg ->
         let vars =
@@ -449,41 +469,36 @@ module Match = struct
       | None -> sat_bot
       | Some args -> f args in
 
-    let match_call_uses call use : matches =
+    let match_call_uses call vars : matches =
       with_args call (fun args ->
-          sat_any_var use (args_free_vars args)) in
+          Seq.zip (Seq.of_list vars) args |>
+          Seq.map ~f:(fun (v,a) ->
+              sat_any [
+                sat_use v (Arg.lhs a);
+                sat_any_var v (Arg.rhs a |> Exp.free_vars)
+              ]) |> Seq.to_list_rev |> sat_all) in
+
+    let match_call_def call v : matches =
+      with_args call (fun args ->
+          Seq.filter args ~f:(fun a -> Arg.intent a = Some Out) |>
+          Seq.map ~f:(fun a -> sat_def v (Arg.lhs a)) |>
+          Seq.to_list |> sat_any) in
 
     object
       inherit matcher
       method jmp t r : matches =
-        let match_move call v1 v2 =
-          with_args call (fun args -> sat_arg args v2) in
-        let match_wild call v =
-          with_args call (fun args -> sat_arg args v) in
         match r, Jmp.kind t with
-        | Pat.Call (id,0,[use]), Call c
-          when our_target id (Call.target c) ->
-          match_call_uses c use
-        | Pat.Move (v1,v2), Call c -> match_move c v1 v2
-        | Pat.Wild v, Call c -> match_wild c v
-        | _ -> Sat_any []  (* TODO: add Load and Store pats *)
-
-      method def def pat : matches =
-        let sat rule_def rule_use id v u =
-          match Term.get_attr def call_result with
-          | Some call when our_target id (Call.target call) ->
-            Sat_all [rule_def call v; rule_use call u]
-          | _ -> Sat_any [] in
-        let move call = function
-          | 0 -> Sat_all []
-          | v -> sat_def v (Def.lhs def) in
-        let use call = function
-          | Some v -> match_call_uses call v
-          | None -> Sat_all [] in
-        match pat with          (* TODO support uses *)
-        | Pat.Call (id,v,[]) -> sat move use id v None
-        | Pat.Call (id,v,[u]) -> sat move use id v (Some u)
-        | _ -> Sat_any []
+        | Pat.Call (id,ret,args), Call c
+          when our_target id (Call.target c) -> sat_all [
+            match_call_def  c ret;
+            match_call_uses c args
+          ]
+        | Pat.Move (v1,v2), Call c -> sat_all [
+            match_call_def c v1;
+            with_args c (sat_any_arg v2)
+          ]
+        | Pat.Wild v, Call c -> with_args c (sat_any_arg v)
+        | _ -> sat_bot  (* TODO: add Load and Store pats *)
 
     end
 
@@ -512,6 +527,27 @@ let solver prog : state vis =
     method jmp = run rs (fun r -> r#jmp)
   end
 
+(* let gather_seeds seed prog : Taint.map Tid.Map.t = *)
+(*   let open Option.Monad_infix in *)
+(*   let update map tid arg = *)
+(*     let v  = Arg.lhs arg in *)
+(*     let ts = Tid.Set.singleton (Term.tid t) in *)
+(*     Map.change map (Term.tid t) (function *)
+(*         | None -> Some (Var.Map.singleton v ts) *)
+(*         | Some vs -> Some (Map.add vs ~key:v ~data:ts)) in *)
+(*   let update_seed map t = *)
+(*     Term.get_attr t seed >>= fun seed -> *)
+(*     Term.get_attr t seeded_arg >>| fun arg -> *)
+(*     update map t seed arg in *)
+(*   fold_terms prog ~init:Tid.Map.empty { *)
+(*     app = fun map t -> *)
+(*       match update_seed map t with *)
+(*       | None -> map *)
+(*       | Some map -> map *)
+(*   } *)
+
+
+
 
 let nullify_pattern cvars pat =
   let f v = if Set.mem cvars v then v else V.null in
@@ -523,7 +559,6 @@ let nullify_pattern cvars pat =
   | Pat.Wild x -> Pat.Wild (f x)
   | Pat.Call (id,r,xs) ->
     Pat.Call (id,f r, List.filter xs ~f:(Set.mem cvars))
-
 
 let hyp_of_rule defn constrs r =
   let ivars,cvars =

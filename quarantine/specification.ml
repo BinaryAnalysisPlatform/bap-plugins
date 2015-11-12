@@ -1,15 +1,14 @@
 open Core_kernel.Std
 open Bap.Std
-open ARM.CPU
 open Spec.Language
 
 
 let maybe_checked name =
   define (name^"_maybe_checked") [
     rule "if_some_jmp_depends"
-      [p := call name[]]
-      [case c jmp x]
-  ] vars [reg p; reg c] such that [c/p; p = r0]
+      [p := call name[_']]
+      [case c jmp _']
+  ] vars [reg p; reg c] such that [c/p]
 
 let data_sanitized src san sink =
   define ("data_may_passthrough_"^san^"_before_"^sink) [
@@ -20,14 +19,14 @@ let data_sanitized src san sink =
       [p := call src[]; sub sink [t]]
       [r := call san[s]]
   ] vars [reg *p; reg *q; reg *t; reg *r; reg *s] such
-    that [s/p; t/r; q/r; p=r0; t=r0; r=r1; s=r0; q=r0]
+    that [s/p; t/r; q/r;]
 
 let untrusted_input src sink =
   define (src^"_may_leak_into_"^sink) [
     rule ("if_there_is_data_dependency")
       [p := call src[]]
       [sub sink[q]]
-  ] vars [reg p; reg q] such that [q/p; p=r0; q=r0]
+  ] vars [reg p; reg q] such that [q/p;]
 
 let magic source is_magic =
   define "magic_door_exists" [
@@ -38,7 +37,6 @@ let magic source is_magic =
   ] vars [reg v; reg x; reg c; reg p] such
     that [
     forall v such that is_magic;
-    x = r0;
     c / x;
     c / p;
   ]

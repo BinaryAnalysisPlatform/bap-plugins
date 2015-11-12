@@ -8,22 +8,27 @@ module Taint = Tid
 module Taints = Taint.Set
 module Values = Bil.Result.Id.Map
 
-type taint = Taint.t with bin_io, compare, sexp
-type t = taint
-type taints = Taint.Set.t with bin_io, compare, sexp
+type t = Tid.t
+type set = Tid.Set.t with bin_io, compare, sexp
+type map = set Var.Map.t with bin_io, compare, sexp
 type 'a values = 'a Values.t
 
-let seed = Value.Tag.register
-    ~name:"taint_seed"
+let reg = Value.Tag.register
+    ~name:"tainted_reg"
     ~uuid:"1ab9a363-db8f-4ab4-9fb4-5ff54de97c5c"
     (module Tid)
 
-module Tainted_vars = struct
-  type t = taints Var.Map.t with bin_io, compare, sexp
+let ptr = Value.Tag.register
+    ~name:"tainted_ptr"
+    ~uuid:"ef2d20e5-b04d-41da-ab20-5d98ddc2f78e"
+    (module Tid)
+
+module Taint_map = struct
+  type t = map with bin_io, compare, sexp
   include Regular.Make(struct
       open Format
 
-      type nonrec t = t with bin_io, compare, sexp
+      type t = map with bin_io, compare, sexp
       let module_name = None
 
       let pp_list pp ppf xs =
@@ -50,15 +55,15 @@ module Tainted_vars = struct
     end)
 end
 
-let regs : taints Var.Map.t tag = Value.Tag.register
+let regs : map tag = Value.Tag.register
     ~name:"tainted_regs"
     ~uuid:"03c90a60-e19f-43cc-8049-fdeb23973396"
-    (module Tainted_vars)
+    (module Taint_map)
 
-let ptrs : taints Var.Map.t tag = Value.Tag.register
+let ptrs : map tag = Value.Tag.register
     ~name:"tainted_ptrs"
     ~uuid:"ecf96df5-f706-4f95-a421-3fa9b91ad8bd"
-    (module Tainted_vars)
+    (module Taint_map)
 
 let create = ident
 
@@ -71,17 +76,17 @@ let collect_taints =
       Set.union ts ts')
 
 class context = object(self)
-  val tvs : taints values = Values.empty
-  val tas : taints Addr.Map.t = Addr.Map.empty
+  val tvs : set values = Values.empty
+  val tas : set Addr.Map.t = Addr.Map.empty
 
   (** T(r) <- T(r) U T *)
-  method taint_val r ts =
+  method taint_reg r ts =
     let tvs' = Values.change tvs (Bil.Result.id r) @@ function
       | None -> Some ts
       | Some ts' -> Some (Taints.union ts ts') in
     {< tvs = tvs' >}
 
-  method taint_mem a (s : size) ts =
+  method taint_ptr a (s : size) ts =
     let addrs = Seq.init (Size.to_bytes s) ~f:(fun n -> Addr.(a++n)) in
     let tas' = Seq.fold addrs ~init:tas ~f:(fun tas a ->
         Map.change tas a (function
@@ -90,15 +95,34 @@ class context = object(self)
     {< tas = tas' >}
 
   (** T(r) = { t : t |-> v}  *)
-  method val_taints r = get_taints tvs (Bil.Result.id r)
-  method mem_taints r = get_taints tas r
-
-  method taints =
+  method reg_taints r = get_taints tvs (Bil.Result.id r)
+  method ptr_taints r = get_taints tas r
+  method all_taints =
     Set.union (collect_taints tvs) (collect_taints tas)
 end
 
-let pp_taints ppf taints =
-  Taint.Set.iter taints ~f:(Format.fprintf ppf "%a@." Taint.pp)
+let union_map m1 m2 ~f =
+  Map.merge m1 m2 ~f:(fun ~key -> function
+      | `Both (v1,v2) -> Some (f v1 v2)
+      | `Left v | `Right v -> Some v)
+
+let merge : map -> map -> map =
+  union_map ~f:Set.union
+
+
+let pp_set ppf (set : set) =
+  let rec pp ppf = function
+    | [] -> ()
+    | [x] -> Taint.pp ppf x
+    | x :: xs -> Format.fprintf ppf "%a;@ %a" Taint.pp x pp xs in
+  Format.fprintf ppf "{@,%a}" pp (Set.to_list set)
+
+let pp_map ppf (map : map) =
+  Format.fprintf ppf "@[{@;";
+  Map.iter map ~f:(fun ~key ~data ->
+      Format.fprintf ppf "@[<2>%a => %a@]}"
+        Var.pp key pp_set data)
+
 
 class ['a] propagator = object(self)
   constraint 'a = #context
@@ -122,7 +146,7 @@ class ['a] propagator = object(self)
     | Bil.Bot | Bil.Mem _ -> SM.return rr
     | Bil.Imm a ->
       SM.get () >>= fun ctxt ->
-      SM.put (ctxt#taint_mem a s (ctxt#val_taints rv)) >>= fun () ->
+      SM.put (ctxt#taint_ptr a s (ctxt#reg_taints rv)) >>= fun () ->
       SM.return rr
 
   method! eval_load ~mem ~addr e s =
@@ -131,7 +155,7 @@ class ['a] propagator = object(self)
     | Bil.Bot | Bil.Mem _ -> SM.return r
     | Bil.Imm a ->
       SM.get () >>= fun ctxt ->
-      SM.put (ctxt#taint_val r (ctxt#mem_taints a)) >>= fun () ->
+      SM.put (ctxt#taint_reg r (ctxt#ptr_taints a)) >>= fun () ->
       SM.return r
 
   method private eval2 e1 e2 r3 =
@@ -148,5 +172,7 @@ class ['a] propagator = object(self)
 
   method private propagate rd rr =
     SM.get () >>= fun ctxt ->
-    SM.put (ctxt#taint_val rr (ctxt#val_taints rd))
+    SM.put (ctxt#taint_reg rr (ctxt#reg_taints rd))
 end
+
+module Map = Taint_map

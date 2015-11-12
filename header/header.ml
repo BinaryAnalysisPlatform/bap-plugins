@@ -95,7 +95,7 @@ let args_of_single_names = List.filter_mapi ~f:string_of_single_name
 
 let ret_word n = {
   arg_pos = n;
-  arg_name = "result";
+  arg_name = if n = Ret_1 then "result_ext" else "result";
   arg_intent = Some Out;
   arg_size = Word; (* compiler will cast return value itself *)
 }
@@ -112,8 +112,8 @@ let fn_of_definition = function
       | VOID -> args
       | STRUCT _ | CONST (STRUCT _) ->
         {(ret_word (Arg 0)) with arg_intent = Some In} :: push args
-      | INT (LONG_LONG,_) -> ret_word Ret_0 :: ret_word Ret_1 :: args
-      | _ -> ret_word Ret_0 :: args in
+      | INT (LONG_LONG,_) -> args @ [ret_word Ret_0; ret_word Ret_1]
+      | _ -> args @ [ret_word Ret_0] in
     Some (name,args)
   | _ -> None
 

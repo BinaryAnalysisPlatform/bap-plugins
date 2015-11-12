@@ -14,68 +14,73 @@ let is_interesting_sub sub = true
 (* Set.mem interesting (Sub.name sub) *)
 
 
-type marker = {mark : 'a. 'a term -> 'a term}
+type mapper = {map : 'a. 'a term -> 'a term}
 
 let mark_if_visited ctxt =
-  let mark t =
+  let map t =
     if Set.mem ctxt#visited (Term.tid t)
     then Term.set_attr t foreground `green else t in
-  {mark}
+  {map}
 
 let mark_if_tainted (ctxt : Main.result) =
-  let mark t =
-    let vars = ctxt#tainted_regs (Term.tid t) in
-    if Map.is_empty (vars)
+  let map t =
+    let taint taint set t =
+      if Map.is_empty set then t else Term.set_attr t taint set in
+    let regs = ctxt#tainted_regs (Term.tid t) in
+    let ptrs = ctxt#tainted_ptrs (Term.tid t) in
+    let t = taint Taint.regs regs t in
+    let t = taint Taint.ptrs ptrs t in
+    if Map.is_empty regs && Map.is_empty ptrs
     then t else
-      Term.set_attr (Term.set_attr t foreground `red)
-        Taint.regs vars in
-  {mark}
+      Term.set_attr t foreground `red in
+  {map}
+
+let is_seeded t =
+  Term.has_attr t Taint.reg ||
+  Term.has_attr t Taint.ptr
 
 let if_seeded =
-  let mark t =
-    if Term.has_attr t Taint.seed
+  let map t =
+    if is_seeded t
     then Term.set_attr t background `red else t in
-  {mark}
+  {map}
 
-let seed tid =
-  let mark t =
+let seed taint tid =
+  let map t =
     if Term.tid t = tid
-    then Term.set_attr t Taint.seed tid else t in
-  {mark}
+    then Term.set_attr t taint tid else t in
+  {map}
 
-let colorize c tid = { mark = fun t ->
-    if Term.has_attr t Taint.seed
+let colorize taint c tid = { map = fun t ->
+    if Term.has_attr t taint
     then Term.set_attr t color c else t
   }
 
 let unseed_if_non_visited vis = {
-  mark = fun t ->
+  map = fun t ->
     if Set.mem vis (Term.tid t) then t
-    else Term.del_attr t Taint.seed
+    else Term.del_attr (Term.del_attr t Taint.ptr) Taint.reg
 }
 
-
 let marker_of_markers markers =
-  let mark t =
-    List.fold markers ~init:t ~f:(fun t {mark} -> mark t) in
-  {mark}
+  let map t =
+    List.fold markers ~init:t ~f:(fun t {map} -> map t) in
+  {map}
 
-let mark_terms {mark} prog  =
+let map_terms {map} prog  =
   Term.map sub_t prog ~f:(fun sub ->
-      mark sub |>
-      Term.map arg_t ~f:mark |>
+      map sub |>
+      Term.map arg_t ~f:map |>
       Term.map blk_t ~f:(fun blk ->
-          mark blk |>
-          Term.map phi_t ~f:mark |>
-          Term.map def_t ~f:mark |>
-          Term.map jmp_t ~f:mark))
+          map blk |>
+          Term.map phi_t ~f:map |>
+          Term.map def_t ~f:map |>
+          Term.map jmp_t ~f:map))
+
 
 let contains_seed sub =
-  let is_seeded t = Term.has_attr t Taint.seed in
-  let has t p = Term.enum t p |>
-                Seq.exists ~f:is_seeded in
-  has arg_t sub ||
-  Term.enum blk_t sub |> Seq.exists ~f:(fun blk ->
+  let has t p = Term.enum t p |> Seq.exists ~f:is_seeded in
+  has arg_t sub || Term.enum blk_t sub |> Seq.exists ~f:(fun blk ->
       has phi_t blk || has def_t blk)
 
 let seeded callgraph subs =
@@ -138,7 +143,6 @@ let visited_sub stat res = {
   visited = Set.union stat.visited res#visited
 }
 
-
 let main proj =
   printf "%a" Spec.pp spec;
   let s = Solver.create spec in
@@ -163,13 +167,13 @@ let main proj =
               mark_if_visited ctxt;
               mark_if_tainted ctxt;
             ] in
-          let prog = Project.program proj |> mark_terms mark in
+          let prog = Project.program proj |> map_terms mark in
           let stat = visited_sub stat ctxt in
           Project.with_program proj prog, stat) in
   printf "Coverage: %a@." pp_coverage stat;
   printf "Solving...@.";
   let prog = Project.program proj |>
-             mark_terms (unseed_if_non_visited stat.visited) in
+             map_terms (unseed_if_non_visited stat.visited) in
   let sol = Solver.solve s prog in
   printf "%a" (Solver.pp_solution `unsatisfied) sol;
   printf "%a" (Solver.pp_solution `satisfied) sol;
