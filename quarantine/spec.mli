@@ -49,11 +49,19 @@ module Defn : sig
 end
 
 module Spec : sig
-  type t = defn list
-  with bin_io, compare, sexp
+  type t with bin_io, compare, sexp
+  val create : defn list -> t
+  val defns : t -> defn list
   include Regular with type t := t
 end
 
+type constr = Constr.t with bin_io, compare, sexp
+type v    = V.t    with bin_io, compare, sexp
+type s    = S.t    with bin_io, compare, sexp
+type pat  = Pat.t  with bin_io, compare, sexp
+type rule = Rule.t with bin_io, compare, sexp
+type defn = Defn.t with bin_io, compare, sexp
+type spec = Spec.t with bin_io, compare, sexp
 
 module Language : sig
   (** {2 Keywords}  *)

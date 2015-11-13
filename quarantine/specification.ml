@@ -1,6 +1,7 @@
 open Core_kernel.Std
 open Bap.Std
-open Spec.Language
+open Spec
+open Language
 
 
 let maybe_checked name =
@@ -41,11 +42,11 @@ let magic source is_magic =
     c / p;
   ]
 
-let spec = [
-  maybe_checked "malloc";
-  maybe_checked "calloc";
-  untrusted_input "fgets" "fopen";
-  untrusted_input "getchar" "malloc";
-  data_sanitized "fgets" "realpath" "fopen";
-  data_sanitized "append" "escape" "create";
-]
+let spec : Spec.t = Spec.create [
+    maybe_checked "malloc";
+    maybe_checked "calloc";
+    untrusted_input "fgets" "fopen";
+    untrusted_input "getchar" "malloc";
+    data_sanitized "fgets" "realpath" "fopen";
+    data_sanitized "append" "escape" "create";
+  ]

@@ -1,6 +1,5 @@
 open Core_kernel.Std
 open Bap.Std
-open Spec_types
 open Spec
 open Utilities
 open Format

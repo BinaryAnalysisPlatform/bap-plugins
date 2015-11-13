@@ -1,7 +1,7 @@
 open Core_kernel.Std
 open Bap.Std
 open Bil.Result
-open Spec_types
+open Spec
 
 
 type t = tid

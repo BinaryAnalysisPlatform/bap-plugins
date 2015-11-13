@@ -1,6 +1,5 @@
 open Core_kernel.Std
 open Bap.Std
-open Spec_types
 open Spec
 open Format
 open Utilities
@@ -112,18 +111,19 @@ let fold_patts spec ~init ~f =
           List.fold rules ~init ~f:(fun init rule -> f cons vars init rule)))
 
 let seed_sub (spec : spec) prog sub =
+  let defns = Spec.defns spec in
   let sub =
     Term.enum blk_t sub |>
     Seq.fold ~init:sub ~f:(fun sub blk ->
         Term.enum def_t blk |>
         Seq.fold ~init:blk ~f:(fun blk def ->
-            fold_patts spec ~init:blk ~f:(seed_def def)) |>
+            fold_patts defns ~init:blk ~f:(seed_def def)) |>
         Term.update blk_t sub) in
   Term.enum blk_t sub |>
   Seq.fold ~init:sub ~f:(fun sub blk ->
       Term.enum jmp_t blk |>
       Seq.fold ~init:sub ~f:(fun sub jmp ->
-          fold_patts spec ~init:sub ~f:(seed_jmp prog jmp)))
+          fold_patts defns ~init:sub ~f:(seed_jmp prog jmp)))
 
 let run spec prog =
   Term.map sub_t prog ~f:(seed_sub spec prog)

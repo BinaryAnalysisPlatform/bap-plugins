@@ -129,6 +129,10 @@ end
 module Spec = struct
   type t = defn list
   with bin_io, compare, sexp
+
+  let create = ident
+  let defns = ident
+
   include Regular.Make(struct
       type nonrec t = t with bin_io, compare, sexp
       let module_name = None
@@ -138,6 +142,15 @@ module Spec = struct
         fprintf ppf "@[<v2>Specification ::= @;%a@]@." pp_defs spec
     end)
 end
+
+type constr = Constr.t with bin_io, compare, sexp
+type v    = V.t    with bin_io, compare, sexp
+type s    = S.t    with bin_io, compare, sexp
+type pat  = Pat.t  with bin_io, compare, sexp
+type rule = Rule.t with bin_io, compare, sexp
+type defn = Defn.t with bin_io, compare, sexp
+type spec = Spec.t with bin_io, compare, sexp
+
 
 module Language = struct
 

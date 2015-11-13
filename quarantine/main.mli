@@ -1,6 +1,6 @@
 open Core_kernel.Std
 open Bap.Std
-open Spec_types
+open Spec
 
 class type result = object
   method visited : Tid.Set.t

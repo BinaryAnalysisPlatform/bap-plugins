@@ -1,6 +1,5 @@
 open Core_kernel.Std
 open Bap.Std
-open Spec_types
 open Spec
 open Format
 open Option.Monad_infix
@@ -36,7 +35,7 @@ type solution = {
   counters : unproved model list; (** some conclusions are missing  *)
 } with bin_io, compare, sexp
 
-type solutions = solution Id.Map.t
+type solutions = solution String.Map.t
 with bin_io, compare, sexp
 
 type t = solutions with bin_io, compare, sexp
@@ -119,7 +118,7 @@ let join_by_defn : input -> hypotheses Defn.Map.t =
 
 let index_spec spec =
   List.map spec ~f:(fun d -> Defn.name d, Defn.rules d) |>
-  Id.Map.of_alist_exn
+  String.Map.of_alist_exn
 
 let merge_solutions s1 s2 = {
   examples = s1.examples @ s2.examples;
@@ -127,7 +126,7 @@ let merge_solutions s1 s2 = {
 }
 
 let create (spec : spec) (input : input) : t =
-  let index = index_spec spec in
+  let index = index_spec (Spec.defns spec) in
   join_by_defn input |>
   Map.to_sequence |> Seq.filter_map ~f:(fun (defn,hyps) ->
       Map.find index (Defn.name defn) >>|
@@ -135,7 +134,7 @@ let create (spec : spec) (input : input) : t =
       List.reduce ~f:merge_solutions >>| fun solution ->
       Defn.name defn,solution) |>
   Seq.to_list_rev |>
-  Id.Map.of_alist_exn
+  String.Map.of_alist_exn
 
 let is_sat = function
   | {counters=[]; examples=[]} -> None

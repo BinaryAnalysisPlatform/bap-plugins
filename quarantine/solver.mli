@@ -1,6 +1,6 @@
 open Core_kernel.Std
 open Bap.Std
-open Spec_types
+open Spec
 
 
 (** [run ?on_step init prog] searches for solutions using [State.step] in

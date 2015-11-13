@@ -1,5 +1,5 @@
 open Bap.Std
-open Spec_types
+open Spec
 
 type t
 

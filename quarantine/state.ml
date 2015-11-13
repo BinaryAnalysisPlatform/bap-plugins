@@ -1,6 +1,5 @@
 open Core_kernel.Std
 open Bap.Std
-open Spec_types
 open Spec
 open Format
 open Utilities
@@ -69,7 +68,7 @@ let hyp_of_defn defn : hyp =
   {defn; patts; ivars; cvars; proofs; constrs;}
 
 let state_of_spec s = {
-  init = List.map s ~f:hyp_of_defn;
+  init = Spec.defns s |> List.map ~f:hyp_of_defn;
   hyps = [];
 }
 

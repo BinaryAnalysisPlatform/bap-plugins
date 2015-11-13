@@ -65,5 +65,3 @@ end
 
 type defn = Defn.t
 with bin_io, compare, sexp
-
-type spec = defn list

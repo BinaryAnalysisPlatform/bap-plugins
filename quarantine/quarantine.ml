@@ -177,7 +177,7 @@ let main proj =
   let state = State.create spec  in
   let state = Solver.run state prog in
   let sol = State.solution state spec in
-  List.iter spec ~f:(fun defn ->
+  List.iter (Spec.defns spec) ~f:(fun defn ->
       printf "%a" (Solution.pp_unsat defn) sol;
       printf "%a" (Solution.pp_sat defn) sol);
   proj
