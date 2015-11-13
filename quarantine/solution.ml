@@ -44,17 +44,17 @@ type t = solutions with bin_io, compare, sexp
 let line = "--------------------------------"
 
 let pp_unpat ppf pat =
-  fprintf ppf "%s: %a@;" "unproved" Pat.pp pat
+  fprintf ppf "%s: %a" "unproved" Pat.pp pat
 
 let pp_unpats ppf pats = List.iter pats ~f:(pp_unpat ppf)
 
 let pp_pat ppf (pat,t) =
-  fprintf ppf "@;%a: %a" Tid.pp t Pat.pp pat
+  fprintf ppf "%a: %a" Tid.pp t Pat.pp pat
 
 let pp_pats ppf pats = List.iter pats ~f:(pp_pat ppf)
 
 let pp_model pp_miss defn ppf m =
-  fprintf ppf "@[<v2>rule %s_%s ::=@ %a@;%s@;%a%a@]@;"
+  fprintf ppf "@[<v2>rule %s_%s ::=@ %a@;%s@;%a%a@]@;@;"
     m.rule defn
     pp_pats m.prem line pp_pats m.conc pp_miss m.miss
 
@@ -71,11 +71,9 @@ let pp_hypothesis ppf hyp =
   Map.iter hyp ~f:(fun ~key ~data ->
       fprintf ppf "@;%a:%a" Tid.pp data Pat.pp key)
 
-
-
 let subset_of x y =
-  Map.to_sequence x |>
-  Seq.for_all ~f:(fun (k,_) -> Map.mem y k)
+  let set m = Map.data m |> Tid.Set.of_list in
+  Set.subset (set x) (set y)
 
 let is x p y = p x y
 let isn't x p y = not (p x y)
