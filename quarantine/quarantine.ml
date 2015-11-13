@@ -145,9 +145,8 @@ let visited_sub stat res = {
 
 let main proj =
   printf "%a" Spec.pp spec;
-  let s = Solver.create spec in
   let prog = Project.program proj |>
-             Solver.seed s in
+             Seeder.run spec in
   let proj = Project.with_program proj prog in
   let callgraph = Program.to_graph prog in
   let subs = Term.enum sub_t prog |>
@@ -174,9 +173,12 @@ let main proj =
   printf "Solving...@.";
   let prog = Project.program proj |>
              map_terms (unseed_if_non_visited stat.visited) in
-  let sol = Solver.solve s prog in
-  printf "%a" (Solver.pp_solution `unsatisfied) sol;
-  printf "%a" (Solver.pp_solution `satisfied) sol;
+  let state = State.create spec  in
+  let state = Solver.run state prog in
+  let sol = State.solution state spec in
+  List.iter spec ~f:(fun defn ->
+      printf "%a" (Solution.pp_unsat defn) sol;
+      printf "%a" (Solution.pp_sat defn) sol);
   proj
 
 

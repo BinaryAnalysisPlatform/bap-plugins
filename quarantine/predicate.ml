@@ -6,6 +6,9 @@ type t = {
   sat : 'a. 'a term -> var -> bool
 }
 
+exception Unbound_predicate of string with sexp
+
+
 let preds = String.Table.create ()
 
 
@@ -24,6 +27,12 @@ let has_color c = {
     | Some c' -> c = c'
     | _ -> false
 }
+
+let test name term var =
+  match lookup name with
+  | None -> raise (Unbound_predicate name)
+  | Some {sat} -> sat term var
+
 
 let () =
   register "is_marked" is_marked;
