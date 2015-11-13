@@ -41,6 +41,38 @@ with bin_io, compare, sexp
 
 type t = solutions with bin_io, compare, sexp
 
+let line = "--------------------------------"
+
+let pp_unpat ppf pat =
+  fprintf ppf "%s: %a@;" "unproved" Pat.pp pat
+
+let pp_unpats ppf pats = List.iter pats ~f:(pp_unpat ppf)
+
+let pp_pat ppf (pat,t) =
+  fprintf ppf "@;%a: %a" Tid.pp t Pat.pp pat
+
+let pp_pats ppf pats = List.iter pats ~f:(pp_pat ppf)
+
+let pp_model pp_miss defn ppf m =
+  fprintf ppf "@[<v2>rule %s_%s ::=@ %a@;%s@;%a%a@]@;"
+    m.rule defn
+    pp_pats m.prem line pp_pats m.conc pp_miss m.miss
+
+let pp_nil ppf Nil = ()
+let pp_cons ppf (Cons (x,xs)) =
+  fprintf ppf "%a%a" pp_unpat x pp_unpats xs
+
+let pp_proved d = pp_model pp_nil d
+let pp_unproved d = pp_model pp_cons d
+let pp_models pp ppf ms = List.iter ms ~f:(pp ppf)
+let pp_examples d ppf s = pp_models (pp_proved d) ppf s.examples
+let pp_counters d ppf s = pp_models (pp_unproved d) ppf s.counters
+let pp_hypothesis ppf hyp =
+  Map.iter hyp ~f:(fun ~key ~data ->
+      fprintf ppf "@;%a:%a" Tid.pp data Pat.pp key)
+
+
+
 let subset_of x y =
   Map.to_sequence x |>
   Seq.for_all ~f:(fun (k,_) -> Map.mem y k)
@@ -55,8 +87,9 @@ let isn't x p y = not (p x y)
     definition), since they don't add any more information.*)
 let remove_subsets hyps : hypotheses =
   List.filteri hyps ~f:(fun i h1 ->
-      is_some (List.findi hyps ~f:(fun j h2 ->
+      is_none (List.findi hyps ~f:(fun j h2 ->
           i <> j && is h1 subset_of h2)))
+
 
 let model_of_hypothesis rule hyp : undecided model option =
   let prove pat = Map.find hyp pat >>| fun t -> (pat,t) in
@@ -78,6 +111,7 @@ let make_solution (hyps : hypotheses) rule =
     List.filter_map ~f:(model_of_hypothesis rule) |>
     List.partition_map ~f:decide_model in
   {examples;counters}
+
 
 let join_by_defn : input -> hypotheses Defn.Map.t =
   Seq.fold ~init:Defn.Map.empty ~f:(fun defns (defn,hyp) ->
@@ -114,40 +148,10 @@ let solution t defn = Map.find t (Defn.name defn)
 
 let sat t defn = solution t defn >>= is_sat
 
-let line = "--------------------------------"
-
-let pp_unpat ppf pat =
-  fprintf ppf "%s: %a@;" "unproved" Pat.pp pat
-
-let pp_unpats ppf pats = List.iter pats ~f:(pp_unpat ppf)
-
-let pp_pat ppf (pat,t) =
-  fprintf ppf "@;%a: %a" Tid.pp t Pat.pp pat
-
-let pp_pats ppf pats = List.iter pats ~f:(pp_pat ppf)
-
-let pp_model pp_miss defn ppf m =
-  fprintf ppf "@[<v2>rule %s_%s ::=@ %a@;%s@;%a%a@]@;"
-    m.rule defn
-    pp_pats m.prem line pp_pats m.conc pp_miss m.miss
-
-let pp_nil ppf Nil = ()
-
-let pp_cons ppf (Cons (x,xs)) =
-  fprintf ppf "%a%a" pp_unpat x pp_unpats xs
-
-let pp_proved d = pp_model pp_nil d
-let pp_unproved d = pp_model pp_cons d
-
-
-let pp_models pp ppf ms = List.iter ms ~f:(pp ppf)
-let pp_examples d s ppf = pp_models (pp_proved d) ppf s.examples
-let pp_counters d s ppf = pp_models (pp_unproved d) ppf s.counters
-
 let pp pp d ppf t =
   match solution t d with
   | None -> ()
-  | Some s -> pp (Defn.name d) s ppf
+  | Some s -> pp (Defn.name d) ppf s
 
 let pp_sat   d = pp pp_examples d
 let pp_unsat d = pp pp_counters d

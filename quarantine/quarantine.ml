@@ -39,7 +39,7 @@ let is_seeded t =
   Term.has_attr t Taint.reg ||
   Term.has_attr t Taint.ptr
 
-let if_seeded =
+let mark_if_seeded =
   let map t =
     if is_seeded t
     then Term.set_attr t background `red else t in
@@ -165,12 +165,13 @@ let main proj =
           let mark = marker_of_markers [
               mark_if_visited ctxt;
               mark_if_tainted ctxt;
+              mark_if_seeded
             ] in
           let prog = Project.program proj |> map_terms mark in
           let stat = visited_sub stat ctxt in
           Project.with_program proj prog, stat) in
   printf "Coverage: %a@." pp_coverage stat;
-  printf "Solving...@.";
+  printf "@[<v>Solving...@;";
   let prog = Project.program proj |>
              map_terms (unseed_if_non_visited stat.visited) in
   let state = State.create spec  in
@@ -180,6 +181,5 @@ let main proj =
       printf "%a" (Solution.pp_unsat defn) sol;
       printf "%a" (Solution.pp_sat defn) sol);
   proj
-
 
 let () = Project.register_pass "quarantine" main

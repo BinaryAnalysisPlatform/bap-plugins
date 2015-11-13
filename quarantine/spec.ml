@@ -72,7 +72,7 @@ module Pat = struct
         | Call (id,def,uses) ->
           fprintf ppf "%a%a(%a)" pp_ret def Id.pp id pp_args uses
         | Jump (k,c,d) ->
-          fprintf ppf "when %a %s %a@;" V.pp c (string_of_kind k) V.pp d
+          fprintf ppf "when %a %s %a" V.pp c (string_of_kind k) V.pp d
         | Move (t,s) ->
           fprintf ppf "%a := %a" V.pp t V.pp s
         | Load (v,p)  ->

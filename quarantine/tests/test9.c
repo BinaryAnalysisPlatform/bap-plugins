@@ -1,19 +1,9 @@
-//!rule malloc_maybe_checked_if_some_jmp_depends ::=
-//!  : p := malloc()
-//!  --------------------------------
+//!  000.....: p := malloc()
 //!  unproved: when c jmp .
-//!
-//!   :: rule malloc_maybe_checked is unsatisfied
-//!rule malloc_maybe_checked_if_some_jmp_depends ::=
-//!  : p := malloc()
-//!  --------------------------------
-//!  : when c jmp .
-//!
-//!
-//!rule malloc_maybe_checked_if_some_jmp_depends ::=
-//!  : p := malloc()
-//!  --------------------------------
-//!  : when c jmp .
+//!  000.....: p := malloc()
+//!  000.....: when c jmp .
+//!  000.....: p := malloc()
+//!  000.....: when c jmp .
 //!
 #include <stdio.h>
 #include <stdlib.h>

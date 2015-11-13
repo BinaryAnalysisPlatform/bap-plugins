@@ -1,4 +1,6 @@
-//! :: rule malloc_maybe_checked is unsatisfied
+//!  00000170: p := malloc()
+//!  unproved: when c jmp _
+
 
 #include <stdlib.h>
 

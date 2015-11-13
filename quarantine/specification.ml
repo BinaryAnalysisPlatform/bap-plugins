@@ -41,8 +41,6 @@ let magic source is_magic =
     c / p;
   ]
 
-
-
 let spec = [
   maybe_checked "malloc";
   maybe_checked "calloc";

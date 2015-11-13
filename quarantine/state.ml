@@ -48,8 +48,7 @@ let nullify_pattern cvars pat =
   | Pat.Store (x,y) -> Pat.Store (f x, f y)
   | Pat.Move  (x,y) -> Pat.Move (f x, f y)
   | Pat.Wild x -> Pat.Wild (f x)
-  | Pat.Call (id,r,xs) ->
-    Pat.Call (id,f r, List.filter xs ~f:(Set.mem cvars))
+  | Pat.Call (id,r,xs) -> Pat.Call (id,f r, List.map xs ~f)
 
 let hyp_of_defn defn : hyp =
   let constrs = Defn.constrs defn in
@@ -182,3 +181,22 @@ let step s t matches = {
 let solution s spec =
   Seq.of_list s.hyps |> Seq.map ~f:(fun {defn;proofs} -> defn,proofs) |>
   Solution.create spec
+
+let pp_proof ppf = function
+  | None -> fprintf ppf "unproved"
+  | Some p -> fprintf ppf "%a" Tid.pp p
+
+let pp_hyp ppf hyp =
+  fprintf ppf "@;@[<v2>hypothesis %s {" (Defn.name hyp.defn);
+  Set.iter hyp.patts ~f:(fun p ->
+      let proof = Map.find hyp.proofs p in
+      fprintf ppf "@;%a: %a" pp_proof proof Pat.pp p);
+  fprintf ppf "@]@;}"
+
+let pp_hyps ppf = List.iter ~f:(pp_hyp ppf)
+
+let pp ppf = function
+  | {hyps=[]} -> fprintf ppf "No active hypotheses"
+  | {hyps} ->
+    fprintf ppf "@[<v2>Hypotheses ::= {%a@]@;}"
+      pp_hyps hyps
