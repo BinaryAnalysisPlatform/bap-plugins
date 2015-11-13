@@ -6,20 +6,10 @@ open Utilities
 
 open Option.Monad_infix
 
-
 let seeded_arg = Value.Tag.register
     ~name:"seeded_arg"
     ~uuid:"657af506-69c7-4534-98db-c33f160aa063"
     (module Arg)
-
-let input_of_constr = function
-  | Constr.Dep (_,v) -> Some v
-  | _ -> None
-
-let inputs_of_defn rule =
-  Defn.constrs rule |>
-  List.filter_map  ~f:input_of_constr |>
-  V.Set.of_list
 
 let seed_with s t = Term.set_attr t Taint.reg s
 let self_seed t = seed_with (Term.tid t) t
@@ -43,6 +33,19 @@ let def_of_arg intent v cs arg =
     Some (Def.create m (Bil.store ~mem ~addr:a x e s))
   | _ -> None
 
+(* TODO: this should be reimplemented, to follow
+   this algorithm:
+
+   1. foreach variable
+   1.1 find argument with matching position
+   1.2 do not forget to check other constraints
+       like predicates and vars
+   1.2 create argument
+   1.3 ....
+   1.4 PROFIT
+
+   see you in Sunday :(
+*)
 let defs_of_args intent v cs args =
   Seq.filter_map args ~f:(def_of_arg intent v cs)
 
@@ -59,6 +62,10 @@ let prepend_def blk def =
   then blk
   else Term.prepend def_t blk def
 
+let append_def blk def =
+  (* TODO: prepend only if not seeded already *)
+  Term.append def_t blk def
+
 
 let sat_pred constr term v vars =
   Set.exists vars ~f:(fun var ->
@@ -67,22 +74,36 @@ let sat_pred constr term v vars =
             V.(v = v') ==> Predicate.test id term var
           | _ -> true))
 
-let seed_jmp prog jmp cons vars sub pat =
-  let seed_call intent f id e =
-    call_of_jmp jmp     >>= fun caller ->
+let nullify_if xs ~f =
+  List.map xs ~f:(fun x -> if f x then 0 else x)
+
+let nullify_inputs ivars = nullify_if ~f:(Set.mem ivars)
+let nullify_outputs ivars =
+  nullify_if ~f:(Fn.non (Set.mem ivars))
+
+let seed_jmp prog jmp cons ivars sub pat =
+  let seed_call intent inserter target id vs sub =
+    call_of_jmp jmp  >>= fun caller ->
     require (call_matches caller id) >>= fun () ->
     callee caller prog >>= fun callee ->
-    return caller sub  >>| fun return ->
+    target caller sub  >>| fun blk ->
     Term.enum arg_t callee |>
-    defs_of_args intent e cons |>
+    defs_of_args intent vs cons |>
     Seq.map ~f:(tag_arg_def jmp caller) |>
-    Seq.fold ~init:return ~f |>
+    Seq.fold ~init:blk ~f:inserter |>
     Term.update blk_t sub in
-  let seed_call = seed_call Out prepend_def in
+  let inputs id vs  =
+    let vs = nullify_outputs ivars vs in
+    seed_call Out prepend_def return id vs in
+  let outputs id vs =
+    let vs = nullify_inputs ivars vs in
+    let self _ _ = Program.parent jmp_t prog (Term.tid jmp) in
+    seed_call In append_def self id vs in
   match pat with
-  | Pat.Call (id,0,_) -> sub
-  | Pat.Call (id,e,_) when Set.mem vars e ->
-    Option.value ~default:sub (seed_call id e)
+  | Pat.Call (id,v,vs) ->
+    let seed f s =
+      Option.value ~default:sub (f id (v::vs) s) in
+    seed inputs sub |> seed outputs
   | _ -> sub
 
 let seed_def def cons vars blk pat =
@@ -102,7 +123,7 @@ let seed_def def cons vars blk pat =
 
 let fold_patts spec ~init ~f =
   List.fold spec ~init ~f:(fun init defn ->
-      let vars = inputs_of_defn defn in
+      let vars = Defn.ivars defn in
       let cons = Defn.constrs defn in
       Defn.rules defn |>
       List.fold ~init ~f:(fun init rule ->

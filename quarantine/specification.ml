@@ -1,8 +1,7 @@
 open Core_kernel.Std
 open Bap.Std
+open Spec.Language
 open Spec
-open Language
-
 
 let maybe_checked name =
   define (name^"_maybe_checked") [

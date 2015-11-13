@@ -167,8 +167,6 @@ module Defn = struct
       invalid_argf "Variable %a bound in %a can't be used as input"
         V.pps v Pat.pps p ()
 
-
-
   let create name vars constrs rules =
     let cvars =
       List.fold constrs ~init:V.Set.empty ~f:(fun cvars cs ->
