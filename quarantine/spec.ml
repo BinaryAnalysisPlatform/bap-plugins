@@ -3,6 +3,10 @@ open Bap.Std
 open Spec_types
 open Format
 
+module Id = String
+type id = Id.t
+with bin_io, compare, sexp
+
 let pp_list pp_sep pp_elem ppf xs =
   let rec pp ppf = function
     | [] -> ()
@@ -46,6 +50,19 @@ end
 
 module Pat = struct
   include Pat
+
+  (** substitutes each variable that is not in the set of constrained
+      variables with a `_`. *)
+  let nullify cvars pat =
+    let f v = if Set.mem cvars v then v else V.null in
+    match pat with
+    | Pat.Jump  (k,x,y) -> Pat.Jump (k, f x, f y)
+    | Pat.Load  (x,y) -> Pat.Load (f x, f y)
+    | Pat.Store (x,y) -> Pat.Store (f x, f y)
+    | Pat.Move  (x,y) -> Pat.Move (f x, f y)
+    | Pat.Wild x -> Pat.Wild (f x)
+    | Pat.Call (id,r,xs) -> Pat.Call (id,f r, List.map xs ~f)
+
   include Regular.Make(struct
       type nonrec t = t with bin_io, compare, sexp
       let hash = function
@@ -86,7 +103,19 @@ module Pat = struct
 end
 
 module Rule = struct
-  include Rule
+  type t = {
+    name : string;
+    premises : pat list;
+    conclusions : pat list;
+  } with bin_io, compare, fields, sexp
+
+
+  let nullify rule cvars = {
+    rule with
+    premises = List.map rule.premises ~f:(Pat.nullify cvars);
+    conclusions = List.map rule.conclusions ~f:(Pat.nullify cvars);
+  }
+
   include Regular.Make(struct
       type nonrec t = t with bin_io, compare, sexp
       let hash j = Id.hash j.name
@@ -100,8 +129,62 @@ module Rule = struct
     end)
 end
 
+type rule = Rule.t with bin_io, compare, sexp
+
 module Defn = struct
-  include Defn
+  type t = {
+    name : string;
+    vars : (v * s) list;
+    constrs : constr list;
+    rules : rule list
+  } with bin_io, compare, fields, sexp
+
+  let ivars constrs =
+    List.fold constrs ~init:V.Set.empty ~f:(fun ivars cs ->
+        match cs with
+        | Constr.Dep (_,v2) -> Set.add ivars v2
+        | _ -> ivars)
+
+  let assert_all_defined cvars vars =
+    Set.find cvars ~f:(fun v -> not (List.Assoc.mem vars v)) |> function
+    | None -> ()
+    | Some v -> invalid_argf "Undefined variable %a" V.pps v ()
+
+  let assert_ivars_defined ivars rules =
+    let undef p v = Option.some_if (Set.mem ivars v) (p,v) in
+    List.find_map rules ~f:(fun r ->
+        List.find_map (Rule.premises r @ Rule.conclusions r)
+          ~f:(fun p -> match p with
+              | Pat.Move (_,v)
+              | Pat.Load (_,v)
+              | Pat.Wild v
+              | Pat.Store (_,v) -> undef p v
+              | Pat.Jump (_,x,y) ->
+                Option.first_some (undef p x) (undef p y)
+              | Pat.Call _ -> None)) |> function
+    | None -> ()
+    | Some (p,v) ->
+      invalid_argf "Variable %a bound in %a can't be used as input"
+        V.pps v Pat.pps p ()
+
+
+
+  let create name vars constrs rules =
+    let cvars =
+      List.fold constrs ~init:V.Set.empty ~f:(fun cvars cs ->
+          match cs with
+          | Constr.Dep (v1,v2) -> Set.add (Set.add cvars v1) v2
+          | Constr.Var (v,_)
+          | Constr.Fun (_,v) -> Set.add cvars v) in
+    let ivars = ivars constrs in
+    let rules = List.map rules ~f:(fun r -> Rule.nullify r cvars) in
+    let vars = List.filter vars ~f:(fun (v,_) -> Set.mem cvars v) in
+    assert_all_defined cvars vars;
+    assert_ivars_defined ivars rules;
+    {name; vars; constrs; rules}
+
+  let ivars t = ivars t.constrs
+
   include Regular.Make(struct
       type nonrec t = t with bin_io, compare, sexp
       let module_name = None
@@ -126,11 +209,19 @@ module Defn = struct
     end)
 end
 
+type defn = Defn.t with bin_io, compare, sexp
+
 module Spec = struct
   type t = defn list
   with bin_io, compare, sexp
 
-  let create = ident
+  let create defs =
+    let compare x y = String.compare (Defn.name x) (Defn.name y) in
+    match List.find_a_dup ~compare defs with
+    | Some dup ->
+      invalid_argf "Multiple definitions of %s" (Defn.name dup) ()
+    | None -> defs
+
   let defns = ident
 
   include Regular.Make(struct
@@ -147,8 +238,6 @@ type constr = Constr.t with bin_io, compare, sexp
 type v    = V.t    with bin_io, compare, sexp
 type s    = S.t    with bin_io, compare, sexp
 type pat  = Pat.t  with bin_io, compare, sexp
-type rule = Rule.t with bin_io, compare, sexp
-type defn = Defn.t with bin_io, compare, sexp
 type spec = Spec.t with bin_io, compare, sexp
 
 
@@ -216,8 +305,11 @@ module Language = struct
   let (/) y x = Constr.dep y x
   let (=) v var = Constr.var v var
 
+
+  let specification = Spec.create
+
   let define name rules Vars vars Such That constrs =
-    Defn.Fields.create ~name ~constrs ~vars ~rules
+    Defn.create name vars constrs rules
 
   let rule name premises conclusions =
     Rule.Fields.create ~name ~premises ~conclusions

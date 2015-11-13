@@ -19,7 +19,6 @@ type hyp = {
   patts   : Pat.Set.t;       (** patterns to be matched          *)
   proofs  : tid Pat.Map.t;   (** map from a patter to matched t  *)
   ivars   : eq V.Map.t;      (** equivalence classes for inputs  *)
-  cvars   : V.Set.t;         (** set of constrainted variables   *)
   constrs : constr list;     (** constraints that we mus satisfy *)
 } with fields
 
@@ -37,35 +36,18 @@ type solution = Solution.t
 
 type matcher = Match.matcher
 
-(** substitutes each variable that is not in the set of constrained
-    variables with a `_`. *)
-let nullify_pattern cvars pat =
-  let f v = if Set.mem cvars v then v else V.null in
-  match pat with
-  | Pat.Jump  (k,x,y) -> Pat.Jump (k, f x, f y)
-  | Pat.Load  (x,y) -> Pat.Load (f x, f y)
-  | Pat.Store (x,y) -> Pat.Store (f x, f y)
-  | Pat.Move  (x,y) -> Pat.Move (f x, f y)
-  | Pat.Wild x -> Pat.Wild (f x)
-  | Pat.Call (id,r,xs) -> Pat.Call (id,f r, List.map xs ~f)
-
 let hyp_of_defn defn : hyp =
   let constrs = Defn.constrs defn in
   let proofs = Pat.Map.empty in
-  let ivars,cvars =
-    List.fold constrs ~init:(V.Map.empty,V.Set.empty)
-      ~f:(fun (ivars,cvars) cs -> match cs with
-          | Constr.Dep (v1,v2) ->
-            Map.add ivars ~key:v2 ~data:Top,
-            Set.add (Set.add cvars v1) v2
-          | Constr.Var (v,_)
-          | Constr.Fun (_,v) -> (ivars,Set.add cvars v)) in
+  let ivars =
+    Set.fold (Defn.ivars defn) ~init:V.Map.empty ~f:(fun ivars v ->
+        Map.add ivars ~key:v ~data:Top) in
   let patts =
     List.fold (Defn.rules defn) ~init:Pat.Set.empty ~f:(fun pats r ->
         List.rev_append (Rule.conclusions r) (Rule.premises r) |>
         List.fold ~init:pats ~f:(fun pats pat ->
-            Set.add pats @@ nullify_pattern cvars pat)) in
-  {defn; patts; ivars; cvars; proofs; constrs;}
+            Set.add pats pat)) in
+  {defn; patts; ivars; proofs; constrs;}
 
 let state_of_spec s = {
   init = Spec.defns s |> List.map ~f:hyp_of_defn;

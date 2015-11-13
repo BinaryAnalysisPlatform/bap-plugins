@@ -42,7 +42,7 @@ let magic source is_magic =
     c / p;
   ]
 
-let spec : Spec.t = Spec.create [
+let spec = specification [
     maybe_checked "malloc";
     maybe_checked "calloc";
     untrusted_input "fgets" "fopen";

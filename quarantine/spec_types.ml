@@ -1,10 +1,7 @@
 open Core_kernel.Std
 open Bap.Std
 
-
-module Id = String
-
-type id = Id.t
+type id = string
 with bin_io, compare, sexp
 
 type v = V.t with bin_io, compare, sexp
@@ -16,6 +13,7 @@ module Constr = struct
     | Fun of id * v
   with bin_io, compare, sexp, variants
 end
+
 type constr = Constr.t
 with bin_io, compare, sexp
 
@@ -41,27 +39,4 @@ module Pat = struct
 end
 
 type pat = Pat.t
-with bin_io, compare, sexp
-
-module Rule = struct
-  type t = {
-    name : string;
-    premises : pat list;
-    conclusions : pat list;
-  } with bin_io, compare, fields, sexp
-end
-
-type rule = Rule.t
-with bin_io, compare, sexp
-
-module Defn = struct
-  type t = {
-    name : string;
-    vars : (v * s) list;
-    constrs  : constr list;
-    rules : rule list
-  } with bin_io, compare, fields, sexp
-end
-
-type defn = Defn.t
 with bin_io, compare, sexp

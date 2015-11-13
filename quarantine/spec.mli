@@ -38,29 +38,41 @@ module Pat : sig
   include Regular with type t := t
 end
 
+type constr = Constr.t with bin_io, compare, sexp
+type id = string with bin_io, compare, sexp
+type v    = V.t    with bin_io, compare, sexp
+type s    = S.t    with bin_io, compare, sexp
+type pat  = Pat.t  with bin_io, compare, sexp
+
+
 module Rule : sig
-  include module type of Rule with type t = Rule.t
+  type t
+  val name : t -> string
+  val premises : t -> pat list
+  val conclusions : t -> pat list
   include Regular with type t := t
 end
 
+type rule = Rule.t with bin_io, compare, sexp
+
 module Defn : sig
-  include module type of Defn with type t = Defn.t
+  type t
+  val name : t -> string
+  val vars : t -> (v * s) list
+  val ivars : t -> V.Set.t
+  val constrs : t -> constr list
+  val rules : t -> rule list
   include Regular with type t := t
 end
+
+type defn = Defn.t with bin_io, compare, sexp
 
 module Spec : sig
   type t with bin_io, compare, sexp
-  val create : defn list -> t
   val defns : t -> defn list
   include Regular with type t := t
 end
 
-type constr = Constr.t with bin_io, compare, sexp
-type v    = V.t    with bin_io, compare, sexp
-type s    = S.t    with bin_io, compare, sexp
-type pat  = Pat.t  with bin_io, compare, sexp
-type rule = Rule.t with bin_io, compare, sexp
-type defn = Defn.t with bin_io, compare, sexp
 type spec = Spec.t with bin_io, compare, sexp
 
 module Language : sig
@@ -78,6 +90,7 @@ module Language : sig
   val ( * ) : (V.t -> dec) -> V.t -> dec
 
 
+  val specification : defn list -> spec
   val define : id -> rule list -> vars -> dec list -> such -> that -> constr list -> defn
   val rule : id -> pat list -> pat list -> rule
 
