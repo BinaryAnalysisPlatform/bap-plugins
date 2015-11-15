@@ -54,7 +54,7 @@ let pp_pats ppf pats = List.iter pats ~f:(pp_pat ppf)
 
 let pp_model pp_miss defn ppf m =
   fprintf ppf "@[<v2>rule %s_%s ::=@ %a@;%s@;%a%a@]@;@;"
-    m.rule defn
+    defn m.rule
     pp_pats m.prem line pp_pats m.conc pp_miss m.miss
 
 let pp_nil ppf Nil = ()

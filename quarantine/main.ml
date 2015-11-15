@@ -151,13 +151,17 @@ class ['a] main summary memory tid_of_addr const = object(self)
 
   method! eval_unknown _ t = self#emit t
 
+  (*  *)
   method! lookup v =
     super#lookup v >>= fun r ->
     SM.get () >>= fun ctxt ->
     match List.hd ctxt#trace with
     | None -> SM.return r
     | Some tid ->
-      SM.put (ctxt#propagate_var tid v r) >>= fun () ->
+      let ctxt = ctxt#propagate_var tid v r in
+      let ctxt = ctxt#propagate_mem tid v r in
+      SM.put ctxt >>= fun () ->
+
       match Bil.Result.value r with
       | Bil.Imm _ | Bil.Mem _ -> SM.return r
       | Bil.Bot -> self#emit (Var.typ v)

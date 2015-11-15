@@ -60,13 +60,21 @@ let taint_of_sort = function
   | S.Reg -> Taint.regs
   | S.Ptr -> Taint.ptrs
 
+
+let debug id term fmt =
+  if Tid.(from_string_exn id = Term.tid term)
+  then eprintf fmt
+  else ifprintf err_formatter fmt
+
+
 let sat term hyp kind v bil : hyp option =
   let dep_use y x =
     List.Assoc.find (Defn.vars hyp.defn) v >>|
     taint_of_sort >>=
     Term.get_attr term >>= fun vars ->
     Map.find vars y >>= function
-    | ss when Set.is_empty ss -> None
+    | ss when Set.is_empty ss ->
+      None
     | ss -> match Map.find_exn hyp.ivars x with
       | Top -> Some {
           hyp with
@@ -74,13 +82,13 @@ let sat term hyp kind v bil : hyp option =
         }
       | Set xs ->
         let ss = Set.inter ss xs in
+
         if Set.is_empty ss then None
         else Some {
             hyp with
             ivars = Map.add hyp.ivars ~key:x ~data:(Set ss)
           } in
   let dep_def x =
-    (* Term.get_attr term Taint.reg >>= fun seed -> *)
     let seed = Term.tid term in
     match Map.find_exn hyp.ivars x with
     | Top -> Some {
@@ -118,6 +126,7 @@ let solution term hyp (eqs : Match.t) : hyp option =
   let rec solve hyp = function
     | Match.All [] -> Some hyp
     | Match.Any [] -> None
+    | Match.Def (0,_) | Match.Use (0,_) -> Some hyp
     | Match.Def (v,bil) -> sat term hyp `def v bil
     | Match.Use (v,bil) -> sat term hyp `use v bil
     | Match.All constrs -> forall hyp constrs

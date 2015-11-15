@@ -58,9 +58,11 @@ let sat_constrs constr arg v =
             V.(v = v') ==> Var.(var = var')
           | Constr.Dep _ -> true))
 
-let tag_by_sort s def =
-  let taint_t = if s = S.Ptr then Taint.ptr else Taint.reg in
-  Term.set_attr def taint_t
+let tag_by_sort intent s def =
+  if intent = In then (fun _ -> def)
+  else
+    let taint_t = if s = S.Ptr then Taint.ptr else Taint.reg in
+    Term.set_attr def taint_t
 
 let defs_of_args intent vs defn args =
   let args = Seq.to_array args in
@@ -74,9 +76,8 @@ let defs_of_args intent vs defn args =
       require (intent_matches arg intent) >>= fun () ->
       require (sat_constrs cons arg v) >>= fun () ->
       sort v >>= fun s ->
-      make_def arg >>|
-      tag_by_sort s)
-
+      make_def arg >>| fun def ->
+      tag_by_sort intent s def)
 
 let already_seeded blk var =
   Term.enum def_t blk |> Seq.exists ~f:(fun def ->
@@ -120,7 +121,9 @@ let seed_jmp prog jmp defn sub pat =
     seed_call Out return id vs in
   let uses id vs =
     let vs = nullify_inputs ivars vs in
-    let self _ _ = Program.parent jmp_t prog (Term.tid jmp) in
+    let self _ sub =
+      Program.parent jmp_t prog (Term.tid jmp) >>= fun blk ->
+      Term.find blk_t sub (Term.tid blk) in
     seed_call In self id vs in
   match pat with
   | Pat.Call (id,v,vs) ->
@@ -151,15 +154,16 @@ let fold_patts spec ~init ~f =
   List.fold spec ~init ~f:(fun init defn ->
       Defn.rules defn |>
       List.fold ~init ~f:(fun init rule ->
-          let rules = Rule.premises rule @
+          let patts = Rule.premises rule @
                       Rule.conclusions rule in
-          List.fold rules ~init ~f:(fun init rule -> f defn init rule)))
+          List.fold patts ~init ~f:(fun init rule -> f defn init rule)))
 
 let seed_sub (spec : spec) prog sub =
   let defns = Spec.defns spec in
   let sub =
     Term.enum blk_t sub |>
     Seq.fold ~init:sub ~f:(fun sub blk ->
+        let blk = Term.find_exn blk_t sub (Term.tid blk) in
         Term.enum def_t blk |>
         Seq.fold ~init:blk ~f:(fun blk def ->
             fold_patts defns ~init:blk ~f:(seed_def def)) |>

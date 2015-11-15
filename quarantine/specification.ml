@@ -13,20 +13,20 @@ let maybe_checked name =
 let data_sanitized src san sink =
   define ("data_may_passthrough_"^san^"_before_"^sink) [
     rule ("if_"^src^"_and_"^sink^"_exists")
-      [p := call src[]]
-      [sub sink [q]];
+      [sub src[p]]
+      [sub sink[q]];
     rule ("if_data_passthrough_"^san)
-      [p := call src[]; sub sink [t]]
-      [r := call san[s]]
+      [sub src[p]; sub sink[t]]
+      [sub san[s;r]]
   ] vars [reg *p; reg *q; reg *t; reg *r; reg *s] such
-    that [s/p; t/r; q/r;]
+    that [s/p; t/r]
 
 let untrusted_input src sink =
   define (src^"_may_leak_into_"^sink) [
     rule ("if_there_is_data_dependency")
-      [p := call src[]]
+      [sub src[p]]
       [sub sink[q]]
-  ] vars [reg p; reg q] such that [q/p;]
+  ] vars [reg *p; reg *q] such that [q/p;]
 
 let magic source is_magic =
   define "magic_door_exists" [
@@ -45,7 +45,6 @@ let spec = specification [
     maybe_checked "malloc";
     maybe_checked "calloc";
     untrusted_input "fgets" "fopen";
-    untrusted_input "getchar" "malloc";
     data_sanitized "fgets" "realpath" "fopen";
     data_sanitized "append" "escape" "create";
   ]

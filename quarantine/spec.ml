@@ -14,7 +14,7 @@ let pp_list pp_sep pp_elem ppf xs =
     | x :: xs -> fprintf ppf "%a%t%a" pp_elem x pp_sep pp xs in
   pp ppf xs
 
-let pp_comma ppf = fprintf ppf ",@;"
+let pp_comma ppf = fprintf ppf ","
 let pp_break ppf = fprintf ppf "@;"
 
 module Constr = struct
