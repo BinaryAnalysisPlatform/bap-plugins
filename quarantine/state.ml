@@ -145,7 +145,7 @@ let sat ts term hyp kind v bil : hyp option =
       | Var (v',ex) -> V.(v' = v) ==> Var.(ex = bil) |> sat
       | Dep (v1,v2) ->  match kind with
         | `def when V.(v2 = v) -> dep_def bil v2
-        | `use when V.(v = v1) -> dep_use bil v2
+        | `use when V.(v1 = v) -> dep_use bil v2
         | _ -> sat true)
 
 let merge_hyps xs =
@@ -161,12 +161,12 @@ let merge_hyps xs =
       })
 
 let solution ts term hyp (eqs : Match.t) : hyp option =
+  let kind v = if Map.mem hyp.ivars v then `def else `use in
   let rec solve hyp = function
     | Match.All [] -> Some hyp
     | Match.Any [] -> None
-    | Match.Def (0,_) | Match.Use (0,_) -> Some hyp
-    | Match.Def (v,bil) -> sat ts term hyp `def v bil
-    | Match.Use (v,bil) -> sat ts term hyp `use v bil
+    | Match.Eql (0,_) -> Some hyp
+    | Match.Eql (v,bil) -> sat ts term hyp (kind v) v bil
     | Match.All constrs -> forall hyp constrs
     | Match.Any constrs -> exists hyp constrs
   and forall hyp constrs =
