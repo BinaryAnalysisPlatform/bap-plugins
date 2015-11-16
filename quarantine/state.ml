@@ -66,7 +66,42 @@ let debug id term fmt =
   then eprintf fmt
   else ifprintf err_formatter fmt
 
+(* to answer a question whether a given term belongs to some
+   dependency equivalence class we need to know classes for each
+   variable that is used or defined by a given term.
 
+   So far, the class of a variable, defined by a term is assumed to be
+   equal to the term's TID. This will break as soon as term will
+   define more than one term.
+
+   The class of a variable, used by the term, is stored in its
+   Taint.map.
+
+   The problem arises when we're trying to handle call terms, that
+   define multiple values, as well as use values. Both are inserted
+   explicitly as definitions terms before and after the call term. So
+   the call itself doesn't contain any Taint.maps or seeds.
+
+   Instead of extracting Taint.maps and seeds from a term, we can
+   create an explicit map of type
+
+      [term:tid -> var:tid -> taint set]
+
+   We actually will need three such maps - for register allocated
+   data, pointers, and seeds (since the call terms introduce terms,
+   that can define more than one value at once).
+
+   If we're going to stick with a map solution, then we need the
+   following:
+
+   1. definitions seeded from some call should have some mechanism
+      to be identified. So far, they have a seed attribute, that is
+      equal to the term id of the call, that they were seeded from.
+      Also they have argument on their left-hand side if they're uses,
+      and argument on right hand side, if they're definitions. Looks
+      like that it is enough.
+
+*)
 let sat term hyp kind v bil : hyp option =
   let dep_use y x =
     List.Assoc.find (Defn.vars hyp.defn) v >>|

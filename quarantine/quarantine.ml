@@ -146,7 +146,7 @@ let visited_sub stat res = {
 let main proj =
   printf "%a" Spec.pp spec;
   let prog = Project.program proj |>
-             Seeder.run spec in
+             Tainter.seed spec in
   let proj = Project.with_program proj prog in
   let callgraph = Program.to_graph prog in
   let subs = Term.enum sub_t prog |>

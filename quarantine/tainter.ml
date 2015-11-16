@@ -6,10 +6,6 @@ open Utilities
 
 open Option.Monad_infix
 
-let seeded_arg = Value.Tag.register
-    ~name:"seeded_arg"
-    ~uuid:"657af506-69c7-4534-98db-c33f160aa063"
-    (module Arg)
 
 let seed_with s t = Term.set_attr t Taint.reg s
 let self_seed t = seed_with (Term.tid t) t
@@ -174,5 +170,83 @@ let seed_sub (spec : spec) prog sub =
       Seq.fold ~init:sub ~f:(fun sub jmp ->
           fold_patts defns ~init:sub ~f:(seed_jmp prog jmp)))
 
-let run spec prog =
+let seed spec prog =
   Term.map sub_t prog ~f:(seed_sub spec prog)
+
+
+
+type 'b folder = {app : 'a. 'b -> 'a term -> 'b}
+
+let fold cls t ~init ~f = Term.enum cls t |> Seq.fold ~init ~f
+
+let fold_terms prog ~init {app=f} =
+  fold sub_t prog ~init ~f:(fun init sub ->
+      fold arg_t sub ~init ~f |> fun init ->
+      fold blk_t sub ~init ~f:(fun init blk ->
+          fold phi_t blk ~init ~f |> fun init ->
+          fold def_t blk ~init ~f |> fun init ->
+          fold jmp_t blk ~init ~f))
+
+
+type t = {
+  ptrs : Taint.map Tid.Map.t;
+  regs : Taint.map Tid.Map.t;
+  sptr : Var.Set.t Tid.Map.t;
+  sreg : Var.Set.t Tid.Map.t;
+}
+
+let init = {
+  ptrs = Tid.Map.empty;
+  regs = Tid.Map.empty;
+  sptr = Tid.Map.empty;
+  sreg = Tid.Map.empty;
+}
+
+let update_map term taint map =
+  match Term.get_attr term taint with
+  | None -> map
+  | Some ptrs -> Map.change map (Term.tid term) (function
+      | None -> Some ptrs
+      | Some ptrs' -> Some (Taint.merge ptrs ptrs'))
+
+(* we need to mark seeded args somehow, so that we can
+   seed arguments with different seeds.*)
+let update_seed prog term taint map =
+  let tid = Term.tid term in
+  match Term.get_attr term taint with
+  | None -> map
+  | Some seed -> match Program.lookup def_t prog tid with
+    | None -> map
+    | Some def ->
+      let var = Def.lhs def in
+      Map.change map seed (function
+          | None -> Some (Var.Set.singleton var)
+          | Some vars -> Some (Set.add vars var))
+
+let reap prog =
+  let update_seed t = update_seed prog t in
+  fold_terms prog ~init {app = fun t term ->
+      let ptrs = update_map term Taint.ptrs t.ptrs in
+      let regs = update_map term Taint.regs t.regs in
+      let sptr = update_seed term Taint.ptr t.sptr in
+      let sreg = update_seed term Taint.ptr t.sreg in
+      {ptrs; regs; sptr; sreg}
+    }
+
+
+let taint_of_var map t tid var =
+  match Map.find map tid with
+  | None -> Tid.Set.empty
+  | Some vars -> match Map.find vars var with
+    | None -> Tid.Set.empty
+    | Some taints -> taints
+
+let ptrs_of_var t = taint_of_var t.ptrs t
+let regs_of_var t = taint_of_var t.regs t
+
+let seed_of_var map t tid var =
+  Map.find map tid >>= fun vars ->
+  Option.some_if (Set.mem vars var) tid
+
+let ptr_seed_of_var t = seed_of_var t.sptr t
+let reg_seed_of_var t = seed_of_var t.sreg t
