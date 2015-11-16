@@ -3,7 +3,7 @@ open Spec
 
 type t
 
-val create : spec -> t
+val create : spec -> Tainter.t -> t
 
 (** [step state term matcher] given a function [matcher] that for each
     pattern returns a set of matching variables, performs one step of

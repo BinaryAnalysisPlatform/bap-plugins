@@ -174,7 +174,8 @@ let main proj =
   printf "@[<v>Solving...@;";
   let prog = Project.program proj |>
              map_terms (unseed_if_non_visited stat.visited) in
-  let state = State.create spec  in
+  let tainter = Tainter.reap prog in
+  let state = State.create spec tainter in
   let state = Solver.run state prog in
   let sol = State.solution state spec in
   List.iter (Spec.defns spec) ~f:(fun defn ->
