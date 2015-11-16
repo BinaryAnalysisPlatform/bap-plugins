@@ -56,9 +56,6 @@ let create s t = {
   ts = t;
 }
 
-
-
-
 let taint_of_sort = function
   | S.Reg -> Tainter.regs_of_var
   | S.Ptr -> Tainter.ptrs_of_var
@@ -114,8 +111,7 @@ let sat ts term hyp kind v bil : hyp option =
     List.Assoc.find (Defn.vars hyp.defn) v >>|
     taint_of_sort >>= fun taints ->
     match taints ts (Term.tid term) y with
-    | ss when Set.is_empty ss ->
-      None
+    | ss when Set.is_empty ss -> None
     | ss -> match Map.find_exn hyp.ivars x with
       | Top -> Some {
           hyp with
@@ -123,7 +119,6 @@ let sat ts term hyp kind v bil : hyp option =
         }
       | Set xs ->
         let ss = Set.inter ss xs in
-
         if Set.is_empty ss then None
         else Some {
             hyp with

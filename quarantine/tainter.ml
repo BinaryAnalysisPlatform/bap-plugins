@@ -6,6 +6,11 @@ open Utilities
 
 open Option.Monad_infix
 
+(* this designates an argument of the call specified by the value *)
+let call = Value.Tag.register
+    ~name:"call"
+    ~uuid:"056B14C3-A185-41A8-A9C1-D36ADDEDCD0A"
+    (module Tid)
 
 let seed_with s t = Term.set_attr t Taint.reg s
 let self_seed t = seed_with (Term.tid t) t
@@ -55,10 +60,11 @@ let sat_constrs constr arg v =
           | Constr.Dep _ -> true))
 
 let tag_by_sort intent s def =
-  if intent = In then (fun _ -> def)
+  if intent = In
+  then Term.set_attr def call
   else
     let taint_t = if s = S.Ptr then Taint.ptr else Taint.reg in
-    Term.set_attr def taint_t
+    Term.set_attr def taint_t 
 
 let defs_of_args intent vs defn args =
   let args = Seq.to_array args in
@@ -79,7 +85,8 @@ let already_seeded blk var =
   Term.enum def_t blk |> Seq.exists ~f:(fun def ->
       Var.equal (Def.lhs def) var &&
       (Term.has_attr def Taint.reg ||
-       Term.has_attr def Taint.ptr))
+       Term.has_attr def Taint.ptr ||
+       Term.has_attr def call))
 
 let add_def intent blk def =
   if already_seeded blk (Def.lhs def)
@@ -205,7 +212,11 @@ let init = {
 let update_map term taint map =
   match Term.get_attr term taint with
   | None -> map
-  | Some ptrs -> Map.change map (Term.tid term) (function
+  | Some ptrs ->
+    let tid = match Term.get_attr term call with
+      | None -> Term.tid term
+      | Some t -> t in
+    Map.change map tid (function
       | None -> Some ptrs
       | Some ptrs' -> Some (Taint.merge ptrs ptrs'))
 
