@@ -130,7 +130,9 @@ let sat ts term hyp kind v bil : hyp option =
             ivars = Map.add hyp.ivars ~key:x ~data:(Set ss)
           } in
   let dep_def bil x =
-    let seed = Term.tid term in
+    List.Assoc.find (Defn.vars hyp.defn) v >>|
+    seed_of_sort >>= fun get_seed ->
+    get_seed ts (Term.tid term) bil >>= fun seed ->
     match Map.find_exn hyp.ivars x with
     | Top -> Some {
         hyp with

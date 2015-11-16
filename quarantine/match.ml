@@ -122,7 +122,11 @@ let call prog =
 
     with_args call (fun args ->
         Seq.filter args ~f:(fun a -> Arg.intent a = Some Out) |>
-        Seq.map ~f:(fun a -> def v (Arg.lhs a)) |>
+        Seq.map ~f:(fun a ->
+            let rhs = match Arg.rhs a with
+              | Bil.Var var -> def v var
+              | _ -> bot in
+            any [def v (Arg.lhs a); rhs]) |>
         Seq.to_list |> any) in
 
   object

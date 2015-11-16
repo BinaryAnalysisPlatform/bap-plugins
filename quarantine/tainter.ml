@@ -229,7 +229,7 @@ let reap prog =
       let ptrs = update_map term Taint.ptrs t.ptrs in
       let regs = update_map term Taint.regs t.regs in
       let sptr = update_seed term Taint.ptr t.sptr in
-      let sreg = update_seed term Taint.ptr t.sreg in
+      let sreg = update_seed term Taint.reg t.sreg in
       {ptrs; regs; sptr; sreg}
     }
 
