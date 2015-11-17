@@ -6,13 +6,16 @@ open Specification
 let k = 500
 
 
-let interesting = String.Set.of_list [
-    ".*";
+let black_addr = Addr.Set.of_list [
+    Addr.of_int32 0x00051d30l;
   ]
 
-let is_interesting_sub sub = true
-(* Set.mem interesting (Sub.name sub) *)
+let black_term = [
+  "%16e"
+] |> List.map ~f:Tid.from_string_exn
+  |> Tid.Set.of_list
 
+let is_interesting_sub sub = true
 
 type mapper = {map : 'a. 'a term -> 'a term}
 
@@ -34,6 +37,17 @@ let mark_if_tainted (ctxt : Main.result) =
     then t else
       Term.set_attr t foreground `red in
   {map}
+
+let mark_black_terms = {
+  map = fun t ->
+    let mark () = 
+      Term.set_attr t color `black in
+    if Set.mem black_term (Term.tid t) 
+    then mark ()
+    else match Term.get_attr t Disasm.insn_addr with
+    | Some a when Set.mem black_addr a -> mark ()
+    | _ -> t
+}
 
 let is_seeded t =
   Term.has_attr t Taint.reg ||
@@ -144,9 +158,10 @@ let visited_sub stat res = {
 }
 
 let main proj =
-  printf "%a" Spec.pp spec;
+  printf "* Specification@.%a" Spec.pp spec;
   let prog = Project.program proj |>
-             Tainter.seed spec in
+             map_terms mark_black_terms in
+  let prog = Tainter.seed spec prog in
   let proj = Project.with_program proj prog in
   let callgraph = Program.to_graph prog in
   let subs = Term.enum sub_t prog |>
@@ -165,13 +180,13 @@ let main proj =
           let mark = marker_of_markers [
               mark_if_visited ctxt;
               mark_if_tainted ctxt;
-              mark_if_seeded
+              mark_if_seeded;
             ] in
           let prog = Project.program proj |> map_terms mark in
           let stat = visited_sub stat ctxt in
           Project.with_program proj prog, stat) in
-  printf "Coverage: %a@." pp_coverage stat;
-  printf "@[<v>Solving...@;";
+  eprintf "Coverage: %a@." pp_coverage stat;
+  eprintf "@[<v>Solving...@;";
   let prog = Project.program proj |>
              map_terms (unseed_if_non_visited stat.visited) in
   let tainter = Tainter.reap prog in
@@ -179,8 +194,13 @@ let main proj =
   let state = Solver.run state prog in
   let sol = State.solution state spec in
   List.iter (Spec.defns spec) ~f:(fun defn ->
+      printf "@[* %s@." (Defn.name defn);
+      printf "@[** find %s@." (Defn.name defn);
+      printf "%a" (Solution.pp_sat defn) sol;
+      printf "@]";
+      printf "@[** assert %s@." (Defn.name defn);
       printf "%a" (Solution.pp_unsat defn) sol;
-      printf "%a" (Solution.pp_sat defn) sol);
+      printf "@]@]");
   proj
 
 let () = Project.register_pass "quarantine" main

@@ -185,7 +185,7 @@ int          chdir(const char *);
 int          chown(const char *, uid_t, gid_t);
 int          close(int);
 size_t       confstr(int, char *, size_t);
-char        *crypt(const char *, const char *);
+char        *crypt(const char *key, const char *salt);
 int          dup(int);
 int          dup2(int, int);
 void         _exit(int);
@@ -235,6 +235,7 @@ int          pipe(int [2]);
 ssize_t      pread(int, void *, size_t, off_t);
 ssize_t      pwrite(int, const void *, size_t, off_t);
 ssize_t      read(int, void *, size_t);
+ssize_t      readv(int fd, const struct iovec *iov, int iovcnt);
 ssize_t      readlink(const char *, char *, size_t);
 ssize_t      readlinkat(int, const char *, char *, size_t);
 int          rmdir(const char *);
@@ -261,3 +262,25 @@ int          ttyname_r(int, char *, size_t);
 int          unlink(const char *);
 int          unlinkat(int, const char *, int);
 ssize_t      write(int, const void *, size_t);
+// odbx.cpp
+
+// Stmt Conn:create(const char* sql, Stmt::Type type)
+void _ZN7OpenDBX4Conn6createERKSsNS_4Stmt4TypeE(void *this, void *stmt, const char* sql, int type);
+
+// TODO overloaded Conn:create:
+// Stmt Conn::create( const char* sql, unsigned long length, Stmt::Type type )
+
+// Result Stmt::execute()
+void* _ZN7OpenDBX4Stmt7executeEv();
+
+// string& Conn::escape( const string& from, string& to)
+void* _ZN7OpenDBX4Conn6escapeERKSsRSs(const void* from, void* to);
+
+// TODO overloaded Conn:escape:
+// string& Conn::escape( const char*, unsigned long fromlen, string& to)
+
+// string& std::string::append(std::string const&)
+void _ZNSs6appendERKSs(void *this, const char *data);
+
+// string& std::string::append(char const*, unsigned int)
+void _ZNSs6appendEPKcj(void *this, const char *data, unsigned int);
