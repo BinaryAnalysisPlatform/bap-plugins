@@ -29,22 +29,39 @@ let untrusted_input src sink =
   ] vars [reg *p; reg *q] such that [q/p;]
 
 let magic source is_magic =
-  define "magic_door_exists" [
-    rule "when_magic_meets_user_input" [
+  define ("magic_door_via_"^source^"_may_exist") [
+    rule ("when_magic_meets_"^source) [
       p := use v;
-      x := call source[]
-    ][case c jmp d]
-  ] vars [reg v; reg x; reg c; reg p] such
+      sub source[_';x;_']
+    ][case c jmp _']
+  ] vars [reg *x; reg c; reg p; reg v] such
     that [
     forall v such that is_magic;
     c / x;
     c / p;
   ]
 
+let escape = "_ZN7OpenDBX4Conn6escapeERKSsRSs"
+let append_s = "_ZNSs6appendERKSs"
+let append_n = "_ZNSs6appendEPKcj"
+let create = "_ZN7OpenDBX4Conn6createERKSsNS_4Stmt4TypeE"
+
+let unescaped_sql append =
+  define (append^"_may_spoil_input") [
+    rule "and_leak_into_stmt"
+      [sub append[p;_']]
+      [sub create[_';_';q]]
+  ] vars [reg *p; reg *q] such that [q/p;]
+
+
 let spec = specification [
+    unescaped_sql append_n;
+    unescaped_sql append_s;
     maybe_checked "malloc";
     maybe_checked "calloc";
     untrusted_input "fgets" "fopen";
     data_sanitized "fgets" "realpath" "fopen";
-    data_sanitized "append" "escape" "create";
+    magic "read" is_black;
+    magic "readv" is_black;
+    magic "recvmsg" is_black;
   ]

@@ -118,6 +118,8 @@ let call prog =
             ]) |> Seq.to_list_rev |> all) in
 
   let match_call_def call v : t =
+    if v = 0 then top 
+    else 
     with_args call (fun args ->
         Seq.filter args ~f:(fun a -> Arg.intent a = Some Out) |>
         Seq.map ~f:(fun a ->
