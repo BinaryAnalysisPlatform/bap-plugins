@@ -1,2 +1,0 @@
-Total possible paths: 2
-Paths: 2
