@@ -1,0 +1,10 @@
+EXT nonrec
+EXT ounit
+
+S .
+B _build
+
+PKG bap core_kernel cmdliner ocamlgraph re.posix ocamlbuild oUnit FrontC
+
+FLG -short-paths
+FLG -w -4-33-40-41-42-43-34-44

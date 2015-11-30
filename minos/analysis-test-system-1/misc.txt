@@ -1,0 +1,3 @@
+Producing for symbolic
+s[n]printf arg: ""most recent right %s""
+s[n]printf arg: ""most recent left %s""
