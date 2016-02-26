@@ -1,0 +1,36 @@
+.import [
+  .module stmt
+  .name stmt
+  .ocaml-module "Bap.Std.Bil_piqi"
+]
+
+.list [
+  .name instruction
+  .type stmt/stmt
+]
+
+.record [
+  .name lifted-instruction
+  .field [
+    .name instruction
+    .type instruction
+  ]
+  .field [
+    .name length
+    .type int
+  ]
+  .field [
+    .name offset
+    .type uint64
+  ]
+]
+
+.list [
+  .name lifted-region
+  .type lifted-instruction
+]
+
+.list [
+  .name lifted-regions
+  .type lifted-region
+]
