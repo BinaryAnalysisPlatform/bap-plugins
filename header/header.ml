@@ -1,5 +1,6 @@
 open Core_kernel.Std
 open Bap.Std
+include Self()
 open Cabs
 
 
@@ -23,22 +24,26 @@ type fn_proto = arg list
 
 include struct
   let stack mem sp endian sz off =
-    let width = Size.to_bits sz in
-    let off = Word.of_int ~width (off * (Size.to_bytes sz)) in
+    let width = Size.in_bits sz in
+    let off = Word.of_int ~width (off * (Size.in_bytes sz)) in
     let mem = Bil.var mem in
     let addr = if Word.is_zero off
       then Bil.(var sp)
       else Bil.(var sp + int off) in
     Bil.load ~mem ~addr endian sz
 
-  let arm_stack = ARM.CPU.(stack mem sp LittleEndian `r32)
-  let x86_stack = IA32.CPU.(stack mem sp LittleEndian `r32)
-  let x64_stack = AMD64.CPU.(stack mem sp LittleEndian `r64)
+  module IA32  = X86_cpu.IA32
+  module AMD64 = X86_cpu.AMD64
+  module ARM   = ARM.CPU
+
+  let arm_stack = ARM.(stack mem sp LittleEndian `r32)
+  let x86_stack = IA32.(stack mem sp LittleEndian `r32)
+  let x64_stack = AMD64.(stack mem sp LittleEndian `r64)
 
   open Bil
   let abi = function
     | #Arch.arm ->
-      ARM.CPU.(function
+      ARM.(function
           | Ret_0 -> var r0
           | Ret_1 -> var r1
           | Arg 0 -> var r0
@@ -47,7 +52,7 @@ include struct
           | Arg 3 -> var r3
           | Arg n -> arm_stack Int.(n-4))
     | `x86_64 ->
-      AMD64.CPU.(function
+      AMD64.(function
           | Ret_0 -> var rax
           | Ret_1 -> var rdx
           | Arg 0 -> var rdi
@@ -58,7 +63,7 @@ include struct
           | Arg 5 -> var r.(1)
           | Arg n -> x64_stack Int.(n-6))
     | `x86 ->
-      IA32.CPU.(function
+      IA32.(function
           | Ret_0 -> var rax
           | Ret_1 -> var rdx
           | Arg n -> x86_stack Int.(n+1))
@@ -130,7 +135,7 @@ let args_of_file file =
   | PARSING_OK ds -> fns_of_definitions ds
 
 let (>:) s1 s2 e =
-  match Size.(to_bits s2 - to_bits s1) with
+  match Size.(in_bits s2 - in_bits s1) with
   | 0 -> e
   | n when n > 0 -> Bil.(cast high n e)
   | n -> Bil.(cast low n e)
@@ -140,7 +145,7 @@ let term_of_arg arch sub {arg_name; arg_size; arg_intent; arg_pos} =
   let size = match arg_size with
     | Word -> (word_size :> Size.t)
     | Size size -> size in
-  let typ = Type.imm (Size.to_bits size) in
+  let typ = Type.imm (Size.in_bits size) in
   let exp = try abi arch arg_pos with
       exn -> Bil.unknown "unkown abi" typ in
   (* so far we assume, that [abi] returns expressions of word size,
@@ -178,13 +183,14 @@ module Cmdline = struct
     | _ -> assert false
 end
 
-let main argv proj =
+let main file proj =
   let prog = Project.program proj in
   let arch = Project.arch proj in
-  let file = Cmdline.parse argv in
   let args = args_of_file file in
   fill_args arch args prog |>
   Project.with_program proj
 
 
-let () = Project.register_pass_with_args "header" main
+let () =
+  let file = Cmdline.parse argv in
+  Project.register_pass (main file)

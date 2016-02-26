@@ -40,13 +40,13 @@ let mark_if_tainted (ctxt : Main.result) =
 
 let mark_black_terms = {
   map = fun t ->
-    let mark () = 
+    let mark () =
       Term.set_attr t color `black in
-    if Set.mem black_term (Term.tid t) 
+    if Set.mem black_term (Term.tid t)
     then mark ()
     else match Term.get_attr t Disasm.insn_addr with
-    | Some a when Set.mem black_addr a -> mark ()
-    | _ -> t
+      | Some a when Set.mem black_addr a -> mark ()
+      | _ -> t
 }
 
 let is_seeded t =
@@ -185,8 +185,8 @@ let main proj =
           let prog = Project.program proj |> map_terms mark in
           let stat = visited_sub stat ctxt in
           Project.with_program proj prog, stat) in
-  eprintf "Coverage: %a@." pp_coverage stat;
-  eprintf "@[<v>Solving...@;";
+  printf "Coverage: %a@." pp_coverage stat;
+  printf "@[<v>Solving...@;";
   let prog = Project.program proj |>
              map_terms (unseed_if_non_visited stat.visited) in
   let tainter = Tainter.reap prog in
@@ -203,4 +203,4 @@ let main proj =
       printf "@]@]");
   proj
 
-let () = Project.register_pass "quarantine" main
+let () = Project.register_pass main

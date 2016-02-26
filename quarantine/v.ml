@@ -29,4 +29,5 @@ include Regular.Make(struct
     let module_name = None
     let pp ppf idx = fprintf ppf "%s" (Vars.lookup idx)
     let hash = ident
+    let version = "0.1"
   end)

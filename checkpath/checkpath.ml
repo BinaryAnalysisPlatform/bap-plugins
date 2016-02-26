@@ -32,10 +32,14 @@ let touches point block =
   end) (Insn.bil (Block.terminator block))
 
 
+let dfs blk =
+  Block.to_graph blk |>
+  Graphlib.postorder_traverse (module Block.Graph)
+
 (** [goto src addr] searches from [src] for a block with a given
     [addr] *)
 let goto src point : block option =
-  Block.dfs src |> Seq.find ~f:(fun blk -> Addr.(point = Block.addr blk))
+  dfs src |> Seq.find ~f:(fun blk -> Addr.(point = Block.addr blk))
 
 (** [didn't_pass src dst point] if there is a path from [src] to [dst]
     that doesn't pass through the [point]. The algorithm assumes, that
@@ -45,7 +49,7 @@ let goto src point : block option =
     @pre [dst] is reachable from [src].
 *)
 let didn't_pass src dst point =
-  Block.dfs src |> Seq.find ~f:(fun blk ->
+  dfs src |> Seq.find ~f:(fun blk ->
       Addr.(point = Block.addr blk) ||
       Block.equal blk dst) |> function
   | None -> assert false (* the dst is reachable  *)
@@ -89,7 +93,7 @@ let check p blocks route =
         | None -> printf "[PASS]: all checkpoints were met@.")
 
 let addr arch x =
-  let width = Arch.addr_size arch |> Size.to_bits in
+  let width = Arch.addr_size arch |> Size.in_bits in
   Addr.of_int64 ~width x
 
 let make_points p s =
@@ -142,4 +146,4 @@ let check_routes p chan =
 
 let run p = check_routes p stdin
 
-let () = Project.register_pass' "checkpath" run
+let () = Project.register_pass' run

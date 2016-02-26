@@ -21,6 +21,7 @@ module Constr = struct
   include Constr
   include Regular.Make(struct
       type nonrec t = t with bin_io, compare, sexp
+      let version = "0.1"
       let hash = function
         | Dep (v1,v2) -> V.hash v1 lxor V.hash v2
         | Var (v,var) -> V.hash v lxor Var.hash var
@@ -39,6 +40,7 @@ module S = struct
   include S
   include Regular.Make(struct
       type nonrec t = t with bin_io, compare, sexp
+      let version = "0.1"
       let hash = Hashtbl.hash
 
       let module_name = None
@@ -65,6 +67,7 @@ module Pat = struct
 
   include Regular.Make(struct
       type nonrec t = t with bin_io, compare, sexp
+      let version = "0.1"
       let hash = function
         | Call (id,_,_) -> Id.hash id
         | Jump (_,v1,v2) | Move (v1,v2) | Load (v1,v2) | Store (v1,v2) ->
@@ -118,6 +121,7 @@ module Rule = struct
 
   include Regular.Make(struct
       type nonrec t = t with bin_io, compare, sexp
+      let version = "0.1"
       let hash j = Id.hash j.name
       let module_name = None
 
@@ -185,6 +189,7 @@ module Defn = struct
 
   include Regular.Make(struct
       type nonrec t = t with bin_io, compare, sexp
+      let version = "0.1"
       let module_name = None
       let hash d = Id.hash d.name
 
@@ -224,6 +229,7 @@ module Spec = struct
 
   include Regular.Make(struct
       type nonrec t = t with bin_io, compare, sexp
+      let version = "0.1"
       let module_name = None
       let hash = Hashtbl.hash
       let pp_defs ppf spec = pp_list pp_break Defn.pp ppf spec

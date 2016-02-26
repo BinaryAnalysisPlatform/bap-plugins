@@ -29,6 +29,7 @@ module Taint_map = struct
       open Format
 
       type t = map with bin_io, compare, sexp
+      let version = "0.1"
       let module_name = None
 
       let pp_list pp ppf xs =
@@ -87,7 +88,7 @@ class context = object(self)
     {< tvs = tvs' >}
 
   method taint_ptr a (s : size) ts =
-    let addrs = Seq.init (Size.to_bytes s) ~f:(fun n -> Addr.(a++n)) in
+    let addrs = Seq.init (Size.in_bytes s) ~f:(fun n -> Addr.(a++n)) in
     let tas' = Seq.fold addrs ~init:tas ~f:(fun tas a ->
         Map.change tas a (function
             | None -> Some ts
