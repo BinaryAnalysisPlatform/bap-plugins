@@ -22,5 +22,6 @@ type options = {
   fold_consts : bool; (* perform fold_consts *)
   output_dot_path : bool; (* generate dot outputs for paths *)
   out_dir : string; (* specify an analysis output directory *)
+  no_inline : bool; (* default behavior is to inline. this turns it off *)
   verbose : bool (* switch for outputting analysis results to terminal *)
 }

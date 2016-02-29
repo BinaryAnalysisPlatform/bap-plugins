@@ -77,6 +77,10 @@ module Cmdline = struct
     Arg.(value & opt (some string) None &
          info ["out_dir"] ~doc)
 
+  let no_inline : bool Term.t =
+    let doc = "Force no inlining" in
+    Arg.(value & flag & info ["no_inline"] ~doc)
+
   let verbose : bool Term.t =
     let doc = "Verbose output (intended for analysis)" in
     Arg.(value & flag & info ["verbose"] ~doc)
@@ -86,7 +90,7 @@ module Cmdline = struct
 
   let process_args check config srcs_f sinks_f with_dots cuts_only
       trims_only path_counts_only single_trim single_cut single_case
-      mem_to_reg fold_consts output_dot_path out_dir verbose =
+      mem_to_reg fold_consts output_dot_path out_dir no_inline verbose =
     let (!) opt default = Option.value opt ~default in
     let check = !check "" in
     let config = !config "" in
@@ -102,7 +106,7 @@ module Cmdline = struct
       single_cut; single_case;
       mem_to_reg; fold_consts;
       output_dot_path; out_dir;
-      verbose}
+      no_inline; verbose}
 
   let parse argv =
     match Term.eval ~argv
@@ -122,6 +126,7 @@ module Cmdline = struct
                    $fold_consts
                    $output_dot_path
                    $out_dir
+                   $no_inline
                    $verbose),info)
     with
     | `Ok opts -> opts
@@ -163,6 +168,8 @@ module Plugin (E : sig val project : project val options : options end) = struct
                only interested in tracking the src and sink caller
                blks *)
 
+            let g = if options.no_inline then {g with depth = 0} else g in
+
             let sub',highlight =
               if g.depth = 0 then (g.lca_sub,[]) else
                 let warn = true in
@@ -186,7 +193,7 @@ module Plugin (E : sig val project : project val options : options end) = struct
     trim_groups
 
   let process_paths trim_groups project =
-    let open Ctxt in
+    let open Path_producer in
     let process_case case x y i j =
       Format.printf "-=-=-PROCESSING-=-=\n";
       Format.printf "TRIM %d CASE %d paths counter:\n" x y;
@@ -207,7 +214,7 @@ module Plugin (E : sig val project : project val options : options end) = struct
         Seq.iteri trim_group ~f:(fun j case ->
             match (options.single_trim,options.single_case) with
             | (-1,-1) -> process_case case i j i j
-            | (x,_) when x = i -> process_case case x j i j
+            | (x,-1) when x = i -> process_case case x j i j
             | (x,y) when x = i && y = j -> process_case case x y i j
             | (_,_) -> ()))
 
@@ -235,7 +242,7 @@ module Plugin (E : sig val project : project val options : options end) = struct
         Seq.iteri trim_group ~f:(fun j case ->
             match (options.single_trim,options.single_case) with
             | (-1,-1) -> output_case i j case
-            | (x,_) when x = i -> output_case i j case
+            | (x,-1) when x = i -> output_case i j case
             | (x,y) when x = i && y = j -> output_case i j case
             | (_,_) -> ()))
 

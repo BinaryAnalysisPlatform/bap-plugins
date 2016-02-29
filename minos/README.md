@@ -159,3 +159,6 @@ e) Indirect call resolution along paths when possible through constant folding
 
 `run-test-system.sh` is the go-to example for interacting with Minos.
 
+## Notes
+
+Versioned against BAP commit 5e2a738d69b63322faecdbf90f9a31be75a7d012
