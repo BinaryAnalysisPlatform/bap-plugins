@@ -15,7 +15,7 @@ let read_string mem w =
   Memory.view ~word_size:`r8 ~from:w mem >>= fun mem' ->
   Memory.foldi ~word_size:`r8 mem' ~init:(false,"")
     ~f:(fun addr word (fin,acc) ->
-        let char = Word.to_chars word LittleEndian |> Seq.hd_exn in
+        let char = Word.enum_chars word LittleEndian |> Seq.hd_exn in
         match fin,char with
         | (false,'\x00') -> (true,acc)
         | (false,c) -> (false,acc^(!c))
@@ -67,4 +67,4 @@ let main project : project =
   | Some prog -> Project.with_program project prog
   | None -> failwith "Could not stringify!"
 
-let () = Project.register_pass "strings" main
+let () = Project.register_pass main
