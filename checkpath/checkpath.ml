@@ -1,4 +1,5 @@
 open Core_kernel.Std
+open Graphlib.Std
 open Bap.Std
 open Format
 open Or_error
@@ -12,12 +13,14 @@ type route = {
   dst : point;
 }
 
+module Cfg = Graphs.Cfg
+
 (** transform an address to a name of the symbol to which it
     belongs if possible, otherwise just to string *)
 let string_of_point project point =
   let symbols = Project.symbols project in
   Symtab.find_by_start symbols point |> function
-  | Some fn -> Symtab.name_of_fn fn
+  | Some (name,_,_) -> name
   | _ -> asprintf "%a" Addr.pp point
 
 (** [touches point block] true if block ends up with a call to
@@ -32,14 +35,13 @@ let touches point block =
   end) (Insn.bil (Block.terminator block))
 
 
-let dfs blk =
-  Block.to_graph blk |>
-  Graphlib.postorder_traverse (module Block.Graph)
+let dfs cfg blk =
+  Graphlib.postorder_traverse (module Graphs.Cfg) cfg ~start:blk
 
 (** [goto src addr] searches from [src] for a block with a given
     [addr] *)
-let goto src point : block option =
-  dfs src |> Seq.find ~f:(fun blk -> Addr.(point = Block.addr blk))
+let goto cfg src point : block option =
+  dfs cfg src |> Seq.find ~f:(fun blk -> Addr.(point = Block.addr blk))
 
 (** [didn't_pass src dst point] if there is a path from [src] to [dst]
     that doesn't pass through the [point]. The algorithm assumes, that
@@ -48,8 +50,8 @@ let goto src point : block option =
     point to be evaluated before [dst].
     @pre [dst] is reachable from [src].
 *)
-let didn't_pass src dst point =
-  dfs src |> Seq.find ~f:(fun blk ->
+let didn't_pass cfg src dst point =
+  dfs cfg src |> Seq.find ~f:(fun blk ->
       Addr.(point = Block.addr blk) ||
       Block.equal blk dst) |> function
   | None -> assert false (* the dst is reachable  *)
@@ -67,10 +69,10 @@ let didn't_pass src dst point =
     then find checkpoint that that is not visited on path from [src]
     to [route.dst]
     @pre [blk] touches [route.src] *)
-let check_route route src =
-  match goto src route.dst with
+let check_route cfg route src =
+  match goto cfg src route.dst with
   | None -> printf "[PASS]: since not reachable@."; None
-  | Some dst -> List.find route.checkpoints ~f:(didn't_pass src dst)
+  | Some dst -> List.find route.checkpoints ~f:(didn't_pass cfg src dst)
 
 let print_unsafe_route p route blk missed =
   let s = string_of_point p in
@@ -84,10 +86,10 @@ let print_unsafe_route p route blk missed =
     The order of checkpoints is irrelevant. Also, it is not
     guaranteed that there exists a path, that includes all
     checkpoints. *)
-let check p blocks route =
-  Table.iter blocks ~f:(fun blk ->
+let check p cfg route =
+  Cfg.nodes cfg |> Seq.iter ~f:(fun blk ->
       if touches route.src blk
-      then match check_route route blk with
+      then match check_route cfg route blk with
         | Some missed ->
           print_unsafe_route p route blk missed
         | None -> printf "[PASS]: all checkpoints were met@.")
@@ -102,10 +104,8 @@ let make_points p s =
   else
     let matches = Re.execp (Re.compile (Re_posix.re s)) in
     let symbols = Project.symbols p in
-    Symtab.to_sequence symbols |> Seq.filter_map ~f:(fun fn ->
-        let mem = Symtab.entry_of_fn fn |> Block.memory in
-        let sym = Symtab.name_of_fn fn in
-        Option.some_if (matches sym) (Memory.min_addr mem))
+    Symtab.to_sequence symbols |> Seq.filter_map ~f:(fun (sym,blk,cfg) ->
+        Option.some_if (matches sym) (Block.addr blk))
     |> Seq.to_list |> return
 
 let create_routes ss cs ds =
@@ -130,18 +130,18 @@ let print_prompt chan =
   if phys_equal chan stdin then
     printf "> %!"
 
-let process p blocks chan route =
+let process p cfg chan route =
   let parts = String.split_on_chars route ~on:separators in
   match parse_routes p parts with
   | Error err -> eprintf "Bad input: %a@." Error.pp err
   | Ok None -> printf "[PASS]: due to inexistance of endpoints@."
-  | Ok Some routes -> List.iter routes ~f:(check p blocks)
+  | Ok Some routes -> List.iter routes ~f:(check p cfg)
 
 let check_routes p chan =
-  let blocks = Disasm.blocks (Project.disasm p) in
+  let cfg = Disasm.cfg (Project.disasm p) in
   print_prompt chan;
   In_channel.iter_lines chan ~f:(fun route ->
-      process p blocks chan route;
+      process p cfg chan route;
       print_prompt chan)
 
 let run p = check_routes p stdin
