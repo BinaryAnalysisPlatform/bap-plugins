@@ -1,7 +1,7 @@
 .phony: all
 
 all:
-	bapbuild fold_consts.otarget
+	bapbuild -package cmdliner fold_consts.plugin
 
 clean:
 	bapbuild -clean

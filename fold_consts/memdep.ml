@@ -1,4 +1,6 @@
 open Core_kernel.Std
+open Regular.Std
+open Graphlib.Std
 open Bap.Std
 open Utils
 
@@ -68,7 +70,7 @@ let meet x y = match x,y with
   | Val x, Val y -> if Exp.(x = y) then Val x else Bot
 
 let add_edge m src dst lbl =
-  let x, y = Var.(version src, version dst) in
+  let x, y = Var.(index src, index dst) in
   {m with graph = G.Edge.(insert (create x y lbl) m.graph)}
 
 let insert_phis is_mem m blk =
@@ -80,14 +82,14 @@ let insert_phis is_mem m blk =
             | _ -> m)
       else m)
 
-let enum_word endian word = Word.to_bytes word endian
+let enum_word endian word = Word.enum_bytes word endian
 
 let enum_exp size endian = function
   | Bil.Int word ->
     let bytes = enum_word endian word |> Seq.map ~f:Bil.int in
-    Seq.take bytes (Size.to_bytes size) |> Seq.to_list
+    Seq.take bytes (Size.in_bytes size) |> Seq.to_list
   | exp ->
-    let bytes = Seq.init (Size.to_bytes size) ~f:(fun n ->
+    let bytes = Seq.init (Size.in_bytes size) ~f:(fun n ->
         Bil.extract ~lo:(n*8) ~hi:((n+1)*8 - 1) exp) in
     match endian with
     | LittleEndian -> Seq.to_list bytes
@@ -141,7 +143,7 @@ module Disp = Comparable.Make(struct
 
 let disp_to_bytes = function
   | None -> 0
-  | Some size -> Size.to_bytes size
+  | Some size -> Size.in_bytes size
 
 (** [interference u a n] is
     [Some true] if update [u] changes byte at addr [a+n];
@@ -174,7 +176,7 @@ let update_chunk updates base chunk =
   else `Next chunk
 
 let init_chunk size =
-  Array.init (Size.to_bytes size) ~f:(fun _ -> Top)
+  Array.init (Size.in_bytes size) ~f:(fun _ -> Top)
 
 
 exception Undefined
@@ -205,11 +207,8 @@ let lookup_graph m ~mem:var ~addr endian size =
       Hash_set.add visited next; search chunk next
   and multi ch edge edges =
     meet_edges (single ch edge) (List.map edges ~f:(single ch)) in
-  let chunk =  search (init_chunk size) (Var.version var) in
+  let chunk =  search (init_chunk size) (Var.index var) in
   try Some (exp_of_chunk chunk) with Undefined -> None
-
-
-
 
 (* todo: instead of using default word size, we can try to infer
    argument type, based on generated dependency graph. *)

@@ -48,8 +48,8 @@ let clobber_sub arch sub =
   if Sub.is_ssa sub then
     invalid_arg "Input must be in non SSA form";
   let module Target = (val target_of_arch arch) in
-  let addr_t = Type.Imm (Size.to_bits (Arch.addr_size arch)) in
-  let data_t = Type.Imm (Size.to_bits (mem_elt_size arch)) in
+  let addr_t = Type.Imm (Size.in_bits (Arch.addr_size arch)) in
+  let data_t = Type.Imm (Size.in_bits (mem_elt_size arch)) in
   let undef_mem =
     let exp = Bil.unknown "clobbered_by_call" data_t in
     let en = Arch.endian arch in
@@ -98,7 +98,7 @@ let get_sp_base make_addr proj =
 let run proj =
   let arch = Project.arch proj in
   let module Target = (val target_of_arch arch) in
-  let width = Size.to_bits (Arch.addr_size arch) in
+  let width = Size.in_bits (Arch.addr_size arch) in
   let substitute_sp =
     let make_addr x = Addr.of_int64 ~width x in
     match get_sp_base make_addr proj with

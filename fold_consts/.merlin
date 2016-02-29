@@ -1,5 +1,7 @@
 PKG bap
 PKG cmdliner
+PKG regular
+PKG graphlib
 B _build
 EXT nonrec
 FLG -short-paths
