@@ -12,7 +12,7 @@
 open Core_kernel.Std
 open Bap.Std
 
-(* note, this function will return all variables, including 
+(* note, this function will return all variables, including
    non-free *)
 let vars_of_exp = Exp.fold ~init:Var.Set.empty (object
     inherit [Var.Set.t] Bil.visitor
@@ -52,7 +52,7 @@ let clean_sub arch sub =
   let module Target = (val target_of_arch arch) in
   let no_side_effects var =
     let open Target.CPU in
-    Var.is_tmp var || is_flag var in
+    Var.is_virtual var || is_flag var in
 
   let filter dead t lhs blk =
     Term.filter t blk ~f:(fun p -> not(Set.mem dead (lhs p))) in
@@ -71,4 +71,4 @@ let main proj =
   Term.map sub_t ~f:(clean_sub (Project.arch proj)) |>
   Project.with_program proj
 
-let () = Project.register_pass ~deps:["ssa"] "deadcode" main
+let () = Project.register_pass ~deps:["ssa"] main

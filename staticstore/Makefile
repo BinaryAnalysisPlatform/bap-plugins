@@ -1,6 +1,6 @@
 .phony: all
 all :
-	bapbuild staticstore.otarget
+	bapbuild -package cmdliner staticstore.otarget
 
 clean :
 	bapbuild -clean

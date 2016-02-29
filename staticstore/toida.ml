@@ -11,7 +11,7 @@ let cmd c =
   sprintf "SetFunctionAttr($symbol_addr, FUNCATTR_COLOR, 0x%x)\n"
     (code_of_color c)
 
-let () = Project.register_pass ~deps:["staticstore"] "toida" (fun p ->
+let () = Project.register_pass ~deps:["staticstore"] (fun p ->
     Project.memory p |> Memmap.to_sequence |>
     Seq.fold ~init:p ~f:(fun p (mem,v) ->
         Option.value_map ~default:p (Value.get color v)

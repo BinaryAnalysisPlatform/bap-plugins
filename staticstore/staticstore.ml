@@ -1,5 +1,6 @@
 open Core_kernel.Std
 open Bap.Std
+include Self()
 open Format
 open Option.Monad_infix
 
@@ -113,31 +114,36 @@ let collect_unsafe sub =
 let stub_names = [".plt"; "__symbol_stub"; "__picsymbol_stub"]
 
 let entry_of_sub proj sub =
+  let syms = Project.symbols proj in
   Term.first blk_t sub >>= fun entry ->
-  Term.get_attr entry Disasm.block >>=
-  Table.find_addr (Disasm.blocks (Project.disasm proj)) >>| fst
+  Term.get_attr entry Disasm.block >>= fun addr ->
+  Symtab.find_by_start syms addr >>| snd3
 
 
-let main argv proj =
+let stubs proj : unit memmap =
+  Project.memory proj |> Memmap.to_sequence |>
+  Seq.filter_map ~f:(fun (mem,tag) -> match Value.get Image.section tag with
+      | Some name when List.mem stub_names name -> Some mem
+      | _ -> None) |>
+  Seq.fold ~init:Memmap.empty ~f:(fun map mem -> Memmap.add map mem ())
+
+let main proj =
   Cmdline.eval argv;
   let arch = Project.arch proj in
   let module Target = (val target_of_arch arch) in
   let prog = Project.program proj in
-  let is_plt mem =
-    Memmap.dominators (Project.memory proj) mem |>
-    Seq.exists ~f:(fun (_,tag) -> match Value.get Image.section tag with
-        | Some name -> List.mem stub_names name
-        | None -> false) in
   let annotate sub mem : project =
     let sym = Sub.name sub in
     let mark = match collect_unsafe sub with
       | [] -> print_string (green sym); `green
       | exps  -> print_string (red sym); `red in
-    Project.tag_memory proj mem color mark in
+    Project.tag_memory proj (Block.memory mem) color mark in
+  let stubs = stubs proj in
+  let is_plt blk = Memmap.contains stubs (Block.addr blk) in
   Term.enum sub_t prog |> Seq.fold ~init:proj ~f:(fun proj sub ->
       match entry_of_sub proj sub with
       | None -> proj
       | Some entry when is_plt entry -> proj
       | Some entry -> annotate sub entry)
 
-let () = Project.register_pass_with_args "staticstore" main
+let () = Project.register_pass main

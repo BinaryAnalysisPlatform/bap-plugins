@@ -2,7 +2,7 @@ open Core_kernel.Std
 open Bap.Std
 open Format
 
-let () = Project.register_pass' ~deps:["staticstore"] "print-stats"
+let () = Project.register_pass' ~deps:["staticstore"]
     (fun p ->
        Memmap.to_sequence (Project.memory p) |>
        Seq.fold ~init:(0,0,0) ~f:(fun (r,g,y) (_,v) ->
