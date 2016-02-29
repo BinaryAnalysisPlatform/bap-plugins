@@ -1,5 +1,10 @@
 open Core_kernel.Std
+open Regular.Std
+open Graphlib.Std
 open Bap.Std
+include Self()
+
+module Cfg = Graphs.Cfg
 
 module Cmdline = struct
   open Cmdliner
@@ -58,9 +63,8 @@ let string_of_site syms cs =
 let sym_of_site syms cs =
   let addr = Block.addr cs in
   match Symtab.find_by_start syms addr with
-  | Some fn ->
-    let mem = Symtab.entry_of_fn fn |> Block.memory in
-    let sym = Symtab.name_of_fn fn in
+  | Some (sym,entry,cfg) ->
+    let mem = Block.memory entry in
     let off = Addr.(addr - Memory.min_addr mem) in
     if Addr.is_zero off then sym
     else sprintf "%s" sym
@@ -91,7 +95,7 @@ let squash = function
         | x :: xs -> Set.remove (String.Set.of_list xs) x in
       sprintf "%s[%s]" p (String.concat ~sep:" " (Set.elements ps)) in
     let yield what state = Seq.Step.Yield (what,state) in
-    Sequence.unfold_step ~init:(x,xs) ~f:(fun (x,xs) ->
+    Seq.unfold_step ~init:(x,xs) ~f:(fun (x,xs) ->
         match x,xs with
         | [],[] -> Seq.Step.Done
         | _, [] :: _ | [], _ -> assert false
@@ -112,25 +116,23 @@ let squash = function
           yield (pps p ps) (q::qs, xs)) |>
     Seq.to_list_rev
 
-let main argv p =
+let main p =
   let is_interesting,k = Cmdline.parse argv in
   let symbols = Project.symbols p in
+  let cfg = Disasm.cfg (Project.disasm p) in
   let rec callstrings init n history dst : CSS.Set.t =
     match Symtab.find_by_start symbols (Block.addr dst) with
     | None -> Set.add init history
-    | Some fn ->
-      let bound = unstage (Symtab.create_bound symbols fn) in
-      Seq.fold (Block.preds dst) ~init:(Set.add init history)
+    | Some (sym,start,sub) ->
+      Seq.fold (Cfg.Node.preds dst cfg) ~init:(Set.add init history)
         ~f:(fun css src -> match find_starting_with css src with
             | Some cs -> Set.add css (List.rev_append cs @@ history)
             | None -> if n >= k then Set.add css history else
-                let n = if bound (Block.addr src)
+                let n = if Cfg.Node.mem src cfg
                   then n else n + 1 in
                 callstrings css n (src :: history) src) in
   Symtab.to_sequence symbols |>
-  Seq.fold ~init:CSS.Set.empty  ~f:(fun css fn ->
-      let sym = Symtab.name_of_fn fn in
-      let entry = Symtab.entry_of_fn fn in
+  Seq.fold ~init:CSS.Set.empty  ~f:(fun css (sym,entry,cfg) ->
       if is_interesting sym then
         let css' = callstrings css 0 [] entry  in
         Set.map (Set.diff css' css) ~comparator:String.comparator
@@ -142,10 +144,11 @@ let main argv p =
               squash @@
               List.map ~f:(List.map ~f:(sym_of_site symbols)) @@
               List.map ~f:(fun blk ->
-                  match Block.dests blk |> Seq.to_list with
-                  | [`Block (call, `Jump); `Block (_,`Fall)]
-                  | [`Block (_, `Fall); `Block (call, `Jump)] ->
-                    [blk; call]
+                  Cfg.Node.outputs blk cfg |> Seq.map ~f:(fun e ->
+                      Cfg.Edge.dst e, Cfg.Edge.label e) |>
+                  Seq.to_list |> function
+                  | [call, `Jump; _,`Fall]
+                  | [_, `Fall; call, `Jump] -> [blk; call]
                   | _ -> [blk]) @@
               css) |>
         Set.elements |>
@@ -156,4 +159,4 @@ let main argv p =
       else css) |> ignore
 
 
-let () = Project.register_pass_with_args' "callsites" main
+let () = Project.register_pass' main

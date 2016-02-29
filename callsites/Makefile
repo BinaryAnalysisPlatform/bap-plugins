@@ -1,6 +1,6 @@
 
 all :
-	bapbuild callsites.plugin
+	bapbuild -pkg cmdliner callsites.plugin
 
 clean :
 	bapbuild -clean
