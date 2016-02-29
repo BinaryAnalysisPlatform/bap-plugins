@@ -1,5 +1,6 @@
 open Core_kernel.Std
 open Bap.Std
+open Regular.Std
 open Spec_types
 
 

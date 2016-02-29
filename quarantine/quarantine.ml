@@ -1,4 +1,5 @@
 open Core_kernel.Std
+open Graphlib.Std
 open Bap.Std
 open Format
 open Spec
@@ -99,7 +100,7 @@ let contains_seed sub =
 
 let seeded callgraph subs =
   let callers sub =
-    Graphlib.fold_reachable (module Graphlib.Callgraph) callgraph
+    Graphlib.fold_reachable (module Graphs.Callgraph) callgraph
       ~rev:true ~init:Tid.Set.empty ~f:Set.add (Term.tid sub) in
   Seq.filter subs ~f:contains_seed |>
   Seq.fold ~init:Tid.Set.empty ~f:(fun subs sub ->
