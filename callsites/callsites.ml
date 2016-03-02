@@ -41,12 +41,12 @@ end
 
 module BS = Block.Set
 
-type callstring = block list with compare, sexp_of
+type callstring = block list [@@deriving compare, sexp_of]
 
 let callstring_of_sexp _ = failwith "callstring_of_sexp"
 
 module CSS = Comparable.Make(struct
-    type t = callstring with compare,sexp
+    type t = callstring [@@deriving compare, sexp]
   end)
 
 let singleton = CSS.Set.singleton

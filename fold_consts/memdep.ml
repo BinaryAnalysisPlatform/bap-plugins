@@ -12,7 +12,7 @@ type update = {
   base : exp;
   disp : size option;           (* zero (None) or up to size *)
   data : exp
-} with compare
+} [@@deriving compare]
 
 (** abstract value as an element of a flat lattice, where
     flat lattice over set [S] is defined as
@@ -24,23 +24,23 @@ type update = {
     not the lattice one.
 *)
 type 'a value = Bot | Val of 'a | Top
-with compare
+[@@deriving compare]
 
 (** a contiguous memory chunk (a word)  *)
-type chunk = exp value array with compare
+type chunk = exp value array [@@deriving compare]
 
 (** label of a dependency graph  *)
 type label = update list
-with compare
+[@@deriving compare]
 
 let option_hash hash = function
   | None -> Hashtbl.hash None
   | Some x -> hash x
 
 module Label = struct
-  type t = label with compare
+  type t = label [@@deriving compare]
   include Opaque.Make(struct
-      type t = label with compare
+      type t = label [@@deriving compare]
       let hash =
         List.fold ~init:(Hashtbl.hash []) ~f:(fun h x ->
             h
@@ -138,7 +138,7 @@ let meet_edges c cs = List.fold cs ~init:c ~f:meet_chunk
 
 
 module Disp = Comparable.Make(struct
-    type t = size option with sexp, compare
+    type t = size option [@@deriving sexp, compare]
   end)
 
 let disp_to_bytes = function

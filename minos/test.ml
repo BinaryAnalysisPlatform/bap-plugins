@@ -27,7 +27,7 @@ let subst = [
 
 let verbose = try Sys.getenv "VERBOSE" with Not_found -> "0"
 
-exception Command_failed of string with sexp
+exception Command_failed of string [@@deriving sexp]
 
 
 let result_of_string line =

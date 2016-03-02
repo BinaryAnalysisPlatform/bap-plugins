@@ -6,7 +6,7 @@ open Format
 
 module Id = String
 type id = Id.t
-with bin_io, compare, sexp
+[@@deriving bin_io, compare, sexp]
 
 let pp_list pp_sep pp_elem ppf xs =
   let rec pp ppf = function
@@ -21,7 +21,7 @@ let pp_break ppf = fprintf ppf "@;"
 module Constr = struct
   include Constr
   include Regular.Make(struct
-      type nonrec t = t with bin_io, compare, sexp
+      type nonrec t = t [@@deriving bin_io, compare, sexp]
       let version = "0.1"
       let hash = function
         | Dep (v1,v2) -> V.hash v1 lxor V.hash v2
@@ -40,7 +40,7 @@ end
 module S = struct
   include S
   include Regular.Make(struct
-      type nonrec t = t with bin_io, compare, sexp
+      type nonrec t = t [@@deriving bin_io, compare, sexp]
       let version = "0.1"
       let hash = Hashtbl.hash
 
@@ -67,7 +67,7 @@ module Pat = struct
     | Pat.Call (id,r,xs) -> Pat.Call (id,f r, List.map xs ~f)
 
   include Regular.Make(struct
-      type nonrec t = t with bin_io, compare, sexp
+      type nonrec t = t [@@deriving bin_io, compare, sexp]
       let version = "0.1"
       let hash = function
         | Call (id,_,_) -> Id.hash id
@@ -111,7 +111,7 @@ module Rule = struct
     name : string;
     premises : pat list;
     conclusions : pat list;
-  } with bin_io, compare, fields, sexp
+  } [@@deriving bin_io, compare, fields, sexp]
 
 
   let nullify rule cvars = {
@@ -121,7 +121,7 @@ module Rule = struct
   }
 
   include Regular.Make(struct
-      type nonrec t = t with bin_io, compare, sexp
+      type nonrec t = t [@@deriving bin_io, compare, sexp]
       let version = "0.1"
       let hash j = Id.hash j.name
       let module_name = None
@@ -134,7 +134,7 @@ module Rule = struct
     end)
 end
 
-type rule = Rule.t with bin_io, compare, sexp
+type rule = Rule.t [@@deriving bin_io, compare, sexp]
 
 module Defn = struct
   type t = {
@@ -142,7 +142,7 @@ module Defn = struct
     vars : (v * s) list;
     constrs : constr list;
     rules : rule list
-  } with bin_io, compare, fields, sexp
+  } [@@deriving bin_io, compare, fields, sexp]
 
   let ivars constrs =
     List.fold constrs ~init:V.Set.empty ~f:(fun ivars cs ->
@@ -189,7 +189,7 @@ module Defn = struct
   let ivars t = ivars t.constrs
 
   include Regular.Make(struct
-      type nonrec t = t with bin_io, compare, sexp
+      type nonrec t = t [@@deriving bin_io, compare, sexp]
       let version = "0.1"
       let module_name = None
       let hash d = Id.hash d.name
@@ -213,11 +213,11 @@ module Defn = struct
     end)
 end
 
-type defn = Defn.t with bin_io, compare, sexp
+type defn = Defn.t [@@deriving bin_io, compare, sexp]
 
 module Spec = struct
   type t = defn list
-  with bin_io, compare, sexp
+  [@@deriving bin_io, compare, sexp]
 
   let create defs =
     let compare x y = String.compare (Defn.name x) (Defn.name y) in
@@ -229,7 +229,7 @@ module Spec = struct
   let defns = ident
 
   include Regular.Make(struct
-      type nonrec t = t with bin_io, compare, sexp
+      type nonrec t = t [@@deriving bin_io, compare, sexp]
       let version = "0.1"
       let module_name = None
       let hash = Hashtbl.hash
@@ -239,11 +239,11 @@ module Spec = struct
     end)
 end
 
-type constr = Constr.t with bin_io, compare, sexp
-type v    = V.t    with bin_io, compare, sexp
-type s    = S.t    with bin_io, compare, sexp
-type pat  = Pat.t  with bin_io, compare, sexp
-type spec = Spec.t with bin_io, compare, sexp
+type constr = Constr.t [@@deriving bin_io, compare, sexp]
+type v    = V.t    [@@deriving bin_io, compare, sexp]
+type s    = S.t    [@@deriving bin_io, compare, sexp]
+type pat  = Pat.t  [@@deriving bin_io, compare, sexp]
+type spec = Spec.t [@@deriving bin_io, compare, sexp]
 
 
 module Language = struct

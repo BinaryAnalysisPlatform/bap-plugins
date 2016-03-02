@@ -10,8 +10,8 @@ module Taints = Taint.Set
 module Values = Bil.Result.Id.Map
 
 type t = Tid.t
-type set = Tid.Set.t with bin_io, compare, sexp
-type map = set Var.Map.t with bin_io, compare, sexp
+type set = Tid.Set.t [@@deriving bin_io, compare, sexp]
+type map = set Var.Map.t [@@deriving bin_io, compare, sexp]
 type 'a values = 'a Values.t
 
 let reg = Value.Tag.register
@@ -25,11 +25,11 @@ let ptr = Value.Tag.register
     (module Tid)
 
 module Taint_map = struct
-  type t = map with bin_io, compare, sexp
+  type t = map [@@deriving bin_io, compare, sexp]
   include Regular.Make(struct
       open Format
 
-      type t = map with bin_io, compare, sexp
+      type t = map [@@deriving bin_io, compare, sexp]
       let version = "0.1"
       let module_name = None
 
@@ -83,9 +83,9 @@ class context = object(self)
 
   (** T(r) <- T(r) U T *)
   method taint_reg r ts =
-    let tvs' = Values.change tvs (Bil.Result.id r) @@ function
+    let tvs' = Values.change tvs (Bil.Result.id r) ~f:(function
       | None -> Some ts
-      | Some ts' -> Some (Taints.union ts ts') in
+      | Some ts' -> Some (Taints.union ts ts')) in
     {< tvs = tvs' >}
 
   method taint_ptr a (s : size) ts =
@@ -121,7 +121,7 @@ let pp_set ppf (set : set) =
 
 let pp_map ppf (map : map) =
   Format.fprintf ppf "@[{@;";
-  Map.iter map ~f:(fun ~key ~data ->
+  Map.iteri map ~f:(fun ~key ~data ->
       Format.fprintf ppf "@[<2>%a => %a@]}"
         Var.pp key pp_set data)
 

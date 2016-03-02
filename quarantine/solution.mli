@@ -3,7 +3,7 @@ open Bap.Std
 open Spec
 open Format
 
-type t with bin_io, compare, sexp
+type t [@@deriving bin_io, compare, sexp]
 
 type hypothesis = tid Pat.Map.t
 

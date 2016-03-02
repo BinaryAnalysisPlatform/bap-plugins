@@ -1,7 +1,7 @@
 open Core_kernel.Std
 
 (* Sparse bitvector representation *)
-type t with sexp
+type t [@@deriving sexp]
 
 (* Constructor for infinite size domain value, where false is the empty set and
  * true is the universal set *)

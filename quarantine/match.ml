@@ -10,7 +10,7 @@ type t =
   | Eql of v * var    (** v matches var on lhs    *)
   | Any of t list     (** disjunction of matches  *)
   | All of t list     (** conjunction of matches  *)
-with variants
+[@@deriving variants]
 
 let bot = any []
 let top = all []
@@ -118,8 +118,8 @@ let call prog =
             ]) |> Seq.to_list_rev |> all) in
 
   let match_call_def call v : t =
-    if v = 0 then top 
-    else 
+    if v = 0 then top
+    else
     with_args call (fun args ->
         Seq.filter args ~f:(fun a -> Arg.intent a = Some Out) |>
         Seq.map ~f:(fun a ->

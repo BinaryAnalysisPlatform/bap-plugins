@@ -20,7 +20,7 @@ type hyp = {
   proofs  : tid Pat.Map.t;   (** map from a patter to matched t  *)
   ivars   : eq V.Map.t;      (** equivalence classes for inputs  *)
   constrs : constr list;     (** constraints that we mus satisfy *)
-} with fields
+} [@@deriving fields]
 
 
 (** State of a proof system. *)

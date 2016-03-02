@@ -2,30 +2,30 @@ open Core_kernel.Std
 open Bap.Std
 
 type id = string
-with bin_io, compare, sexp
+[@@deriving bin_io, compare, sexp]
 
-type v = V.t with bin_io, compare, sexp
+type v = V.t [@@deriving bin_io, compare, sexp]
 
 module Constr = struct
   type t =
     | Dep of v * v
     | Var of v * var
     | Fun of id * v
-  with bin_io, compare, sexp, variants
+  [@@deriving bin_io, compare, sexp, variants]
 end
 
 type constr = Constr.t
-with bin_io, compare, sexp
+[@@deriving bin_io, compare, sexp]
 
 module S = struct
   type t =
     | Reg
     | Ptr
-  with bin_io, compare, sexp, variants
+  [@@deriving bin_io, compare, sexp, variants]
 end
 
 type s = S.t
-with bin_io, compare, sexp
+[@@deriving bin_io, compare, sexp]
 
 module Pat = struct
   type t =
@@ -35,8 +35,8 @@ module Pat = struct
     | Load of v * v
     | Wild of v
     | Store of v * v
-  with bin_io, compare, sexp, variants
+  [@@deriving bin_io, compare, sexp, variants]
 end
 
 type pat = Pat.t
-with bin_io, compare, sexp
+[@@deriving bin_io, compare, sexp]

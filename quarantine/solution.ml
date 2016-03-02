@@ -8,8 +8,8 @@ type hypothesis = tid Pat.Map.t
 type hypotheses = hypothesis list
 type input = (defn * hypothesis) seq
 
-type proved = Nil with bin_io, compare, sexp
-type unproved = Cons of pat * pat list with bin_io, compare, sexp
+type proved = Nil [@@deriving bin_io, compare, sexp]
+type unproved = Cons of pat * pat list [@@deriving bin_io, compare, sexp]
 type undecided = pat list
 
 
@@ -19,7 +19,7 @@ type 'a model = {
   prem : (pat * tid) list;        (** all premises must hold  *)
   conc : (pat * tid) list;        (** proved conclusions      *)
   miss : 'a;                       (** unproved patterns       *)
-} with bin_io, compare, sexp
+} [@@deriving bin_io, compare, sexp]
 
 (** Solution for a given definition. It contains a set of examples
     and a set of counterexamples.
@@ -33,12 +33,12 @@ type 'a model = {
 type solution = {
   examples : proved model list;   (** all formulae are proved       *)
   counters : unproved model list; (** some conclusions are missing  *)
-} with bin_io, compare, sexp
+} [@@deriving bin_io, compare, sexp]
 
 type solutions = solution String.Map.t
-with bin_io, compare, sexp
+[@@deriving bin_io, compare, sexp]
 
-type t = solutions with bin_io, compare, sexp
+type t = solutions [@@deriving bin_io, compare, sexp]
 
 let line = "--------------------------------"
 
@@ -67,7 +67,7 @@ let pp_models pp ppf ms = List.iter ms ~f:(pp ppf)
 let pp_examples d ppf s = pp_models (pp_proved d) ppf s.examples
 let pp_counters d ppf s = pp_models (pp_unproved d) ppf s.counters
 let pp_hypothesis ppf hyp =
-  Map.iter hyp ~f:(fun ~key ~data ->
+  Map.iteri hyp ~f:(fun ~key ~data ->
       fprintf ppf "@;%a:%a" Tid.pp data Pat.pp key)
 
 let subset_of x y =

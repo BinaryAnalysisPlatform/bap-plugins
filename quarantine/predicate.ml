@@ -6,7 +6,7 @@ type t = {
   sat : 'a. 'a term -> var -> bool
 }
 
-exception Unbound_predicate of string with sexp
+exception Unbound_predicate of string [@@deriving sexp]
 
 
 let preds = String.Table.create ()

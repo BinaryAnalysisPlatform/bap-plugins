@@ -7,7 +7,7 @@ type t =
   | Eql of v * var    (** v bounds to var         *)
   | Any of t list     (** disjunction of matches  *)
   | All of t list     (** conjunction of matches  *)
-with variants
+[@@deriving variants]
 
 
 (** [Any []] is a bot value (never matches)  *)

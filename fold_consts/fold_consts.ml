@@ -26,7 +26,7 @@ let fix_sp : string option option Term.t =
          options.fix_sp & info ["fix-sp"] ~doc)
 
 module Perm = struct
-  type t = [`no | `ro | `rw] with sexp
+  type t = [`no | `ro | `rw] [@@deriving sexp]
   let to_string x = Sexp.to_string (sexp_of_t x)
   let variants = List.map [`no;`ro;`rw] ~f:(fun x -> to_string x, x)
 end

@@ -21,12 +21,12 @@ module Vars = struct
         Vector.length pool - 1
 end
 
-type t = int with bin_io, compare, sexp
+type t = int [@@deriving bin_io, compare, sexp]
 
 let null = 0
 let create = Vars.register
 include Regular.Make(struct
-    type t = int with bin_io, compare, sexp
+    type t = int [@@deriving bin_io, compare, sexp]
     let module_name = None
     let pp ppf idx = fprintf ppf "%s" (Vars.lookup idx)
     let hash = ident

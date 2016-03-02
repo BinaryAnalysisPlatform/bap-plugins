@@ -307,7 +307,7 @@ let run_from_point mapping p biri point =
 
 let create_mapping prog =
   let addrs = Addr.Table.create () in
-  let add t a = Hashtbl.replace addrs ~key:a ~data:(Term.tid t) in
+  let add t a = Hashtbl.set addrs ~key:a ~data:(Term.tid t) in
   Term.enum sub_t prog |> Seq.iter ~f:(fun sub ->
       Term.enum blk_t sub |> Seq.iter  ~f:(fun blk ->
           match Term.get_attr blk Disasm.block with

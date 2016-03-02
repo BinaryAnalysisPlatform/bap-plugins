@@ -9,7 +9,7 @@ type direction = Forwards | Backwards
 
 module Address = struct
   module T = struct
-    type t = addr * int with sexp
+    type t = addr * int [@@deriving sexp]
 
     let hash t = (Addr.hash (fst t)) lxor (Int.hash (snd t))
 

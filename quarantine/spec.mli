@@ -39,11 +39,11 @@ module Pat : sig
   include Regular with type t := t
 end
 
-type constr = Constr.t with bin_io, compare, sexp
-type id = string with bin_io, compare, sexp
-type v    = V.t    with bin_io, compare, sexp
-type s    = S.t    with bin_io, compare, sexp
-type pat  = Pat.t  with bin_io, compare, sexp
+type constr = Constr.t [@@deriving bin_io, compare, sexp]
+type id = string [@@deriving bin_io, compare, sexp]
+type v    = V.t    [@@deriving bin_io, compare, sexp]
+type s    = S.t    [@@deriving bin_io, compare, sexp]
+type pat  = Pat.t  [@@deriving bin_io, compare, sexp]
 
 
 module Rule : sig
@@ -54,7 +54,7 @@ module Rule : sig
   include Regular with type t := t
 end
 
-type rule = Rule.t with bin_io, compare, sexp
+type rule = Rule.t [@@deriving bin_io, compare, sexp]
 
 module Defn : sig
   type t
@@ -66,15 +66,15 @@ module Defn : sig
   include Regular with type t := t
 end
 
-type defn = Defn.t with bin_io, compare, sexp
+type defn = Defn.t [@@deriving bin_io, compare, sexp]
 
 module Spec : sig
-  type t with bin_io, compare, sexp
+  type t [@@deriving bin_io, compare, sexp]
   val defns : t -> defn list
   include Regular with type t := t
 end
 
-type spec = Spec.t with bin_io, compare, sexp
+type spec = Spec.t [@@deriving bin_io, compare, sexp]
 
 module Language : sig
   (** {2 Keywords}  *)

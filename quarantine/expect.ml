@@ -24,14 +24,14 @@ let sat e s = Re.execp e.regexp s
 module G = struct
   type t = expect * string array
   module V = struct
-    type t = Source | Sink | Person of int | Task of int with compare
+    type t = Source | Sink | Person of int | Task of int [@@deriving compare]
     let hash = Hashtbl.hash
     let equal x y = compare x y = 0
   end
   module E = struct
     type label = unit
 
-    type t = {src : V.t; dst : V.t} with fields
+    type t = {src : V.t; dst : V.t} [@@deriving fields]
     let make src dst = {src; dst}
     let label _ = ()
   end

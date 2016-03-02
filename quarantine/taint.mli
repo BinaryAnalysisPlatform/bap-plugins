@@ -7,8 +7,8 @@ open Spec
 
 type t = tid
 
-type set = Tid.Set.t with bin_io, compare, sexp
-type map = set Var.Map.t with bin_io, compare, sexp
+type set = Tid.Set.t [@@deriving bin_io, compare, sexp]
+type map = set Var.Map.t [@@deriving bin_io, compare, sexp]
 
 
 (** value stored in register is source of taint  *)

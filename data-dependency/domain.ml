@@ -7,7 +7,7 @@ type t = {
   value : bool;
   (* List of indexes that have the corresponding bit set *)
   indexes : Int.Set.t;
-} with sexp
+} [@@deriving sexp]
 
 exception Not_invertible
 exception Not_representable
@@ -111,7 +111,7 @@ let fold v1 ~init ~f = Int.Set.fold ~init ~f:(fun accum v2 ->
              value = v1.value; infinite = v1.infinite }) v1.indexes
 
 include Comparable.Make(struct
-    type nonrec t = t with sexp
+    type nonrec t = t [@@deriving sexp]
     let rec compare a b = match (a.value = b.value, a.infinite = b.infinite) with
       | (true, true) -> Int.Set.compare a.indexes b.indexes
       | (false, true) -> let size =
