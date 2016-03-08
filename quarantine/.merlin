@@ -1,6 +1,2 @@
-PKG bap
-PKG regular
-PKG graphlib
+REC
 B _build
-EXT nonrec
-FLG -short-paths

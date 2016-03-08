@@ -2,8 +2,6 @@ open Core_kernel.Std
 open Graphlib.Std
 open Bap.Std
 open Format
-open Spec
-open Specification
 let k = 500
 
 
@@ -159,10 +157,8 @@ let visited_sub stat res = {
 }
 
 let main proj =
-  printf "* Specification@.%a" Spec.pp spec;
   let prog = Project.program proj |>
              map_terms mark_black_terms in
-  let prog = Tainter.seed spec prog in
   let proj = Project.with_program proj prog in
   let callgraph = Program.to_graph prog in
   let subs = Term.enum sub_t prog |>
@@ -187,21 +183,8 @@ let main proj =
           let stat = visited_sub stat ctxt in
           Project.with_program proj prog, stat) in
   printf "Coverage: %a@." pp_coverage stat;
-  printf "@[<v>Solving...@;";
   let prog = Project.program proj |>
              map_terms (unseed_if_non_visited stat.visited) in
-  let tainter = Tainter.reap prog in
-  let state = State.create spec tainter in
-  let state = Solver.run state prog in
-  let sol = State.solution state spec in
-  List.iter (Spec.defns spec) ~f:(fun defn ->
-      printf "@[* %s@." (Defn.name defn);
-      printf "@[** find %s@." (Defn.name defn);
-      printf "%a" (Solution.pp_sat defn) sol;
-      printf "@]";
-      printf "@[** assert %s@." (Defn.name defn);
-      printf "%a" (Solution.pp_unsat defn) sol;
-      printf "@]@]");
-  proj
+  Project.with_program proj prog
 
 let () = Project.register_pass main

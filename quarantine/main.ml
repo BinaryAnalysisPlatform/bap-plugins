@@ -247,6 +247,7 @@ class ['a] main summary memory tid_of_addr const = object(self)
     SM.put ctxt >>= fun () ->
     SM.return r
 
+
   method private shortcut_indirect call =
     match Call.target call with
     | Direct _ -> self#call_with_restore call

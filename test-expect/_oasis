@@ -1,0 +1,15 @@
+OASISFormat: 0.4
+Name:        "bap-test-expect"
+Version:     0.1
+Synopsis:    Test expectations escripted in the C file
+Authors:     BAP Team
+Maintainers: Ivan Gotovchits <ivg@ieee.org>
+License:     MIT
+Copyrights:  (C) 2016 Carnegie Mellon University
+BuildTools: ocamlbuild
+
+Executable "bap-test-expect"
+  Path: .
+  MainIs: test.ml
+  Install: true
+  BuildDepends: ppx_jane, core_kernel, ocamlgraph, re.posix

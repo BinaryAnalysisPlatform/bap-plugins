@@ -7,8 +7,7 @@ open Format
 let compile =
   "$(arch)-$(abi)-$(cc)-$(ver) $opt -g $(file).c -o $(dir)$(file)"
 
-let bap =
-  "bap $(user_options) $(options) $(dir)$(file) $(symfile) $(pass) $(redirect)"
+let bap = "bap $(dir)$(file) $(options)"
 
 let test_folder = "/tmp/bap/tests/"
 
@@ -19,11 +18,7 @@ let subst = [
   "ver", "4.7";
   "opt", "";
   "dir", test_folder;
-  "user_options", "";
   "options", "";
-  "symfile", "";
-  "pass", "";
-  "redirect", "";
 ]
 
 type expect = Expect.t
@@ -59,7 +54,6 @@ let sh cmd =
   if Sys.command cmd <> 0 then
     raise (Command_failed cmd)
 
-
 let build_file file =
   let file = chop_extension file in
   sh @@ expand compile @@ ["file", file] @ subst
@@ -69,18 +63,16 @@ let mtime file =
   try Unix.((stat file).st_mtime) with exn -> 0.0
 
 let needs_rebuild f =
-  let s =
-    expand (sprintf "$(dir)%s.syms" @@ chop_extension f) subst in
+  let s = expand (sprintf "$(dir)%s" @@ chop_extension f) subst in
   mtime f > mtime s
 
-let pipe_bap pass file =
+let pipe_bap file =
   sh @@ expand "mkdir -p $(dir)$(file)" @@
   ["file", dirname file] @ subst;
   if needs_rebuild file then build_file file;
   pipe @@ expand bap @@ [
     "file", chop_extension file;
-    "options", sprintf "--%s" pass] @
-    subst
+  ] @ subst
 
 let print_result misses got =
   eprintf "@.@.%a in the following output:@.@."
@@ -91,10 +83,9 @@ let set_of_list xs =
   List.fold xs ~init:String.Set.empty ~f:(fun set s ->
       Set.add set (String.strip s))
 
-
-let ok pass file =
+let ok file =
   let exp = expected_results file in
-  let got = pipe_bap pass file  in
+  let got = pipe_bap file  in
   match Expect.all_matches exp got with
   | `Yes -> true
   | `Missed misses ->
@@ -102,26 +93,26 @@ let ok pass file =
     false
 
 
-let check pass file =
+let check file =
   if file <> Sys.argv.(0) then
-    let r = ok pass file in
+    let r = ok file in
     if r
     then printf "%-40s%s\n%!" file "ok"
     else printf "%-40s%s\n%!" file "fail";
     not r
   else false
 
-let run pass files =
-  List.count files ~f:(check pass) |> function
+let run files =
+  List.count files ~f:check |> function
   | 0 -> printf "all ok\n"; exit 0
   | 1 -> printf "one failure\n"; exit 1
   | n -> printf "%d failures\n" n; exit 1
 
 let main () =
   match Array.to_list Sys.argv with
-  | _ :: pass :: files -> run pass files
+  | _ :: files -> run files
   | _ ->
-    eprintf "Usage: bapbuild test.native -- <pass> <file1> <file2> .. ";
+    eprintf "Usage: TEST_OPTIONS='..' bapbuild test.native -- <file1> <file2> .. ";
     exit 3
 
 let () = main ()

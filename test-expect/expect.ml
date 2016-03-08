@@ -1,7 +1,6 @@
 open Core_kernel.Std
 open Graph
 
-
 type trial = {
   regexp : Re.re;
   string : string;
