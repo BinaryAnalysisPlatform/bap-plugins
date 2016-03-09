@@ -79,12 +79,10 @@ class context p total  = object(self : 's)
   method tms = tms
   method cps = cps
   method vis = vis
+  method callstack = callstack
   method visited = Tid.Set.of_list (Map.keys vis)
-
   method enter_blk blk = {< blk = Some blk >}
-
-  method enter_sub sub =
-    {< callstack = sub :: callstack >}
+  method enter_sub sub = {< callstack = sub :: callstack >}
 
   method leave_sub (_ : sub term) = match callstack with
     | _ :: top -> {< callstack = top >}
@@ -115,7 +113,8 @@ class context p total  = object(self : 's)
       vis = runner#vis;
       tvs = runner#tvs;
       tms = runner#tms;
-      cps = Map.remove runner#cps tid
+      cps = Map.remove runner#cps tid;
+      callstack = runner#callstack
     >}
 
   method propagate_var tid v r =
