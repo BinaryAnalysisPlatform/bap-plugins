@@ -21,7 +21,7 @@ let solve spec proj =
       printf "@]";
       printf "@[** assert %s@." (Defn.name defn);
       printf "%a" (Solution.pp_unsat defn) sol;
-      printf "@]@]")
+      printf "@]@]@.")
 
 let () =
   let spec = Specification.spec in

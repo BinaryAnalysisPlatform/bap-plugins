@@ -1,5 +1,7 @@
 //!  000.....: p := malloc()
 //!  000.....: when c jmp _
+//!  Coverage: .* 100%
+
 #include <stdlib.h>
 
 int main(int argc, const char* argv[]) {

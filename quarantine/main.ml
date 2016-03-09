@@ -59,8 +59,6 @@ let taints_of_tid taints tid =
   | None -> Var.Map.empty
   | Some ts -> ts
 
-
-
 class context p total  = object(self : 's)
   inherit Taint.context as taints
   inherit Biri.context p as super
@@ -151,7 +149,6 @@ class ['a] main summary memory tid_of_addr const = object(self)
 
   method! eval_unknown _ t = self#emit t
 
-  (*  *)
   method! lookup v =
     super#lookup v >>= fun r ->
     SM.get () >>= fun ctxt ->
@@ -161,7 +158,6 @@ class ['a] main summary memory tid_of_addr const = object(self)
       let ctxt = ctxt#propagate_var tid v r in
       let ctxt = ctxt#propagate_mem tid v r in
       SM.put ctxt >>= fun () ->
-
       match Bil.Result.value r with
       | Bil.Imm _ | Bil.Mem _ -> SM.return r
       | Bil.Bot -> self#emit (Var.typ v)
@@ -177,7 +173,6 @@ class ['a] main summary memory tid_of_addr const = object(self)
         SM.put ctxt >>= fun () ->
         SM.return r
 
-
   method! eval_blk blk =
     SM.get () >>= fun ctxt ->
     SM.put (ctxt#enter_blk blk) >>= fun () ->
@@ -189,19 +184,23 @@ class ['a] main summary memory tid_of_addr const = object(self)
     | None -> SM.put (ctxt#set_next None)
     | Some ctxt ->
       SM.put ctxt >>= fun () ->
-      super#eval_jmp jmp
-      >>= fun () ->
-      match ctxt#blk with
-      | None -> assert false
-      | Some blk ->
-        Term.enum jmp_t blk |>
-        Seq.fold ~init:(SM.return ()) ~f:(fun m jmp ->
-            m >>= fun () ->
-            match target_of_goto jmp with
-            | None -> SM.return ()
-            | Some tid ->
-              SM.get () >>= fun ctxt ->
-              SM.put (ctxt#checkpoint tid))
+      super#eval_jmp jmp >>= fun () ->
+      self#checkpoint
+
+  method private checkpoint =
+    SM.get () >>= fun ctxt ->
+    match ctxt#blk with
+    | None -> assert false
+    | Some blk ->
+      Term.enum jmp_t blk |>
+      Seq.fold ~init:(SM.return ()) ~f:(fun m jmp ->
+          m >>= fun () ->
+          match target_of_goto jmp with
+          | None -> SM.return ()
+          | Some tid ->
+            SM.get () >>= fun ctxt ->
+            let ctxt = ctxt#visit_term (Term.tid jmp) in
+            SM.put (ctxt#checkpoint tid))
 
   method! eval_call call =
     self#shortcut_indirect call >>= fun () ->
@@ -214,6 +213,8 @@ class ['a] main summary memory tid_of_addr const = object(self)
       match tid_of_addr dst with
       | Some dst -> self#eval_direct dst
       | None -> self#backtrack
+
+  method! eval_exn _ _ = self#backtrack
 
   method private backtrack  =
     SM.get () >>= fun ctxt ->
@@ -246,7 +247,6 @@ class ['a] main summary memory tid_of_addr const = object(self)
     let ctxt,r = ctxt#create_storage self#empty in
     SM.put ctxt >>= fun () ->
     SM.return r
-
 
   method private shortcut_indirect call =
     match Call.target call with

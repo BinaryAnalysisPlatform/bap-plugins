@@ -2,6 +2,7 @@
 //!  unproved: when c jmp .
 //!  000.....: p := malloc()
 //!  000.....: when c jmp .
+//!  Coverage: .* 100%
 
 
 #include <stdlib.h>

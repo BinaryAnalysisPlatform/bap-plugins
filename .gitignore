@@ -22,3 +22,4 @@ setup.log
 /test-expect/myocamlbuild.ml
 /test-expect/setup.ml
 /saluki/saluki.plugin
+/test-expect/_tags

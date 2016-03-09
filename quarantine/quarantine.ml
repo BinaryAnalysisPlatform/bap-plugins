@@ -14,7 +14,8 @@ let black_term = [
 ] |> List.map ~f:Tid.from_string_exn
   |> Tid.Set.of_list
 
-let is_interesting_sub sub = true
+let is_interesting_sub sub =
+  Sub.name sub = "sub_DE28"
 
 type mapper = {map : 'a. 'a term -> 'a term}
 
@@ -139,7 +140,7 @@ let pp_progressbar ppf {sub_count=x; sub_total=y} =
   fprintf ppf "%a" pp_ratio (x,y)
 
 let pp_coverage ppf {visited; terms} =
-  let x = Set.length visited in
+  let x = Set.length (Set.inter terms visited) in
   let y = Set.length terms in
   pp_ratio ppf (x,y)
 
@@ -163,7 +164,6 @@ let main proj =
   let callgraph = Program.to_graph prog in
   let subs = Term.enum sub_t prog |>
              Seq.filter ~f:is_interesting_sub |>
-             (* Seq.map ~f:Term.tid |> Seq.to_list_rev |> Tid.Set.of_list in *)
              seeded callgraph in
   let proj,stat =
     Term.enum sub_t prog |>
@@ -171,8 +171,7 @@ let main proj =
     Seq.fold ~init:(proj,stats (Set.length subs))
       ~f:(fun (proj,stat) sub ->
           let stat = entered_sub stat sub in
-          eprintf "%-40s %a\r%!"
-            (Sub.name sub) pp_progressbar stat;
+          eprintf "%-40s %a\r%!" (Sub.name sub) pp_progressbar stat;
           let ctxt = Main.run proj k (`Term (Term.tid sub)) in
           let mark = marker_of_markers [
               mark_if_visited ctxt;
@@ -182,7 +181,7 @@ let main proj =
           let prog = Project.program proj |> map_terms mark in
           let stat = visited_sub stat ctxt in
           Project.with_program proj prog, stat) in
-  printf "Coverage: %a@." pp_coverage stat;
+  printf "@.Coverage: %a@." pp_coverage stat;
   let prog = Project.program proj |>
              map_terms (unseed_if_non_visited stat.visited) in
   Project.with_program proj prog
