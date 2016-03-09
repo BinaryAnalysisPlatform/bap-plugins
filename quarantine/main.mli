@@ -2,7 +2,7 @@ open Core_kernel.Std
 open Bap.Std
 
 class type result = object
-  method visited : Tid.Set.t
+  method visited : int Tid.Map.t
   method tainted_regs : tid -> Taint.map
   method tainted_ptrs : tid -> Taint.map
 end

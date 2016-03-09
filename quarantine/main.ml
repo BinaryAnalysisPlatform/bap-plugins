@@ -10,7 +10,7 @@ type taints = Tid.Set.t Var.Map.t Tid.Map.t
 
 
 class type result = object
-  method visited : Tid.Set.t
+  method visited : int Tid.Map.t
   method tainted_regs : tid -> Tid.Set.t Var.Map.t
   method tainted_ptrs : tid -> Tid.Set.t Var.Map.t
 end
@@ -80,7 +80,7 @@ class context p total  = object(self : 's)
   method cps = cps
   method vis = vis
   method callstack = callstack
-  method visited = Tid.Set.of_list (Map.keys vis)
+  method visited = vis
   method enter_blk blk = {< blk = Some blk >}
   method enter_sub sub = {< callstack = sub :: callstack >}
 

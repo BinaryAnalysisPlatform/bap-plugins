@@ -20,7 +20,7 @@ type mapper = {map : 'a. 'a term -> 'a term}
 
 let mark_if_visited ctxt =
   let map t =
-    if Set.mem ctxt#visited (Term.tid t)
+    if Map.mem ctxt#visited (Term.tid t)
     then Term.set_attr t foreground `green else t in
   {map}
 
@@ -153,7 +153,10 @@ let entered_sub stat sub = {
 }
 let visited_sub stat res = {
   stat with
-  visited = Set.union stat.visited res#visited
+  visited =
+    Map.fold res#visited ~init:stat.visited
+      ~f:(fun ~key:tid ~data:_ vis ->
+          Set.add vis tid)
 }
 
 let main proj =
