@@ -17,6 +17,7 @@ end
 
 let def_summary _ = None
 let def_const = Word.zero 8
+let max_loop_length = 10
 
 
 let skip () = SM.return false
@@ -57,13 +58,18 @@ let taints_of_tid taints tid =
   | None -> Var.Map.empty
   | Some ts -> ts
 
+let visit vis tid = Map.change vis tid ~f:(function
+    | None   -> Some 1
+    | Some n -> Some (n+1))
+
 class context p total  = object(self : 's)
   inherit Taint.context as taints
   inherit Biri.context p as super
 
   val blk : blk term option = None
+  val callstack : sub term list = []
   val k = total
-  val vis : Tid.Set.t = Tid.Set.empty (* visited *)
+  val vis : int Tid.Map.t = Tid.Map.empty (* visited *)
   val cps : 's Tid.Map.t = Tid.Map.empty (* checkpoints *)
   val tvs : taints = Tid.Map.empty
   val tms : taints = Tid.Map.empty
@@ -72,22 +78,29 @@ class context p total  = object(self : 's)
   method tvs = tvs
   method tms = tms
   method cps = cps
-  method visited = vis
+  method vis = vis
+  method visited = Tid.Set.of_list (Map.keys vis)
 
   method enter_blk blk = {< blk = Some blk >}
 
+  method enter_sub sub =
+    {< callstack = sub :: callstack >}
+
+  method leave_sub (_ : sub term) = match callstack with
+    | _ :: top -> {< callstack = top >}
+    | [] -> {< callstack = [] >}
+
   method blk = blk
 
-  method step =
-    if k > 0
+  method step = if k > 0
     then Some {< k = k - 1 >}
     else None
 
   method visit_term tid =
-    {< vis = Set.add vis tid; cps = Map.remove cps tid; >}
+    {< vis = visit vis tid; cps = Map.remove cps tid; >}
 
   method checkpoint tid =
-    if Set.mem vis tid then self
+    if Map.mem vis tid then self
     else {< cps = Map.add cps ~key:tid ~data:self>}
 
   method backtrack : (tid * 's) option =
@@ -99,7 +112,7 @@ class context p total  = object(self : 's)
   method merge runner tid =
     {<
       k   = runner#k;
-      vis = runner#visited;
+      vis = runner#vis;
       tvs = runner#tvs;
       tms = runner#tms;
       cps = Map.remove runner#cps tid
@@ -116,6 +129,12 @@ class context p total  = object(self : 's)
 
   method tainted_regs = taints_of_tid tvs
   method tainted_ptrs = taints_of_tid tms
+
+  method will_loop tid = match callstack with
+    | [] -> false
+    | sub :: _ -> match Map.find vis tid with
+      | None -> false
+      | Some n -> n > max_loop_length && Term.find blk_t sub tid <> None
 end
 
 let taint_reg ctxt x seed =
@@ -176,6 +195,13 @@ class ['a] main summary memory tid_of_addr const = object(self)
     SM.put (ctxt#enter_blk blk) >>= fun () ->
     super#eval_blk blk
 
+  method! eval_sub sub =
+    SM.get () >>= fun ctxt ->
+    SM.put (ctxt#enter_sub sub) >>= fun () ->
+    super#eval_sub sub >>= fun () ->
+    SM.get () >>= fun ctxt ->
+    SM.put (ctxt#leave_sub sub)
+
   method! eval_jmp jmp =
     SM.get () >>= fun ctxt ->
     match ctxt#step with
@@ -183,7 +209,13 @@ class ['a] main summary memory tid_of_addr const = object(self)
     | Some ctxt ->
       SM.put ctxt >>= fun () ->
       super#eval_jmp jmp >>= fun () ->
-      self#checkpoint
+      self#checkpoint >>= fun () ->
+      SM.get () >>= fun ctxt ->
+      match ctxt#next with
+      | None -> self#backtrack
+      | Some dst when ctxt#will_loop dst ->
+        self#backtrack
+      | Some dst -> SM.return ()
 
   method private checkpoint =
     SM.get () >>= fun ctxt ->

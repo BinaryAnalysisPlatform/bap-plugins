@@ -2,7 +2,7 @@ open Core_kernel.Std
 open Graphlib.Std
 open Bap.Std
 open Format
-let k = 500
+let k = 1000
 
 
 let black_addr = Addr.Set.of_list [
