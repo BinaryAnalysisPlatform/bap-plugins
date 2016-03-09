@@ -15,8 +15,6 @@ class type result = object
   method tainted_ptrs : tid -> Tid.Set.t Var.Map.t
 end
 
-
-
 let def_summary _ = None
 let def_const = Word.zero 8
 
@@ -104,7 +102,7 @@ class context p total  = object(self : 's)
       vis = runner#visited;
       tvs = runner#tvs;
       tms = runner#tms;
-      cps = runner#cps
+      cps = Map.remove runner#cps tid
     >}
 
   method propagate_var tid v r =
@@ -185,7 +183,12 @@ class ['a] main summary memory tid_of_addr const = object(self)
     | Some ctxt ->
       SM.put ctxt >>= fun () ->
       super#eval_jmp jmp >>= fun () ->
-      self#checkpoint
+      self#checkpoint >>= fun () ->
+      SM.get () >>= fun ctxt ->
+      match ctxt#next with
+      | None -> self#backtrack
+      | Some dst when Set.mem ctxt#visited dst -> self#backtrack
+      | Some dst -> SM.return ()
 
   method private checkpoint =
     SM.get () >>= fun ctxt ->

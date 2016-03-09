@@ -14,8 +14,7 @@ let black_term = [
 ] |> List.map ~f:Tid.from_string_exn
   |> Tid.Set.of_list
 
-let is_interesting_sub sub =
-  Sub.name sub = "sub_DE28"
+let is_interesting_sub sub = true
 
 type mapper = {map : 'a. 'a term -> 'a term}
 
