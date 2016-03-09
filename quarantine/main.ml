@@ -183,12 +183,7 @@ class ['a] main summary memory tid_of_addr const = object(self)
     | Some ctxt ->
       SM.put ctxt >>= fun () ->
       super#eval_jmp jmp >>= fun () ->
-      self#checkpoint >>= fun () ->
-      SM.get () >>= fun ctxt ->
-      match ctxt#next with
-      | None -> self#backtrack
-      | Some dst when Set.mem ctxt#visited dst -> self#backtrack
-      | Some dst -> SM.return ()
+      self#checkpoint
 
   method private checkpoint =
     SM.get () >>= fun ctxt ->
@@ -227,10 +222,11 @@ class ['a] main summary memory tid_of_addr const = object(self)
       SM.put ctxt >>= fun () -> self#eval_direct next
 
   method! eval_def def =
+    super#lookup (Def.lhs def) >>= fun x ->
     super#eval_def def >>= fun () ->
     SM.get () >>= fun ctxt ->
-    super#lookup (Def.lhs def) >>= fun x ->
     SM.put (taint_term def ctxt x) >>= fun () ->
+    super#lookup (Def.lhs def) >>= fun x ->
     self#update (Def.lhs def) x
 
   method private emit t =
