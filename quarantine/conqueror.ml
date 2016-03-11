@@ -8,7 +8,6 @@ open Format
 
 
 let def_summary _ = None
-let def_const = Word.zero 8
 
 
 let skip () = SM.return false
@@ -42,47 +41,6 @@ let create_mapping prog =
       | Some addr -> add sub addr
       | None -> ());
   Hashtbl.find addrs
-
-
-class ['a] concretizer ?(memory=fun _ -> None) ?(const=def_const) () =
-  object(self)
-    inherit ['a] expi as super
-    method! eval_unknown _ t = self#emit t
-
-    method! lookup v =
-      super#lookup v >>= fun r ->
-      match Bil.Result.value r with
-      | Bil.Imm _ | Bil.Mem _ -> SM.return r
-      | Bil.Bot -> self#emit (Var.typ v)
-
-    method! load s a =
-      super#load s a >>= fun r -> match Bil.Result.value r with
-      | Bil.Imm _ | Bil.Mem _ -> SM.return r
-      | Bil.Bot -> match memory a with
-        | None -> self#emit_const 8
-        | Some w ->
-          SM.get () >>= fun ctxt ->
-          let ctxt,r = ctxt#create_word w in
-          SM.put ctxt >>= fun () ->
-          SM.return r
-
-    method private emit = function
-      | Type.Imm sz -> self#emit_const sz
-      | Type.Mem _  -> self#emit_empty
-
-    method private emit_const sz =
-      SM.get () >>= fun ctxt ->
-      let const = Word.extract_exn ~lo:0 ~hi:(sz-1) const in
-      let ctxt,r = ctxt#create_word const in
-      SM.put ctxt >>= fun () ->
-      SM.return r
-
-    method private emit_empty =
-      SM.get () >>= fun ctxt ->
-      let ctxt,r = ctxt#create_storage self#empty in
-      SM.put ctxt >>= fun () ->
-      SM.return r
-  end
 
 type 's checkpoint = tid * 's
 
@@ -203,8 +161,8 @@ class ['a] main ?(summary=def_summary) p =
         match ctxt#next with
         | Some dst when ctxt#will_loop dst -> self#return
         | Some dst when ctxt#will_return dst -> self#return
+        | Some dst -> SM.return ()
         | None -> self#return
-        | _ -> SM.return ()
 
     method private stop =
       SM.get () >>= fun ctxt -> SM.put (ctxt#set_next None)

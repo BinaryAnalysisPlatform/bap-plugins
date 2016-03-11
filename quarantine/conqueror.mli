@@ -29,10 +29,6 @@ class context :
     method will_return : tid -> bool
   end
 
-class ['a] concretizer :
-  ?memory:(addr -> word option) ->
-  ?const:word -> unit -> ['a] expi
-
 class ['a] main :
   ?summary:(call -> (var * Bil.value) list option) ->
   program term -> object

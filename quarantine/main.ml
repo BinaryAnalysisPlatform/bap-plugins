@@ -89,7 +89,7 @@ class ['a] main ?summary ?const proj =
   object(self)
     constraint 'a = #context
     inherit ['a] Conqueror.main ?summary prog as super
-    inherit ['a] Conqueror.concretizer ~memory ?const () as concrete
+    inherit ['a] Concretizer.main ~memory ?const () as concrete
     inherit ['a] Taint.propagator
 
     method! lookup v =
