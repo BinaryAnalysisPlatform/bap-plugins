@@ -1,47 +1,16 @@
 open Core_kernel.Std
 open Bap.Std
-
+open Format
 module SM = Monad.State
 open SM.Monad_infix
 
-open Format
-
 type taints = Tid.Set.t Var.Map.t Tid.Map.t
-
 
 class type result = object
   method visited : int Tid.Map.t
-  method tainted_regs : tid -> Tid.Set.t Var.Map.t
-  method tainted_ptrs : tid -> Tid.Set.t Var.Map.t
+  method tainted_regs : tid -> Taint.map
+  method tainted_ptrs : tid -> Taint.map
 end
-
-let def_summary _ = None
-let def_const = Word.zero 8
-let max_loop_length = 10
-
-
-let skip () = SM.return false
-let pass () = SM.return true
-
-let summaries = String.Map.of_alist_exn [
-  ]
-
-let def_summary call = match Call.target call with
-  | Indirect _ -> None
-  | Direct tid ->
-    Map.find summaries (Tid.name tid)
-
-let target_of_goto jmp = match Jmp.kind jmp with
-  | Goto (Direct tid) -> Some tid
-  | _ -> None
-
-let union_map m1 m2 ~f =
-  Map.merge m1 m2 ~f:(fun ~key -> function
-      | `Both (v1,v2) -> Some (f v1 v2)
-      | `Left v | `Right v -> Some v)
-
-let union_vars : taints -> taints -> taints =
-  union_map ~f:(union_map ~f:Set.union)
 
 let propagate taints vars tid v r : taints =
   let ts = taints r in
@@ -58,64 +27,16 @@ let taints_of_tid taints tid =
   | None -> Var.Map.empty
   | Some ts -> ts
 
-let visit vis tid = Map.change vis tid ~f:(function
-    | None   -> Some 1
-    | Some n -> Some (n+1))
 
-class context p total  = object(self : 's)
+class context ?max_steps ?max_loop_length p  = object(self : 's)
   inherit Taint.context as taints
-  inherit Biri.context p as super
+  inherit Conqueror.context ?max_steps ?max_loop_length p as super
 
-  val blk : blk term option = None
-  val callstack : sub term list = []
-  val k = total
-  val vis : int Tid.Map.t = Tid.Map.empty (* visited *)
-  val cps : 's Tid.Map.t = Tid.Map.empty (* checkpoints *)
   val tvs : taints = Tid.Map.empty
   val tms : taints = Tid.Map.empty
 
-  method k   = k
   method tvs = tvs
   method tms = tms
-  method cps = cps
-  method vis = vis
-  method callstack = callstack
-  method visited = vis
-  method enter_blk blk = {< blk = Some blk >}
-  method enter_sub sub = {< callstack = sub :: callstack >}
-
-  method leave_sub (_ : sub term) = match callstack with
-    | _ :: top -> {< callstack = top >}
-    | [] -> {< callstack = [] >}
-
-  method blk = blk
-
-  method step = if k > 0
-    then Some {< k = k - 1 >}
-    else None
-
-  method visit_term tid =
-    {< vis = visit vis tid; cps = Map.remove cps tid; >}
-
-  method checkpoint tid =
-    if Map.mem vis tid then self
-    else {< cps = Map.add cps ~key:tid ~data:self>}
-
-  method backtrack : (tid * 's) option =
-    match Map.min_elt cps with
-    | None -> None
-    | Some (tid,other) ->
-      Some (tid,other#merge self tid)
-
-  method merge runner tid =
-    {<
-      k   = runner#k;
-      vis = runner#vis;
-      tvs = runner#tvs;
-      tms = runner#tms;
-      cps = Map.remove runner#cps tid;
-      callstack = runner#callstack
-    >}
 
   method propagate_var tid v r =
     {< tvs = propagate taints#reg_taints tvs tid v r >}
@@ -129,11 +50,13 @@ class context p total  = object(self : 's)
   method tainted_regs = taints_of_tid tvs
   method tainted_ptrs = taints_of_tid tms
 
-  method will_loop tid = match callstack with
-    | [] -> false
-    | sub :: _ -> match Map.find vis tid with
-      | None -> false
-      | Some n -> n > max_loop_length && Term.find blk_t sub tid <> None
+  method merge runner =
+    let self = super#merge runner in
+    self#merge_taints runner
+
+  method merge_taints runner =
+    {< tvs = runner#tvs; tms = runner#tms >}
+
 end
 
 let taint_reg ctxt x seed =
@@ -152,166 +75,42 @@ let taint_term t ctxt v =
   | Some seed,None -> taint_reg ctxt v seed
   | Some x, Some y -> taint_ptr (taint_reg ctxt v x) v y
 
-class ['a] main summary memory tid_of_addr const = object(self)
-  constraint 'a = #context
-  inherit ['a] biri as super
-  inherit ['a] Taint.propagator
+let memory_lookup proj addr =
+  let memory = Project.memory proj in
+  Memmap.lookup memory addr |> Seq.hd |> function
+  | None -> None
+  | Some (mem,_) -> match Memory.get ~addr mem with
+    | Ok w -> Some w
+    | _ -> None
 
-  method! enter_term cls t =
-    let tid = Term.tid t in
-    SM.get () >>= fun c ->
-    SM.put (c#visit_term tid) >>= fun () ->
-    super#enter_term cls t
+class ['a] main ?summary ?const proj =
+  let prog = Project.program proj in
+  let memory = memory_lookup proj in
+  object(self)
+    constraint 'a = #context
+    inherit ['a] Conqueror.main ?summary prog as super
+    inherit ['a] Conqueror.concretizer ~memory ?const () as concrete
+    inherit ['a] Taint.propagator
 
-  method! eval_unknown _ t = self#emit t
-
-  method! lookup v =
-    super#lookup v >>= fun r ->
-    SM.get () >>= fun ctxt ->
-    match List.hd ctxt#trace with
-    | None -> SM.return r
-    | Some tid ->
-      let ctxt = ctxt#propagate_var tid v r in
-      let ctxt = ctxt#propagate_mem tid v r in
-      SM.put ctxt >>= fun () ->
-      match Bil.Result.value r with
-      | Bil.Imm _ | Bil.Mem _ -> SM.return r
-      | Bil.Bot -> self#emit (Var.typ v)
-
-  method! load s a =
-    super#load s a >>= fun r -> match Bil.Result.value r with
-    | Bil.Imm _ | Bil.Mem _ -> SM.return r
-    | Bil.Bot -> match memory a with
-      | None -> self#emit_const 8
-      | Some w ->
-        SM.get () >>= fun ctxt ->
-        let ctxt,r = ctxt#create_word w in
+    method! lookup v =
+      concrete#lookup v >>= fun r ->
+      SM.get () >>= fun ctxt ->
+      match List.hd ctxt#trace with
+      | None -> SM.return r
+      | Some tid ->
+        let ctxt = ctxt#propagate_var tid v r in
+        let ctxt = ctxt#propagate_mem tid v r in
         SM.put ctxt >>= fun () ->
         SM.return r
 
-  method! eval_blk blk =
-    SM.get () >>= fun ctxt ->
-    SM.put (ctxt#enter_blk blk) >>= fun () ->
-    super#eval_blk blk
-
-  method! eval_sub sub =
-    SM.get () >>= fun ctxt ->
-    SM.put (ctxt#enter_sub sub) >>= fun () ->
-    super#eval_sub sub >>= fun () ->
-    SM.get () >>= fun ctxt ->
-    SM.put (ctxt#leave_sub sub)
-
-  method! eval_jmp jmp =
-    SM.get () >>= fun ctxt ->
-    match ctxt#step with
-    | None -> SM.put (ctxt#set_next None)
-    | Some ctxt ->
-      SM.put ctxt >>= fun () ->
-      super#eval_jmp jmp >>= fun () ->
-      self#checkpoint >>= fun () ->
+    method! eval_def def =
+      self#lookup (Def.lhs def) >>= fun x ->
+      super#eval_def def >>= fun () ->
       SM.get () >>= fun ctxt ->
-      match ctxt#next with
-      | None -> self#backtrack
-      | Some dst when ctxt#will_loop dst ->
-        self#backtrack
-      | Some dst -> SM.return ()
-
-  method private checkpoint =
-    SM.get () >>= fun ctxt ->
-    match ctxt#blk with
-    | None -> assert false
-    | Some blk ->
-      Term.enum jmp_t blk |>
-      Seq.fold ~init:(SM.return ()) ~f:(fun m jmp ->
-          m >>= fun () ->
-          match target_of_goto jmp with
-          | None -> SM.return ()
-          | Some tid ->
-            SM.get () >>= fun ctxt ->
-            let ctxt = ctxt#visit_term (Term.tid jmp) in
-            SM.put (ctxt#checkpoint tid))
-
-  method! eval_call call =
-    self#shortcut_indirect call >>= fun () ->
-    self#summarize_call call
-
-  method! eval_indirect exp =
-    self#eval_exp exp >>| Bil.Result.value >>= function
-    | Bil.Bot | Bil.Mem _ -> self#backtrack
-    | Bil.Imm dst ->
-      match tid_of_addr dst with
-      | Some dst -> self#eval_direct dst
-      | None -> self#backtrack
-
-  method! eval_exn _ _ = self#backtrack
-
-  method private backtrack  =
-    SM.get () >>= fun ctxt ->
-    match ctxt#backtrack with
-    | None -> SM.put (ctxt#set_next None)
-    | Some (next,ctxt) ->
-      SM.put ctxt >>= fun () -> self#eval_direct next
-
-  method! eval_def def =
-    super#lookup (Def.lhs def) >>= fun x ->
-    super#eval_def def >>= fun () ->
-    SM.get () >>= fun ctxt ->
-    SM.put (taint_term def ctxt x) >>= fun () ->
-    super#lookup (Def.lhs def) >>= fun x ->
-    self#update (Def.lhs def) x
-
-  method private emit t =
-    match t with
-    | Type.Imm sz -> self#emit_const sz
-    | Type.Mem _  -> self#emit_empty
-
-  method private emit_const sz =
-    SM.get () >>= fun ctxt ->
-    let const = Word.extract_exn ~lo:0 ~hi:(sz-1) const in
-    let ctxt,r = ctxt#create_word const in
-    SM.put ctxt >>= fun () ->
-    SM.return r
-
-  method private emit_empty =
-    SM.get () >>= fun ctxt ->
-    let ctxt,r = ctxt#create_storage self#empty in
-    SM.put ctxt >>= fun () ->
-    SM.return r
-
-  method private shortcut_indirect call =
-    match Call.target call with
-    | Direct _ -> self#call_with_restore call
-    | Indirect _ -> self#return call
-
-  method private call_with_restore call =
-    match Call.return call with
-    | None | Some (Indirect _) -> super#eval_call call
-    | Some (Direct ret) ->
-      SM.get () >>= fun ctxt ->
-      SM.put (ctxt#checkpoint ret) >>= fun () ->
-      super#eval_call call
-
-  method private summarize_call call =
-    let create f =
-      SM.get () >>= fun ctxt ->
-      let ctxt, v = f ctxt in
-      SM.put ctxt >>= fun () ->
-      SM.return v in
-    match summary call with
-    | None -> super#eval_call call
-    | Some summary ->
-      List.fold summary ~init:(SM.return ()) ~f:(fun m (x,v) ->
-          m >>= fun () -> create (fun ctxt -> match v with
-              | Bil.Mem s -> ctxt#create_storage s
-              | Bil.Imm w -> ctxt#create_word w
-              | Bil.Bot   -> ctxt#create_undefined) >>= fun r ->
-          self#update x r) >>= fun () ->
-      self#return call
-
-  method private return call = match Call.return call with
-    | None -> super#eval_call call
-    | Some lab -> super#eval_ret lab
-end
+      SM.put (taint_term def ctxt x) >>= fun () ->
+      self#lookup (Def.lhs def) >>= fun x ->
+      self#update (Def.lhs def) x
+  end
 
 exception Entry_point_not_found
 
@@ -325,44 +124,16 @@ let tid_of_name str =
   | Ok tid -> tid
   | Error _ -> raise Entry_point_not_found
 
-let tid_of_ident mapping = function
+let tid_of_ident = function
   | `Term tid -> tid
   | `Name str -> tid_of_name str
-  | `Addr add -> match mapping add with
-    | None -> raise Entry_point_not_found
-    | Some tid -> tid
 
-let run_from_point mapping p biri point =
-  run_from_tid p biri (tid_of_ident mapping point)
-
-
-let create_mapping prog =
-  let addrs = Addr.Table.create () in
-  let add t a = Hashtbl.set addrs ~key:a ~data:(Term.tid t) in
-  Term.enum sub_t prog |> Seq.iter ~f:(fun sub ->
-      Term.enum blk_t sub |> Seq.iter  ~f:(fun blk ->
-          match Term.get_attr blk Disasm.block with
-          | Some addr -> add blk addr
-          | None -> ());
-      match Term.get_attr sub subroutine_addr with
-      | Some addr -> add sub addr
-      | None -> ());
-  Hashtbl.find addrs
-
-let memory_lookup proj addr =
-  let memory = Project.memory proj in
-  Memmap.lookup memory addr |> Seq.hd |> function
-  | None -> None
-  | Some (mem,_) -> match Memory.get ~addr mem with
-    | Ok w -> Some w
-    | _ -> None
+let run_from_point p biri point =
+  run_from_tid p biri (tid_of_ident point)
 
 let run proj k point =
   let p = Project.program proj in
-  let ctxt = new context p k in
-  let mapping = create_mapping p in
-  let memory = memory_lookup proj in
-  let biri = new main def_summary memory mapping def_const in
-  let map _ = None in
-  let res = run_from_point map p biri point in
-  (SM.exec res ctxt :> result)
+  let ctxt = new context ~max_steps:k p in
+  let biri = new main proj in
+  let res = run_from_point p biri point in
+  (Monad.State.exec res ctxt :> result)

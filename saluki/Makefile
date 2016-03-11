@@ -20,3 +20,7 @@ test : plugins test-expect
 
 bap: plugins
 		bap ${binary} ${OPTS}
+
+clean:
+	bapbuild -clean
+	make -C ../quarantine clean
