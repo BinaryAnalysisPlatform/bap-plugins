@@ -4,8 +4,17 @@ open Bap.Std
 module SM = Monad.State
 open SM.Monad_infix
 
+module Let_syntax = SM.Let_syntax
+
 open Format
 
+let debug_enabled = ref false
+
+let fdebug ppf = match debug_enabled with
+  | {contents=true} -> fprintf ppf
+  | {contents=false} -> ifprintf ppf
+
+let debug fmt = fdebug Format.err_formatter fmt
 
 let def_summary _ = None
 
@@ -49,13 +58,13 @@ let merge_visited = Map.merge ~f:(fun ~key -> function
     | `Both (x,y) -> Some (Int.max x y))
 
 class context
-    ?(max_steps=1000)
-    ?(max_loop_length=max_steps / 100) p  = object(self : 's)
+    ?(max_steps=Int.max_value)
+    ?(max_loop_length= min 10 (max_steps / 10)) p  = object(self : 's)
   inherit Biri.context p
 
   val blk : blk term option = None
   val callstack : sub term list = []
-  val k = max_steps
+  val steps_left = max_steps
   val vis : int Tid.Map.t = Tid.Map.empty (* visited *)
   val cps : 's checkpoint list Tid.Map.t = Tid.Map.empty
   val rets : tid list = []
@@ -64,7 +73,7 @@ class context
   method checkpoints = cps
 
   method backtrack = match List.hd callstack with
-    | None -> (* warning: broken stack *)None
+    | None -> None
     | Some sub ->
       let key = Term.tid sub in
       match Map.find cps key with
@@ -77,16 +86,16 @@ class context
           Some (self#set_next (Some p))
 
   method add_checkpoint p = match List.hd callstack with
-    | None -> (* warning: broken stack *) self
+    | None -> self
     | Some sub ->
       let key = Term.tid sub in
-      {< cps = Map.add_multi cps ~key ~data:(p,self) >}
+      if Map.mem vis p then self
+      else {< cps = Map.add_multi cps ~key ~data:(p,self) >}
 
   method merge runner = {<
     vis = runner#visited;
     cps = runner#checkpoints;
   >}
-
 
   method store_return ret = {< rets = ret :: rets >}
 
@@ -102,8 +111,9 @@ class context
     | _ :: top -> {< callstack = top >}
     | [] -> {< callstack = [] >}
 
-  method step = if k > 0
-    then Some {< k = k - 1 >}
+  method step =
+    if steps_left > 0
+    then Some {< steps_left = steps_left - 1 >}
     else None
 
   method visit_term tid = {< vis = visit vis tid >}
@@ -115,48 +125,46 @@ class context
       | Some n -> n > max_loop_length && Term.find blk_t sub tid <> None
 
   method will_return tid = match callstack with
-    | _ :: par :: _ -> Term.find blk_t par tid <> None
+    | cur :: _ ->
+      let will_jump = Term.find blk_t cur tid <> None in
+      let will_call = Term.find sub_t   p tid <> None in
+      not(will_jump || will_call)
     | _ -> false
 end
 
+let update f =
+  SM.get () >>= fun s -> SM.put (f s)
+
 class ['a] main ?(summary=def_summary) p =
-  let tid_of_addr = create_mapping p in
   object(self)
     constraint 'a = #context
     inherit ['a] Biri.t as super
 
     method! enter_term cls t =
       let tid = Term.tid t in
-      SM.get () >>= fun c ->
-      SM.put (c#visit_term tid) >>= fun () ->
+      update (fun ctxt -> ctxt#visit_term tid) >>= fun () ->
       super#enter_term cls t
 
-    method! leave_term cls t =
-      super#leave_term cls t >>= fun () ->
-      SM.get () >>= fun ctxt -> match ctxt#next with
-      | Some tid -> SM.return ()
-      | None -> SM.return ()
-
     method! eval_blk blk =
-      SM.get () >>= fun ctxt ->
-      SM.put (ctxt#enter_blk blk) >>= fun () ->
-      super#eval_blk blk
+      if Term.length jmp_t blk = 0
+      then self#return
+      else
+        update (fun ctxt -> ctxt#enter_blk blk) >>= fun () ->
+        self#add_checkpoints >>= fun () ->
+        super#eval_blk blk
 
     method! eval_sub sub =
-      SM.get () >>= fun ctxt ->
-      SM.put (ctxt#enter_sub sub) >>= fun () ->
+      update (fun ctxt -> ctxt#enter_sub sub) >>= fun () ->
       super#eval_sub sub >>= fun () ->
-      SM.get () >>= fun ctxt ->
-      SM.put (ctxt#leave_sub sub)
+      update (fun ctxt -> ctxt#leave_sub sub)
 
     method! eval_jmp jmp =
       SM.get () >>= fun ctxt ->
       match ctxt#step with
-      | None -> self#stop
+      | None -> self#break
       | Some ctxt ->
         SM.put ctxt >>= fun () ->
         super#eval_jmp jmp >>= fun () ->
-        self#add_checkpoints >>= fun () ->
         SM.get () >>= fun ctxt ->
         match ctxt#next with
         | Some dst when ctxt#will_loop dst -> self#return
@@ -164,13 +172,12 @@ class ['a] main ?(summary=def_summary) p =
         | Some dst -> SM.return ()
         | None -> self#return
 
-    method private stop =
-      SM.get () >>= fun ctxt -> SM.put (ctxt#set_next None)
+    method private break = update @@ fun ctxt -> ctxt#set_next None
 
     method private return =
-      SM.get () >>= fun ctxt -> match ctxt#backtrack with
-      | None -> SM.put ctxt#return
-      | Some next -> SM.put next
+      update @@ fun ctxt -> match ctxt#backtrack with
+      | None -> ctxt#return
+      | Some next -> next
 
     method private add_checkpoints =
       SM.get () >>= fun ctxt ->
@@ -180,13 +187,11 @@ class ['a] main ?(summary=def_summary) p =
         Term.enum jmp_t blk |>
         Seq.fold ~init:(SM.return ()) ~f:(fun m jmp ->
             m >>= fun () ->
-            SM.get () >>= fun ctxt ->
-            SM.put (ctxt#visit_term (Term.tid jmp)) >>= fun () ->
+            update (fun ctxt -> ctxt#visit_term (Term.tid jmp)) >>= fun () ->
             self#next_of_jmp jmp >>= function
             | None -> SM.return ()
             | Some tid ->
-              SM.get () >>= fun ctxt ->
-              SM.put (ctxt#add_checkpoint tid))
+              update (fun ctxt -> ctxt#add_checkpoint tid))
 
     method private next_of_jmp jmp =
       let goto dst =
@@ -200,51 +205,15 @@ class ['a] main ?(summary=def_summary) p =
       SM.put ctxt >>= fun () ->
       next
 
-    method! eval_call call =
-      self#shortcut_indirect call >>= fun () ->
-      self#summarize_call call
-
-    method! eval_indirect exp =
-      self#eval_exp exp >>| Bil.Result.value >>= function
-      | Bil.Bot | Bil.Mem _ -> self#stop
-      | Bil.Imm dst -> match tid_of_addr dst with
-        | Some dst -> self#eval_direct dst
-        | None -> self#stop
+    method! eval_indirect exp = self#break
 
     method! eval_exn _ ret = self#eval_direct ret
 
-
-    method private shortcut_indirect call =
-      match Call.target call with
-      | Direct _ -> self#call_with_restore call
-      | Indirect _ -> match Call.return call with
-        | None -> self#stop
-        | Some ret -> super#eval_ret ret
-
-    method private call_with_restore call =
+    method! eval_call call =
       match Call.return call with
-      | None | Some (Indirect _) -> super#eval_call call
+      | None | Some (Indirect _) -> self#break
       | Some (Direct ret) ->
-        SM.get () >>= fun ctxt ->
-        SM.put (ctxt#store_return ret) >>= fun () ->
+        update (fun ctxt -> ctxt#store_return ret) >>= fun () ->
         super#eval_call call
 
-    method private summarize_call call =
-      let create f =
-        SM.get () >>= fun ctxt ->
-        let ctxt, v = f ctxt in
-        SM.put ctxt >>= fun () ->
-        SM.return v in
-      match summary call with
-      | None -> super#eval_call call
-      | Some summary -> match Call.return call with
-        | None -> self#stop
-        | Some ret ->
-          List.fold summary ~init:(SM.return ()) ~f:(fun m (x,v) ->
-              m >>= fun () -> create (fun ctxt -> match v with
-                  | Bil.Mem s -> ctxt#create_storage s
-                  | Bil.Imm w -> ctxt#create_word w
-                  | Bil.Bot   -> ctxt#create_undefined) >>= fun r ->
-              self#update x r) >>= fun () ->
-          self#eval_ret ret
   end

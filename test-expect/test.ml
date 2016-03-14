@@ -97,8 +97,8 @@ let check file =
   if file <> Sys.argv.(0) then
     let r = ok file in
     if r
-    then printf "%-40s%s\n%!" file "ok"
-    else printf "%-40s%s\n%!" file "fail";
+    then printf "%-60s%s\n%!" file "ok"
+    else printf "%-60s%s\n%!" file "fail";
     not r
   else false
 

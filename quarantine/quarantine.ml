@@ -2,8 +2,6 @@ open Core_kernel.Std
 open Graphlib.Std
 open Bap.Std
 open Format
-let k = 1000
-
 
 let black_addr = Addr.Set.of_list [
     Addr.of_int32 0x00051d30l;
@@ -15,6 +13,7 @@ let black_term = [
   |> Tid.Set.of_list
 
 let is_interesting_sub sub = true
+(* Sub.name sub = "array_set_key_value" *)
 
 type mapper = {map : 'a. 'a term -> 'a term}
 
@@ -106,8 +105,9 @@ let seeded callgraph subs =
 
 let tids_of_sub sub =
   let terms t p =
-    Term.enum t p |> Seq.map ~f:Term.tid |> Seq.to_list_rev in
-  let (++) = List.rev_append in
+    Term.enum t p |> Seq.fold ~init:Tid.Set.empty ~f:(fun set t ->
+        Set.add set (Term.tid t)) in
+  let (++) = Set.union in
   let init = terms arg_t sub in
   Term.enum blk_t sub |> Seq.fold ~init ~f:(fun sum blk ->
       terms phi_t blk ++
@@ -138,25 +138,26 @@ let pp_ratio ppf (x,y) =
 let pp_progressbar ppf {sub_count=x; sub_total=y} =
   fprintf ppf "%a" pp_ratio (x,y)
 
-let pp_coverage ppf {visited; terms} =
+let coverage visited terms =
   let x = Set.length (Set.inter terms visited) in
   let y = Set.length terms in
-  pp_ratio ppf (x,y)
+  x,y
 
-let add_list ss xs =
-  Set.union ss @@ Tid.Set.of_list xs
+let pp_coverage ppf {visited; terms} =
+  pp_ratio ppf (coverage visited terms)
 
 let entered_sub stat sub = {
   stat with
   sub_count = stat.sub_count + 1;
-  terms = add_list stat.terms (tids_of_sub sub)
+  terms = Set.union stat.terms (tids_of_sub sub)
 }
-let visited_sub stat res = {
+
+let keys = Map.fold ~init:Tid.Set.empty ~f:(fun ~key ~data set ->
+    Set.add set key)
+
+let visited_sub sub stat res = {
   stat with
-  visited =
-    Map.fold res#visited ~init:stat.visited
-      ~f:(fun ~key:tid ~data:_ vis ->
-          Set.add vis tid)
+  visited = Set.union stat.visited @@ keys res#visited;
 }
 
 let main proj =
@@ -174,18 +175,23 @@ let main proj =
       ~f:(fun (proj,stat) sub ->
           let stat = entered_sub stat sub in
           eprintf "%-40s %a\r%!" (Sub.name sub) pp_progressbar stat;
-          let ctxt = Main.run proj k (`Term (Term.tid sub)) in
+          let ctxt = Main.run proj (`Term (Term.tid sub)) in
           let mark = marker_of_markers [
               mark_if_visited ctxt;
               mark_if_tainted ctxt;
               mark_if_seeded;
             ] in
           let prog = Project.program proj |> map_terms mark in
-          let stat = visited_sub stat ctxt in
+          let stat = visited_sub sub stat ctxt in
           Project.with_program proj prog, stat) in
   printf "@.Coverage: %a@." pp_coverage stat;
   let prog = Project.program proj |>
              map_terms (unseed_if_non_visited stat.visited) in
   Project.with_program proj prog
+
+let main proj =
+  try main proj with exn ->
+    eprintf "Quarantine: \n %s\n" @@ Exn.backtrace ();
+    raise exn
 
 let () = Project.register_pass main

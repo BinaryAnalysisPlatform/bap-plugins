@@ -9,6 +9,6 @@ class type result = object
   method tainted_ptrs : tid -> Taint.map
 end
 
-val run : project -> int -> [
+val run : ?max_steps:int -> project -> [
     | `Name of string
     | `Term of tid] -> result

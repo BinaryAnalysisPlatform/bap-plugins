@@ -131,9 +131,9 @@ let tid_of_ident = function
 let run_from_point p biri point =
   run_from_tid p biri (tid_of_ident point)
 
-let run proj k point =
+let run ?max_steps proj point =
   let p = Project.program proj in
-  let ctxt = new context ~max_steps:k p in
+  let ctxt = new context ?max_steps p in
   let biri = new main proj in
   let res = run_from_point p biri point in
   (Monad.State.exec res ctxt :> result)
