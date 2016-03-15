@@ -1,25 +1,42 @@
-Overview
-========
+Quarantine is a taint propagation framework. It uses microexecution to
+propagate the taint through a program. The execution is perfomed using
+the ConquEror Engine, that is short for Concrete Evaluation with
+Errors. This execution engine allows to run incomplete programs with
+an unspecified user input. Moreover, to increase the coverage it may
+take infeasible paths.
 
-This plugin allows to set a quarantine zone around a particular
-program point, and infect some variable, in order to observe, how the
-infection will spread through this zone, through concrete evaluation.
+The taint is propagated from a seed to its maximum extent. The seed is
+a definition point that is marked with a `Taint.reg` or `Taint.ptr`
+tag. A usual way of using the framework, would be to use one or more
+passes that marks points of interest with a taint seed, then to use
+the quarantine pass to propagate the taint, and, finally, to use a
+pass that will collect and analyze the result. The quarantine itself
+doesn't provide any analysis, other than the ability to highlight
+terms with specific colors.
 
-Currently, the starting point, should be a name, address or tid of a
-function. Then infection point, should be some def term. It is
-possible to infect more than one term at once.
+The microexecution is performed over a lifted program using Biri
+interpreter. Memory reads are intercepted and redirected to program
+image, if possible (for static data), otherwise they are concretized.
+All other inputs, like reads from unknown registers or user input are
+also concretized. Several concretization policies are provided:
 
-The infection is propagated from one value to another, if value result
-depends on infected value. For example, if `R0 := R1 + 1`, and `R1` is
-infected, then `R0` will become infected also, and will spread the
-infection furthermore. See, [taint.mli] for more formal rules on how
-infection is propagated.
 
-Each infection is designated by its point of origin, i.e., by the tid
-of the definition, that was originally infected by a user. After
-plugin pass has finished, each variable in each term is associated
-with a set of taints, that infected it.
+      - Const - all unknown values are concretized to a specified constant;
+      - Random - a random value is picked from a value domain;
+      - Range - a random value is picked from a specified range.
 
-A point is infected by attaching a `Taint.seed` attribute to some
-`def` `term`. Results, can be queried, by looking at `Taint.vars`
-attribute of any term.
+By default, the microexecution engine tries to visit all program
+branches. During the execution, it will record missed branches as
+checkpoints. When there is nothing more to explore, it will backtrack
+to a stored checkpoint, restoring the execution state at this program
+point, and continue the execution. Of course, in this case the state
+will contradict with a path constraint. In a deterministic mode the
+bactracking mechanism is disabled. In this mode, no checkpoints are
+recorded, and whenever the interpreter requests a backtracking, it
+will instead return from a current procedure.
+
+The maximum length of an execution path is limited with some constant
+number of jumps (basic blocks). Also, a loop escaping mechanism, will
+detect loops and bail out of them after a specified amount of
+iterations. In the deterministic mode it will just return from a
+procedure, otherwise, it will backtrack.
