@@ -3,17 +3,17 @@ open Bap.Std
 
 let fix_sp arch sub =
   let module Target = (val target_of_arch arch) in
-  let width = Size.to_bits (Arch.addr_size arch) in
+  let width = Size.in_bits (Arch.addr_size arch) in
   (* TODO Def.create (Target.CPU.sp)... *)
   let make_addr x = Addr.of_int64 ~width x in
   let stack_offset = 0x40000000L in
   let sp_base = make_addr stack_offset in
   let first_blk = Term.first blk_t sub |> Util.val_exn in
   let mod_blk = Term.prepend def_t first_blk
-      (Def.create (AMD64.CPU.sp) (Bil.int sp_base)) in
+      (Def.create (X86_cpu.AMD64.sp) (Bil.int sp_base)) in
   Term.map blk_t sub ~f:(fun blk ->
-    if Term.name blk = Term.name first_blk then
-      mod_blk else blk)
+      if Term.name blk = Term.name first_blk then
+        mod_blk else blk)
 
 (** Needs to be fixed. If you see Not_found it's because Sub.ssa
     fails. No idea why. *)

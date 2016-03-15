@@ -1,6 +1,6 @@
 rm -rf analysis-test-system-*
 
-bap --use-ida idaq64 --no-byteweight -lminos.plugin binary/test-system/test1 \
+bap --symbolizer=ida --no-byteweight --minos binary/test-system/test1 \
   --minos-check=system \
   --minos-out_dir=analysis-test-system-1 \
   --minos-srcs=configs/n-1-@system/srcs.txt \

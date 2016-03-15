@@ -2,6 +2,8 @@ open Core_kernel.Std
 open Bap.Std
 open Pathlib
 
+let (^::) = Seq.cons
+
 let _v ?(v=false) ?(tag="") s =
   if v then
     Format.printf "%s %s" tag s
@@ -22,7 +24,7 @@ let print_count ?(v=false) count =
 
 (* Path search and check *)
 let do_path_search
-  ?(v=false) ?(rev=false) start prog max_depth =
+    ?(v=false) ?(rev=false) start prog max_depth =
 
   let process_path local_state sub_tid termination =
     let current_path,depth = local_state in

@@ -1,5 +1,6 @@
 open Core_kernel.Std
 open Bap.Std
+open Graphlib.Std
 
 (** sub, with summary information *)
 type 'a t =
@@ -17,6 +18,6 @@ let to_table seq =
     now. *)
 (** Graphlib.Ir -> nodes are always blks. *)
 let summarize_bottom_up callgraph ~f =
-  Graphlib.postorder_traverse (module Graphlib.Callgraph) callgraph |>
+  Graphlib.postorder_traverse (module Graphs.Callgraph) callgraph |>
   (** produce a seq of summaries *)
   Seq.filter_map ~f |> to_table

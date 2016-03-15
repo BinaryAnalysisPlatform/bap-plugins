@@ -2,6 +2,8 @@ open Bap.Std
 open Check
 open Core_kernel.Std
 
+let (^::) = Seq.cons
+
 type arg = tid * Def.t * tid seq
 
 (* 1 indexed *)

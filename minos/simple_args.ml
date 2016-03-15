@@ -1,5 +1,9 @@
 open Bap.Std
 open Core_kernel.Std
+open X86_cpu
+open ARM
+
+let (^::) = Seq.cons
 
 type arg = tid * Def.t
 
@@ -11,19 +15,19 @@ type args = {arg1 : arg option;
 (* Can be cdecl or stdcall. This code is a placeholder, and should not
    be used. *)
 let to_reg_x86 = function
-  | "ret"  -> IA32.CPU.rax
-  | "arg1" -> IA32.CPU.rbp (*-4*)
-  | "arg2" -> IA32.CPU.rbp (*-8*)
-  | "arg3" -> IA32.CPU.rbp (*-12*)
-  | "arg4" -> IA32.CPU.rbp (*-16*)
+  | "ret"  -> IA32.rax
+  | "arg1" -> IA32.rbp (*-4*)
+  | "arg2" -> IA32.rbp (*-8*)
+  | "arg3" -> IA32.rbp (*-12*)
+  | "arg4" -> IA32.rbp (*-16*)
   | _ ->
     failwith "Arg not supported [x86]: Use [ret | arg1 | arg2 | arg3 | arg4]"
 
 let to_reg_x86_64 = function
-  | "arg1" -> AMD64.CPU.rdi
-  | "arg2" -> AMD64.CPU.rsi
-  | "arg3" -> AMD64.CPU.rdx
-  | "arg4" -> AMD64.CPU.rcx
+  | "arg1" -> AMD64.rdi
+  | "arg2" -> AMD64.rsi
+  | "arg3" -> AMD64.rdx
+  | "arg4" -> AMD64.rcx
   | _ -> failwith "Arg not supported [x64]: Use [arg1 | arg2 | arg3 | arg4]"
 
 let to_reg_arm = function

@@ -1,23 +1,24 @@
 open Core_kernel.Std
 open Bap.Std
+open X86_cpu
 
 let mem_summary_to_string (src,addr) =
   Format.sprintf "[%s]:[%s]" (Exp.to_string src) (Exp.to_string addr)
 
 let print_store_map =
-  Def.Map.iter ~f:(fun ~key ~data ->
+  Def.Map.iteri ~f:(fun ~key ~data ->
       Format.printf "K: %sD: %s\n"
         (Def.to_string key) (mem_summary_to_string data))
 
 (* We might see:
-000000f4: t_167 := mem64[0x601050:64, el]:u8*)
+   000000f4: t_167 := mem64[0x601050:64, el]:u8*)
 let mem_read_to_var exp =
   (object inherit Bil.mapper
     method! map_load ~mem ~addr endian size =
       match addr with
       | Bil.Int addr ->
         let var_name = Format.sprintf "m_%x" (Word.to_int addr |> ok_exn) in
-        Bil.var @@ Var.create ~tmp:false var_name reg32_t (** TODO architecture agnostic*)
+        Bil.var @@ Var.create var_name reg32_t (** TODO architecture agnostic*)
       | exp ->
         (* binop mapper so we hit every instance of a mem read in an
            expression *)
@@ -27,12 +28,12 @@ let mem_read_to_var exp =
             match (op,o1,o2) with
             | (Bil.PLUS, Bil.Var v, Bil.Int off)
             | (Bil.MINUS, Bil.Var v, Bil.Int off) ->
-              if AMD64.CPU.is_bp v || AMD64.CPU.is_sp v || ARM.CPU.is_bp v || ARM.CPU.is_sp v then (* skips FS_BASE *)
+              if AMD64.is_bp v || AMD64.is_sp v || ARM.CPU.is_bp v || ARM.CPU.is_sp v then (* skips FS_BASE *)
                 let offset =
                   Word.to_int off |> ok_exn in
                 let var_name =
                   Format.sprintf "%s_%04x" (Exp.to_string o1) offset in
-                Bil.var @@ Var.create ~tmp:false var_name reg32_t
+                Bil.var @@ Var.create var_name reg32_t
               else
                 orig
             | _ -> orig
@@ -46,27 +47,27 @@ let mem_access_to_var exp =
       (** TODO: should this check is_bp / is_sp? *)
       if Var.name state = "initial" then
         let vname = Var.name v in
-        Var.create ~tmp:false (vname^"_0") reg32_t
+        Var.create (vname^"_0") reg32_t
       else
         state
     method! enter_binop op o1 o2 state =
       match (op,o1,o2) with
       | (Bil.PLUS, Bil.Var v, Bil.Int off)
       | (Bil.MINUS, Bil.Var v, Bil.Int off) ->
-        if AMD64.CPU.is_bp v || AMD64.CPU.is_sp v || ARM.CPU.is_sp v || ARM.CPU.is_bp v then (* skips FS_BASE *)
+        if AMD64.is_bp v || AMD64.is_sp v || ARM.CPU.is_sp v || ARM.CPU.is_bp v then (* skips FS_BASE *)
           let offset =
             Word.to_int off |> ok_exn in
           let var_name = Format.sprintf "%s_%04x" (Exp.to_string o1) offset in
-          Var.create ~tmp:false var_name reg32_t
+          Var.create  var_name reg32_t
         else
           state
       | _ -> state
-  end)#visit_exp exp (Var.create ~tmp:false "initial" reg32_t)
+  end)#visit_exp exp (Var.create "initial" reg32_t)
 
 (** stores all the defs which perform a store (write) operation on
-   memory. This is important if we want to restrict ourselves to
-   only definitions which write ONCE to memory, and thereafter is
-   always read. *)
+    memory. This is important if we want to restrict ourselves to
+    only definitions which write ONCE to memory, and thereafter is
+    always read. *)
 let make_store_map ?(v=false) sub =
   Term.enum blk_t sub |> Seq.fold ~init:Def.Map.empty ~f:(fun map blk ->
       Term.enum def_t blk |> Seq.fold ~init:map ~f:(fun map def ->
