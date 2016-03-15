@@ -29,7 +29,7 @@ let get_rodata_str project w =
         let (!) = Char.to_string in
         Memory.foldi ~word_size:`r8 mem' ~init:(false,"")
           ~f:(fun addr word (set,acc) ->
-              let char = Word.to_chars word LittleEndian |> Seq.hd_exn in
+              let char = Word.enum_chars word LittleEndian |> Seq.hd_exn in
               match set,char with
               | (false,'\x00') -> (true,acc)
               | (false,c) -> (false,acc^(!c))
@@ -62,7 +62,7 @@ let get_arg_as_string project blk def_tid =
 (** TODO: ok_exn will bite you *)
 let get_arg_as_const project blk def_tid =
   match Def.rhs (def_of_tid blk def_tid) with
-  Bil.Int w ->  Word.to_int w |> ok_exn |> Option.some
+    Bil.Int w ->  Word.to_int w |> ok_exn |> Option.some
   | _ -> None
 
 module Predicate = struct

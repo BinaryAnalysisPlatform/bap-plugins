@@ -1,6 +1,8 @@
 open Bap.Std
 open Core_kernel.Std
 
+let (^::) = Seq.cons
+
 type typ = [`Valid | `Invalid | `Skipped]
 
 let _dir = ref "./analysis/"

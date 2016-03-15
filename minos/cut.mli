@@ -1,3 +1,4 @@
+open Bap.Std
 
 (** A cut is a subgraph that contains a call to a sink we are
     interested in. Each cut has a unique caller (and callstring up to the
@@ -10,14 +11,12 @@
       foo
      /   \
     /    bazz
-   /     -> calls sink3 on some path
-bar
--> calls sink1 on some path
--> calls sink 2 on some other path
+    /     -> calls sink3 on some path
+    bar
+    -> calls sink1 on some path
+    -> calls sink 2 on some other path
 
 *)
-
-open Bap.Std
 
 type src_config =
   {src_at_root : bool;
@@ -45,4 +44,4 @@ val print_cut_group : cut_group -> unit
 
 val output_cut_group : cut_group -> unit
 
-val cuts : project -> Graphlib.Callgraph.t -> src_config -> string -> cut_group seq
+val cuts : project -> Graphs.Callgraph.t -> src_config -> string -> cut_group seq

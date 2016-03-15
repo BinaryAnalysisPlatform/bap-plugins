@@ -7,6 +7,8 @@ open Check_util
 open Policy
 open Format
 
+let (^::) = Seq.cons
+
 module P = Policy.Predicate
 
 (** This is before paths. We will fold const on the sub with

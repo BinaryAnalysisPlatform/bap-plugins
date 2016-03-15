@@ -1,6 +1,7 @@
 .phony: all
 all :
-	bapbuild minos.plugin -pkg bin_prot.syntax -pkg FrontC -I checks
+	bapbuild minos.plugin -pkg FrontC -I checks -pkg bap-x86-cpu -pkg cmdliner -pkg bap-arm
+	bapbundle install minos.plugin
 
 test:
 	ocaml test.ml

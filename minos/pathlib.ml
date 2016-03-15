@@ -1,9 +1,10 @@
 open Core_kernel.Std
 open Bap.Std
+open Graphlib.Std
 
 type exit_type = [`Seen | `Max_depth | `Terminal]
 
-  (* Printers *)
+(* Printers *)
 (* -------- *)
 (** Print calls of a blk seq path*)
 let print_calls_of_blk_seq blk_seq =
@@ -50,8 +51,8 @@ let blk_seq_of_tid_seq path sub =
 
 let rec fold_paths_prog ?(rev=false) ~prog ~state ~acc ~sub ~finish ~f =
   let next = if rev
-    then Graphlib.Callgraph.Node.preds
-    else Graphlib.Callgraph.Node.succs in
+    then Graphs.Callgraph.Node.preds
+    else Graphs.Callgraph.Node.succs in
   match next sub prog with
   | l when Seq.is_empty l -> finish state sub acc
   | children ->
@@ -69,10 +70,10 @@ let debug succs blk =
 
 let rec fold_paths_graph ?(rev=false)
     (module G : Graphlib.Graph with
-      type edge = Graphlib.Tid.Tid.edge and
+      type edge = Graphs.Tid.edge and
     type node = tid and
-    type t = Graphlib.Tid.Tid.t)
-    ~(sub : Graphlib.Tid.Tid.t) ~state ~acc ~(blk : tid) ~finish ~f =
+    type t = Graphs.Tid.t)
+    ~(sub : Graphs.Tid.t) ~state ~acc ~(blk : tid) ~finish ~f =
   let next = if rev
     then G.Node.preds
     else G.Node.succs in

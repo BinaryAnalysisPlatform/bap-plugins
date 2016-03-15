@@ -6,6 +6,9 @@ open Simple
 open Ctxt
 open Check
 open Trim
+open Graphlib.Std
+
+let (^::) = Seq.cons
 
 let print_count ~v count =
   if v then (Format.printf "%08d%!" count;
@@ -105,10 +108,10 @@ let analyze path (ctxt : Ctxt.t) =
       sink. This should not happen. *)
   if ctxt.check.reverse then
     let path = Seq.to_list_rev path |> Seq.of_list in
-  if (Seq.hd_exn path) <> ctxt.trim.sink_tid then
-    warn_invalid path ctxt
-  else
-    process_valid path ctxt
+    if (Seq.hd_exn path) <> ctxt.trim.sink_tid then
+      warn_invalid path ctxt
+    else
+      process_valid path ctxt
 
 let already_seen seen blk_tid =
   Seq.exists seen ~f:(fun tid ->
@@ -139,12 +142,12 @@ let f local_state blk_tid continue (ctxt : Ctxt.t) =
 
 let debug_hide_edges e =
   Format.printf "Added edge %s\n%!" @@  Tid.name @@
-  Graphlib.Tid.Tid.Edge.label e
+  Graphs.Tid.Edge.label e
 
 (** Find all back edges in the graph. Collect all edge srcs (nodes)
     that are in the sub. Skip these nodes in the new graph.*)
 let hide_back_edges sub graph_module =
-  let module G = Graphlib.Tid.Tid in
+  let module G = Graphs.Tid in
   let edge_set = G.Edge.Hash_set.create () in
   Graphlib.depth_first_search (module G)
     ~enter_edge:(fun k e _ ->
@@ -163,7 +166,7 @@ let debug_hide_non_existing node =
 (** Find all edges in the sub. Collect all edge dsts (nodes) that
     are not in the sub. Skip these nodes in the new graph. *)
 let hide_non_existing sub graph_module =
-  let module G = Graphlib.Tid.Tid in
+  let module G = Graphs.Tid in
   let g = Sub.to_graph sub in
   let edges = G.edges g in
   let nodes = G.Node.Hash_set.create () in
@@ -174,8 +177,8 @@ let hide_non_existing sub graph_module =
       | None ->
         Hash_set.add nodes dst);
   Graphlib.filtered graph_module ~skip_node:(fun node ->
-        (* debug_hide_non_existing node *)
-        Hash_set.mem nodes node) ()
+      (* debug_hide_non_existing node *)
+      Hash_set.mem nodes node) ()
 
 let debug_reachable reachable_src reachable_sink =
   Format.printf "Reachable src:\n%!\n";
@@ -189,7 +192,7 @@ let debug_reachable reachable_src reachable_sink =
 
 (** After removing edges, perform reachable *)
 let trim_reachable trim graph_module =
-  let module G = Graphlib.Tid.Tid in
+  let module G = Graphs.Tid in
   let reachable_src =
     Graphlib.fold_reachable graph_module
       ~init:G.Node.Set.empty ~f:Set.add
@@ -208,7 +211,7 @@ let trim_reachable trim graph_module =
 
 let debug filename graph_view graph =
   let string_of_edge edge =
-    Tid.name @@ Graphlib.Tid.Tid.Edge.label edge in
+    Tid.name @@ Graphs.Tid.Edge.label edge in
   let string_of_node node =
     sprintf "\"\\%s\"" @@ Tid.to_string node
   in
@@ -236,11 +239,11 @@ let view_to_sub graph_view graph sub : Sub.t =
       match Term.find blk_t sub blk_tid with
       | Some blk -> Sub.Builder.add_blk builder blk
       | None -> ())
-     graph ~init:();
+    graph ~init:();
   Sub.Builder.result builder
 
 let produce project options path_dir trim_dir trim check =
-  let module G = Graphlib.Tid.Tid in
+  let module G = Graphs.Tid in
   let sub = trim.trim_sub in
   let graph = Sub.to_graph sub in
   debug "normal_graph_view.dot" (module G) graph;
@@ -270,9 +273,9 @@ let produce project options path_dir trim_dir trim check =
   let sub' = view_to_sub filtered_graph graph sub |> kill_non_existing_jmps in
 
   let module G' = (val filtered_graph : Graphlib.Graph with
-                   type edge = Graphlib.Tid.Tid.edge and
-                 type node = tid and
-                 type t = Graphlib.Tid.Tid.t) in
+                    type edge = Graphs.Tid.edge and
+                  type node = tid and
+                  type t = Graphs.Tid.t) in
 
   (** Finally, create the context *)
   let trim = {trim with trim_sub = sub'} in

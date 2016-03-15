@@ -1,6 +1,8 @@
 open Core_kernel.Std
 open Bap.Std
 open Format
+open Graphlib.Std
+open X86_cpu
 
 (* MEMORY *)
 (* ------ *)
@@ -63,7 +65,7 @@ let resolve_jmp_name jmp =
     sub_name_of_tid (Call.target c)
   | _ -> None
 
-  let val_exn v = Option.value_exn v
+let val_exn v = Option.value_exn v
 
 (** expects @ in name *)
 let sub_from_name project fun_name =
@@ -201,7 +203,7 @@ let calls_self sub =
 let is_mutually_recursive program =
   let callgraph = Program.to_graph program in
   let scc_partition = Graphlib.strong_components
-      (module Graphlib.Callgraph) callgraph in
+      (module Graphs.Callgraph) callgraph in
   Seq.filter (Partition.groups scc_partition) ~f:(fun group ->
       let g = Group.enum group in
       Seq.length g > 1) |> Seq.length > 0
@@ -219,7 +221,7 @@ let rec recursively_add project builder sub_tid existing =
   | l -> List.fold l ~init:existing ~f:(fun existing tid ->
       recursively_add project builder tid existing)
 
-  (** Produce a callgraph rooted at sub *)
+(** Produce a callgraph rooted at sub *)
 (** add subroutine to set, add to builder, get calls for each call
     not in set, add subroutine *)
 let callgraph_of_sub project sub_tid =
@@ -309,7 +311,7 @@ let constant_fold project () =
   Term.enum sub_t (Project.program project) |>
   Seq.map ~f:constant_fold_sub
 
-    (** make calls to exported functions explicit (libmad) *)
+(** make calls to exported functions explicit (libmad) *)
 let make_exported_calls_explicit project =
   let project' =
     Project.with_program project
@@ -336,8 +338,8 @@ let make_exported_calls_explicit project =
                    | _ -> jmp)))) in
   project'
 
-  (** Give fallthrough edges explicit jmp conditions if there are exactly
-      two jmps *)
+(** Give fallthrough edges explicit jmp conditions if there are exactly
+    two jmps *)
 let make_implicit_jmp_conds_explicit project =
   let project' =
     Project.with_program project
@@ -403,31 +405,31 @@ let make_call_returns_explicit sub =
   Term.map blk_t sub ~f:(fun blk ->
       match Set.mem blks_that_need_return (tid_of_blk blk) with
       | true ->
-        let def = Def.create (AMD64.CPU.rax) (Bil.unknown "return_val" reg32_t) in
+        let def = Def.create (AMD64.rax) (Bil.unknown "return_val" reg32_t) in
         Term.prepend def_t blk def
       | false -> blk)
 
-  (* DIAGNOSTICS *)
-  (* ----------- *)
-  (** generally less useful. Just for sanity checks *)
+(* DIAGNOSTICS *)
+(* ----------- *)
+(** generally less useful. Just for sanity checks *)
 
-  (** utility *)
-  let print_jmp_summary project jmps all_subs =
-    let prog = Project.program project in
-    Seq.map jmps ~f:(fun jmp ->
-        match Jmp.kind jmp with
-        | Call c ->
-          begin
-            Call.target c |> function
-            | Direct tid ->
-              Seq.find_map (Term.enum sub_t prog) ~f:(fun sub ->
-                  Option.some_if (tid = Term.tid sub) (Sub.name sub))
-            | _ -> None
-          end
-        | Goto l ->
-          Format.printf "Goto Target: %a\n" Label.pp l; None
-        | Ret l -> Format.printf "ret\n"; None
-        | Int (i,tid) -> Format.printf "int\n"; None)
+(** utility *)
+let print_jmp_summary project jmps all_subs =
+  let prog = Project.program project in
+  Seq.map jmps ~f:(fun jmp ->
+      match Jmp.kind jmp with
+      | Call c ->
+        begin
+          Call.target c |> function
+          | Direct tid ->
+            Seq.find_map (Term.enum sub_t prog) ~f:(fun sub ->
+                Option.some_if (tid = Term.tid sub) (Sub.name sub))
+          | _ -> None
+        end
+      | Goto l ->
+        Format.printf "Goto Target: %a\n" Label.pp l; None
+      | Ret l -> Format.printf "ret\n"; None
+      | Int (i,tid) -> Format.printf "int\n"; None)
 
 (** sanity checker by using first term*)
 let test_first_term project () =
@@ -456,8 +458,8 @@ let resolve_symbols_of_calls project () =
 
 (** TODO add check that confirms no back-edges are traversed *)
 let num_paths_dag
-    (module G : Graphlib.Graph with type edge = Graphlib.Tid.Tid.edge and
-    type node = tid and type t = Graphlib.Tid.Tid.t)
+    (module G : Graphlib.Graph with type edge = Graphs.Tid.edge and
+    type node = tid and type t = Graphs.Tid.t)
     graph start_tid =
   let dp = Tid.Table.create () in
   let rec go curr : int =

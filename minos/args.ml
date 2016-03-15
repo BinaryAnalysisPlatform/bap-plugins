@@ -48,6 +48,7 @@ let to_reg_name project arg =
 
 (** returns defs for arguments *)
 let infer project blk arg =
+  let (^::) = Seq.cons in
   Blk.elts blk |>
   Seq.fold ~init:Seq.empty ~f:(fun acc elt ->
       match elt with

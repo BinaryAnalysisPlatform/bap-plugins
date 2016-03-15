@@ -1,5 +1,6 @@
 open Core_kernel.Std
 open Bap.Std
+open Graphlib.Std
 
 let warn_opt = ref true
 
@@ -188,7 +189,7 @@ let inline_fixpoint ?(warn=true) project sub (filtr : Filter.t) =
     build a new sub. add if not exists. once added, use summary to
     replace calls with gotos. *)
 
-  (** maps a call site tid to target, return *)
+(** maps a call site tid to target, return *)
 type edge_in = {src: tid; dst: tid}
 (** could have more than one exit block. therefore, we keep a list of
     blk tids in the former *)
@@ -282,7 +283,7 @@ let remap_exit_blks exit_blocks dst_out new_sub =
 let construct_bottom_up project table sub_name sub_callgraph filtr =
   (** In post order *)
   let subs_to_add =
-    Graphlib.postorder_traverse (module Graphlib.Callgraph) sub_callgraph |>
+    Graphlib.postorder_traverse (module Graphs.Callgraph) sub_callgraph |>
     Seq.filter_map ~f:(fun x -> Util.sub_of_tid project x) in
   let exists = Sub.Set.empty in (** whether Tid or Sub? *)
   let new_sub = Sub.Builder.create ~name:("new_compacted_"^sub_name) () |>
@@ -309,9 +310,9 @@ let construct_bottom_up project table sub_name sub_callgraph filtr =
         in res,(Sub.Set.add exists sub))
 
 let debug_table =
-  Sub.Table.iter ~f:(fun ~key ~data ->
+  Sub.Table.iteri ~f:(fun ~key ~data ->
       Format.printf "K:%s\n" @@ Sub.name key;
-      Tid.Table.iter data ~f:(fun ~key ~data ->
+      Tid.Table.iteri data ~f:(fun ~key ~data ->
           Format.printf
             "\tCallsite: %s\n\t\t1: %s\n\t\t2:%s\n\t\t3:%s\n\t\t4:%s\n"
             (Tid.name key)
@@ -330,7 +331,7 @@ let compacted_summary project sub filtr =
   let sub_callgraph = Program.to_graph
     @@ Util.callgraph_of_sub project @@ Util.tid_of_sub sub in
   let f node : 'a Summary.t option =
-    let module G = Graphlib.Callgraph.Node in
+    let module G = Graphs.Callgraph.Node in
     Util.sub_of_tid project (G.label node) >>= fun subroutine ->
     let data = make_summary project subroutine filtr in
     let summary = {subroutine; data} in

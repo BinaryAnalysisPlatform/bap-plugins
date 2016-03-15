@@ -2,6 +2,9 @@ open Bap.Std
 open Core_kernel.Std
 open Cut
 open Options
+open Graphlib.Std
+
+let (^::) = Seq.cons
 
 type trim = {
   trim_sub : Sub.t;
@@ -53,7 +56,7 @@ let tid_from_blk_structure blk sub =
     (2,Seq.hd_exn matches |> Util.tid_of_blk)
 
 let trim sub src sink =
-  let module Cfg = Graphlib.Tid.Tid in
+  let module Cfg = Graphs.Tid in
   let cfg = Sub.to_graph sub in
   let reachable_src =
     Graphlib.fold_reachable (module Cfg)

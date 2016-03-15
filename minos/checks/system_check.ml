@@ -6,6 +6,8 @@ open Check
 open Check_tmpl
 open Policy
 
+let (^::) = Seq.cons
+
 module P = Policy.Predicate
 
 (** CHECK *)

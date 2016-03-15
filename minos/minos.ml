@@ -1,6 +1,9 @@
 open Core_kernel.Std
 open Bap.Std
 open Options
+include Self ()
+
+let (^::) = Seq.cons
 
 module Cmdline = struct
   open Cmdliner
@@ -246,48 +249,48 @@ module Plugin (E : sig val project : project val options : options end) = struct
             | (x,y) when x = i && y = j -> output_case i j case
             | (_,_) -> ()))
 
-    let main () =
-      Output.init options.out_dir;
-      let project = Util.make_exported_calls_explicit project in
-      (** Perform cond negation *)
-      let project' = Util.make_implicit_jmp_conds_explicit project in
+  let main () =
+    Output.init options.out_dir;
+    let project = Util.make_exported_calls_explicit project in
+    (** Perform cond negation *)
+    let project' = Util.make_implicit_jmp_conds_explicit project in
 
-      let callgraph = Program.to_graph (Project.program project') in
-      (* 0. Read srcs and sinks *)
-      let srcs = In_channel.read_lines options.srcs_f in
-      let sinks = In_channel.read_lines options.sinks_f in
-      let src = List.hd_exn srcs in (* only one pair for now *)
-      let sink = List.hd_exn sinks in
+    let callgraph = Program.to_graph (Project.program project') in
+    (* 0. Read srcs and sinks *)
+    let srcs = In_channel.read_lines options.srcs_f in
+    let sinks = In_channel.read_lines options.sinks_f in
+    let src = List.hd_exn srcs in (* only one pair for now *)
+    let sink = List.hd_exn sinks in
 
-      Output.meta @@ Format.sprintf "Src: %s\n" src;
-      Output.meta @@ Format.sprintf "Sink: %s\n\n" sink;
+    Output.meta @@ Format.sprintf "Src: %s\n" src;
+    Output.meta @@ Format.sprintf "Sink: %s\n\n" sink;
 
-      (** if src_is_entry, the source block will NOT be the block that
-          calls some source sub, but the entry block of the sub
-          specified (if possible). If it is ROOT:[sub], then we will
-          inline from the root of the sink callstring *)
-      let src_config = parse_src_config src in
+    (** if src_is_entry, the source block will NOT be the block that
+        calls some source sub, but the entry block of the sub
+        specified (if possible). If it is ROOT:[sub], then we will
+        inline from the root of the sink callstring *)
+    let src_config = parse_src_config src in
 
-      let filter = Filter.cpp_filter ~extra:[src; sink] in
+    let filter = Filter.cpp_filter ~extra:[src; sink] in
 
-      (* 1. Cut out groups of source/sinks in the callgraph. Inclues lca
-         of src and sink *)
-      Format.printf "Producing cut groups...\n\n%!";
-      let cut_groups = Cut.cuts project' callgraph src_config sink in
-      output_cut_groups cut_groups;
+    (* 1. Cut out groups of source/sinks in the callgraph. Inclues lca
+       of src and sink *)
+    Format.printf "Producing cut groups...\n\n%!";
+    let cut_groups = Cut.cuts project' callgraph src_config sink in
+    output_cut_groups cut_groups;
 
-      if options.cuts_only then exit 0;
+    if options.cuts_only then exit 0;
 
-      (* 2. Trims *)
-      Format.printf "Producing trims...\n\n%!";
-      let trim_groups = produce_trims cut_groups project filter in
-      output_trim_groups trim_groups;
+    (* 2. Trims *)
+    Format.printf "Producing trims...\n\n%!";
+    let trim_groups = produce_trims cut_groups project filter in
+    output_trim_groups trim_groups;
 
-      if options.trims_only then exit 0;
+    if options.trims_only then exit 0;
 
-      (* 3. paths *)
-      Format.printf "Processing paths...\n\n%!";
-      process_paths trim_groups project;
+    (* 3. paths *)
+    Format.printf "Processing paths...\n\n%!";
+    process_paths trim_groups project;
 end
 
 let run project options =
@@ -297,8 +300,8 @@ let run project options =
     end) in
   Main.main ()
 
-let main argv project =
+let main project =
   let options = Cmdline.parse argv in
   run project options
 
-let () = Project.register_pass_with_args' "minos" main
+let () = Project.register_pass' main

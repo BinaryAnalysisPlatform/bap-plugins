@@ -1,5 +1,8 @@
 open Bap.Std
 open Core_kernel.Std
+open Graphlib.Std
+
+let (^::) = Seq.cons
 
 type src_config =
   {src_at_root : bool;
@@ -37,13 +40,13 @@ let print_callstrings ~v paths =
      Format.printf "\n")
 
 let output_callstring f path =
-    (List.iter (Seq.to_list path |> List.rev) ~f:(fun tid ->
-           f @@ Format.sprintf "|%s|" @@ Tid.name tid);
-     f "\n")
+  (List.iter (Seq.to_list path |> List.rev) ~f:(fun tid ->
+       f @@ Format.sprintf "|%s|" @@ Tid.name tid);
+   f "\n")
 
 let output_callstrings f paths =
-    (Seq.iter paths ~f:(fun path -> output_callstring f path);
-     f "\n")
+  (Seq.iter paths ~f:(fun path -> output_callstring f path);
+   f "\n")
 
 let callstrings_from_x callgraph x =
   let callstrings,_ =
@@ -130,8 +133,8 @@ let make_cut ~nth project lca_tid sink_cs sink id =
     Seq.map ~f:(fun tid -> Util.blk_of_tid sub tid) in
 
   (* debug
-  let sink_caller_sub_tid = List.nth_exn !sink_cs 0 in
-  Format.printf "0 Sink caller sub: %s\n%!" @@ Tid.name sink_caller_sub_tid;*)
+     let sink_caller_sub_tid = List.nth_exn !sink_cs 0 in
+     Format.printf "0 Sink caller sub: %s\n%!" @@ Tid.name sink_caller_sub_tid;*)
   let sink_caller_sub_tid = List.nth_exn !sink_cs 1 in
   (*Format.printf "1 Sink caller sub: %s\n%!" @@ Tid.name sink_caller_sub_tid;*)
 
@@ -227,7 +230,7 @@ let lca_nth_of_sink project nth sink callgraph =
         Output.meta s;
         (* We have to reverse sink_cs for make_cut. lca at root of sink still
            uses that version. this should be fixed *)
-          let group = make_cut ~nth project lca_tid (rev_seq sink_cs) sink i in
+        let group = make_cut ~nth project lca_tid (rev_seq sink_cs) sink i in
         group ^:: acc
       | None ->
         Format.printf "Warning: no caller %d levels up from sink for \
