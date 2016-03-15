@@ -28,9 +28,9 @@ let taints_of_tid taints tid =
   | Some ts -> ts
 
 
-class context ?max_steps ?max_loop_length p  = object(self : 's)
+class context ?max_steps ?max_loop p  = object(self : 's)
   inherit Taint.context as taints
-  inherit Conqueror.context ?max_steps ?max_loop_length p as super
+  inherit Conqueror.context ?max_steps ?max_loop p as super
 
   val tvs : taints = Tid.Map.empty
   val tms : taints = Tid.Map.empty
@@ -83,13 +83,13 @@ let memory_lookup proj addr =
     | Ok w -> Some w
     | _ -> None
 
-class ['a] main ?summary ?const proj =
+class ['a] main ?deterministic ?policy proj =
   let prog = Project.program proj in
   let memory = memory_lookup proj in
   object(self)
     constraint 'a = #context
-    inherit ['a] Conqueror.main ?summary prog as super
-    inherit ['a] Concretizer.main ~memory ?const () as concrete
+    inherit ['a] Conqueror.main ?deterministic prog as super
+    inherit ['a] Concretizer.main ~memory ?policy () as concrete
     inherit ['a] Taint.propagator
 
     method! lookup v =
@@ -131,9 +131,10 @@ let tid_of_ident = function
 let run_from_point p biri point =
   run_from_tid p biri (tid_of_ident point)
 
-let run ?max_steps proj point =
+let run
+    ~max_steps ~max_loop ~deterministic ~policy proj point =
   let p = Project.program proj in
-  let ctxt = new context ?max_steps p in
-  let biri = new main proj in
+  let ctxt = new context ~max_steps ~max_loop p in
+  let biri = new main ~deterministic ~policy proj in
   let res = run_from_point p biri point in
   (Monad.State.exec res ctxt :> result)

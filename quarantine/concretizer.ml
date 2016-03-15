@@ -4,10 +4,21 @@ open Bap.Std
 module SM = Monad.State
 open SM.Monad_infix
 
-let def_const = Word.zero 8
+let def_policy = `Fixed 0L
+
+type policy = [`Random | `Fixed of int64 | `Interval of int64 * int64 ]
 
 
-class ['a] main ?(memory=fun _ -> None) ?(const=def_const) () =
+let rand64 lo hi = Int64.(Random.int64 (hi+(hi-lo)) + lo)
+
+let () = Random.self_init ()
+
+let rec generate = function
+  | `Fixed x -> Word.of_int64 x
+  | `Random -> generate (`Interval (Int64.min_value, Int64.max_value))
+  | `Interval (lo,hi) -> generate (`Fixed (rand64 lo hi))
+
+class ['a] main ?(memory=fun _ -> None) ?(policy=def_policy) () =
   object(self)
     inherit ['a] expi as super
     method! eval_unknown _ t = self#emit t
@@ -35,6 +46,7 @@ class ['a] main ?(memory=fun _ -> None) ?(const=def_const) () =
 
     method private emit_const sz =
       SM.get () >>= fun ctxt ->
+      let const = generate policy in
       let const = Word.extract_exn ~lo:0 ~hi:(sz-1) const in
       let ctxt,r = ctxt#create_word const in
       SM.put ctxt >>= fun () ->

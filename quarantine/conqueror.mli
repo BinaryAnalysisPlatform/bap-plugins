@@ -1,11 +1,9 @@
 open Core_kernel.Std
 open Bap.Std
 
-
-
 class context :
   ?max_steps:int ->
-  ?max_loop_length:int ->
+  ?max_loop:int ->
   program term -> object('s)
     inherit Biri.context
 
@@ -29,9 +27,7 @@ class context :
     method will_return : tid -> bool
   end
 
-class ['a] main :
-  ?summary:(call -> (var * Bil.value) list option) ->
-  program term -> object
+class ['a] main : ?deterministic:bool -> program term -> object
     inherit ['a] biri
     constraint 'a = #context
   end

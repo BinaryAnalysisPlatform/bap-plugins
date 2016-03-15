@@ -1,5 +1,7 @@
 open Bap.Std
 
+type policy = [`Random | `Fixed of int64 | `Interval of int64 * int64 ]
+
 class ['a] main :
   ?memory:(addr -> word option) ->
-  ?const:word -> unit -> ['a] expi
+  ?policy:policy -> unit -> ['a] expi

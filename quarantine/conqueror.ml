@@ -4,8 +4,6 @@ open Bap.Std
 module SM = Monad.State
 open SM.Monad_infix
 
-module Let_syntax = SM.Let_syntax
-
 open Format
 
 let debug_enabled = ref false
@@ -59,7 +57,7 @@ let merge_visited = Map.merge ~f:(fun ~key -> function
 
 class context
     ?(max_steps=Int.max_value)
-    ?(max_loop_length= min 10 (max_steps / 10)) p  = object(self : 's)
+    ?(max_loop= min 10 (max_steps / 10)) p  = object(self : 's)
   inherit Biri.context p
 
   val blk : blk term option = None
@@ -122,7 +120,7 @@ class context
     | [] -> false
     | sub :: _ -> match Map.find vis tid with
       | None -> false
-      | Some n -> n > max_loop_length && Term.find blk_t sub tid <> None
+      | Some n -> n > max_loop && Term.find blk_t sub tid <> None
 
   method will_return tid = match callstack with
     | cur :: _ ->
@@ -135,7 +133,7 @@ end
 let update f =
   SM.get () >>= fun s -> SM.put (f s)
 
-class ['a] main ?(summary=def_summary) p =
+class ['a] main ?(deterministic=false) p =
   object(self)
     constraint 'a = #context
     inherit ['a] Biri.t as super
@@ -182,8 +180,7 @@ class ['a] main ?(summary=def_summary) p =
     method private add_checkpoints =
       SM.get () >>= fun ctxt ->
       match ctxt#blk with
-      | None -> assert false
-      | Some blk ->
+      | Some blk when not deterministic ->
         Term.enum jmp_t blk |>
         Seq.fold ~init:(SM.return ()) ~f:(fun m jmp ->
             m >>= fun () ->
@@ -192,6 +189,7 @@ class ['a] main ?(summary=def_summary) p =
             | None -> SM.return ()
             | Some tid ->
               update (fun ctxt -> ctxt#add_checkpoint tid))
+      | _ -> SM.return ()
 
     method private next_of_jmp jmp =
       let goto dst =

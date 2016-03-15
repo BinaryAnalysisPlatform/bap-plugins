@@ -9,6 +9,11 @@ class type result = object
   method tainted_ptrs : tid -> Taint.map
 end
 
-val run : ?max_steps:int -> project -> [
+val run :
+  max_steps : int ->
+  max_loop : int ->
+  deterministic : bool ->
+  policy : Concretizer.policy ->
+  project -> [
     | `Name of string
     | `Term of tid] -> result

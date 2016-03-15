@@ -1,5 +1,5 @@
 quarantine : *.ml
-		bapbuild quarantine.plugin
+		bapbuild -package cmdliner quarantine.plugin
 		bapbundle install quarantine.plugin
 
 clean:
