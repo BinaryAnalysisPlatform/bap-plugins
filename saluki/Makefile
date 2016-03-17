@@ -1,15 +1,15 @@
-OPTS = --symbolizer=ida ${options} --saluki-seed --quarantine --saluki-solve
+OPTS = --symbolizer=ida ${options} --saluki-seed --propagate-taint --saluki-solve
 case = *
 TEST = tests/test${case}.c
 
-plugins : saluki quarantine
+all : build install
+build : saluki
 
 saluki : *.ml
 		bapbuild saluki.plugin
-		bapbundle install saluki.plugin
 
-quarantine:
-		make -C ../quarantine
+install: saluki
+		bapbundle install saluki.plugin
 
 test-expect:
 		make -C ../test-expect
@@ -18,9 +18,8 @@ test : plugins test-expect
 		@TEST_OPTIONS="${OPTS}" bap-test-expect $(TEST)
 
 
-bap: plugins
+bap: saluki
 		bap ${binary} ${OPTS}
 
 clean:
 	bapbuild -clean
-	make -C ../quarantine clean
