@@ -1,6 +1,6 @@
 Initial pass for resolving strings. Annotates project with the comment tag.
 
-`bap -lstrings -dbir --emit-attr=comment /bin/ls`
+`bap --print-bir-attr=comment --symbols=ida -lstrings --strings -dbir /bin/ls`
 
 ```
 .comment "/usr/share/locale"
@@ -11,3 +11,4 @@ Initial pass for resolving strings. Annotates project with the comment tag.
 000001a5: mem64 := mem64 with [RSP, el]:u64 <- 0x40290F:64
 000001a6: call @.bindtextdomain with return %000001a7
 ```
+
