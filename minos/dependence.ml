@@ -15,7 +15,7 @@ let debug s acc def =
   print_seq acc
 
 let get_vars exp =
-  (object inherit [Var.t seq] Bil.visitor
+  (object inherit [Var.t seq] Exp.visitor
     method! enter_var v state =
       v ^:: state
   end)#visit_exp exp

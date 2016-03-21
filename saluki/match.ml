@@ -10,7 +10,7 @@ type t =
   | Eql of v * var    (** v matches var on lhs    *)
   | Any of t list     (** disjunction of matches  *)
   | All of t list     (** conjunction of matches  *)
-[@@deriving variants]
+  [@@deriving variants]
 
 let bot = any []
 let top = all []
@@ -39,7 +39,7 @@ let mem  v : exp -> t =
   let vars v exp =
     any_var v (Exp.free_vars exp) in
   Exp.fold ~init:bot (object
-    inherit [t] Bil.visitor
+    inherit [t] Exp.visitor
     method! enter_load ~mem ~addr e s eqs =
       match v with
       | `load v -> any [vars v addr; eqs]
@@ -120,14 +120,14 @@ let call prog =
   let match_call_def call v : t =
     if v = 0 then top
     else
-    with_args call (fun args ->
-        Seq.filter args ~f:(fun a -> Arg.intent a = Some Out) |>
-        Seq.map ~f:(fun a ->
-            let rhs = match Arg.rhs a with
-              | Bil.Var var -> eql v var
-              | _ -> bot in
-            any [eql v (Arg.lhs a); rhs]) |>
-        Seq.to_list |> any) in
+      with_args call (fun args ->
+          Seq.filter args ~f:(fun a -> Arg.intent a = Some Out) |>
+          Seq.map ~f:(fun a ->
+              let rhs = match Arg.rhs a with
+                | Bil.Var var -> eql v var
+                | _ -> bot in
+              any [eql v (Arg.lhs a); rhs]) |>
+          Seq.to_list |> any) in
 
   object
     inherit matcher
