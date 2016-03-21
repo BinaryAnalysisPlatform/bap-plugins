@@ -92,7 +92,7 @@ module Predicate = struct
         List.exists call_names ~f:(fun call_name -> call_name = call_name'))
 
   let c_ite exp =
-    (object inherit [bool] Bil.visitor
+    (object inherit [bool] Exp.visitor
       method! enter_ite ~cond ~yes ~no state = true || state
     end)#visit_exp exp false
 

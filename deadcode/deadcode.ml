@@ -15,7 +15,7 @@ open Bap.Std
 (* note, this function will return all variables, including
    non-free *)
 let vars_of_exp = Exp.fold ~init:Var.Set.empty (object
-    inherit [Var.Set.t] Bil.visitor
+    inherit [Var.Set.t] Exp.visitor
     method! enter_var var vars = Set.add vars var
   end)
 
