@@ -41,7 +41,7 @@ let mem_read_to_var exp =
   end)#map_exp exp
 
 let mem_access_to_var exp =
-  (object inherit [Var.t] Bil.visitor
+  (object inherit [Var.t] Exp.visitor
     method! enter_var v state =
       (** only if we haven't already visited it in binop *)
       (** TODO: should this check is_bp / is_sp? *)

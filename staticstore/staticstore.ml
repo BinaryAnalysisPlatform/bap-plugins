@@ -105,7 +105,7 @@ let collect_unsafe sub =
       Term.enum def_t blk |>
       Seq.fold ~init:unsafe ~f:(fun unsafe def ->
           Exp.fold ~init:unsafe (object
-            inherit [exp list] Bil.visitor
+            inherit [exp list] Exp.visitor
             method! enter_store ~mem:_ ~addr ~exp:_ _ _ unsafe =
               if is_safe addr then unsafe
               else addr :: unsafe

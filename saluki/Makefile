@@ -14,7 +14,7 @@ install: saluki
 test-expect:
 		make -C ../test-expect
 
-test : plugins test-expect
+test : all test-expect
 		@TEST_OPTIONS="${OPTS}" bap-test-expect $(TEST)
 
 
