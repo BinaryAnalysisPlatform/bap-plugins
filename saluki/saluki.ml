@@ -25,5 +25,5 @@ let solve spec proj =
 
 let () =
   let spec = Specification.spec in
-  Project.register_pass  ~name:"seed"  (seed spec);
+  Project.register_pass ~deps:["callsites"] ~name:"seed"  (seed spec);
   Project.register_pass' ~name:"solve" (solve spec)
