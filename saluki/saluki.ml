@@ -3,7 +3,7 @@ open Bap.Std
 open Format
 open Spec
 
-let seed spec proj =
+let taint spec proj =
   let prog = Project.program proj in
   Project.with_program proj (Tainter.seed spec prog)
 
@@ -25,5 +25,5 @@ let solve spec proj =
 
 let () =
   let spec = Specification.spec in
-  Project.register_pass  ~name:"seed"  (seed spec);
+  Project.register_pass ~deps:["callsites"] ~name:"taint"  (taint spec);
   Project.register_pass' ~name:"solve" (solve spec)

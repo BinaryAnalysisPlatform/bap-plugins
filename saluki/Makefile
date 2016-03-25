@@ -1,4 +1,4 @@
-OPTS = --symbolizer=ida ${options} --saluki-seed --propagate-taint --saluki-solve
+OPTS = --symbolizer=ida ${options} --saluki-taint --propagate-taint --saluki-solve
 case = *
 TEST = tests/test${case}.c
 
