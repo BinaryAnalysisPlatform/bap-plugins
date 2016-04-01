@@ -15,9 +15,6 @@ let sat_pred constr term v var =
         V.(v = v') ==> Predicate.test id term var
       | _ -> true)
 
-let exists_sat_pred constr term v vars =
-  Set.exists vars ~f:(fun var -> sat_pred constr term v var)
-
 let tag_of_sort = function
   | S.Ptr -> Taint.ptr
   | S.Reg -> Taint.reg
@@ -26,9 +23,8 @@ let seed_def target def defn blk pat =
   let vars = Defn.ivars defn in
   let sort = List.Assoc.find ~equal:V.equal (Defn.vars defn) in
   let cons = Defn.constrs defn in
-  let free = Def.free_vars def in
   let hit v = Set.mem vars v  in
-  let sat v = exists_sat_pred cons def v free in
+  let sat v = sat_pred cons def v (Def.rhs def) in
   match pat with
   | Pat.Move (v1,v2) | Pat.Load (v1,v2) | Pat.Store (v1,v2)
     when sat v1 && sat v2 && (hit v1 || hit v2) ->
@@ -36,12 +32,12 @@ let seed_def target def defn blk pat =
   | Pat.Call (id,v,vs) ->
     Term.get_attr def Term.origin >>= fun origin ->
     target origin >>= fun callee ->
-    require (id = Sub.name callee) >>= fun () ->
+    require (id = "_" || id = Sub.name callee) >>= fun () ->
     let args = Seq.to_array (Term.enum arg_t callee) in
     List.find_mapi (v::vs) ~f:(fun i v ->
         let arg = Array.nget args (i-1) in
         require (hit v) >>= fun () ->
-        require (Set.mem free (Arg.lhs arg)) >>= fun () ->
+        require Var.(Def.lhs def = Arg.lhs arg) >>= fun () ->
         require (sat v) >>= fun () ->
         sort v) >>| fun sort ->
     Term.set_attr def (tag_of_sort sort) origin

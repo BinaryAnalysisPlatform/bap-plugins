@@ -105,7 +105,7 @@ let sat ts term hyp kind v bil : hyp option =
       hyp >>= fun hyp ->
       let sat c = Option.some_if c hyp in
       match cs with
-      | Fun (id,v') -> V.(v = v') ==> Predicate.test id term bil |> sat
+      | Fun (id,v') -> V.(v = v') ==> Predicate.test id term (Bil.var bil) |> sat
       | Var (v',ex) -> V.(v' = v) ==> Var.(ex = bil) |> sat
       | Dep (v1,v2) ->  match kind with
         | `def when V.(v2 = v) -> dep_def bil v2

@@ -3,7 +3,7 @@ open Bap.Std
 
 
 type t = {
-  sat : 'a. 'a term -> var -> bool
+  sat : 'a. 'a term -> exp -> bool
 }
 
 exception Unbound_predicate of string [@@deriving sexp]

@@ -2,6 +2,7 @@ open Core_kernel.Std
 open Bap.Std
 open Format
 open Spec
+include Self()
 
 let taint spec proj =
   let prog = Project.program proj in
@@ -26,4 +27,6 @@ let solve spec proj =
 let () =
   let spec = Specification.spec in
   Project.register_pass ~deps:["callsites"] ~name:"taint"  (taint spec);
-  Project.register_pass' ~name:"solve" (solve spec)
+  Project.register_pass' ~name:"solve" (solve spec);
+  Project.register_pass' ignore
+    ~deps:[name^"-taint"; "propagate-taint"; name^"-solve"]
