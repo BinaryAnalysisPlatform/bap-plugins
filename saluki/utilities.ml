@@ -3,7 +3,8 @@ open Bap.Std
 
 let label_matches l id = match l with
   | Indirect _ -> false
-  | Direct tid -> Tid.name tid = "@"^id
+  | Direct tid ->
+    id = "_" || Tid.name tid = "@"^id
 
 let callee call prog = match Call.target call with
   | Indirect _ -> None

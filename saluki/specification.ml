@@ -71,12 +71,22 @@ let magic_leaks_into_malloc =
   ] vars [reg p; reg q; reg v] such
     that [forall v such that is_black; q/p]
 
+let recv_to x x_args =
+  define ("recv_to_"^x) [
+    rule "if_data_dep"
+      [sub "recv" [_';p;_';_']]
+      [sub x x_args]
+  ] vars [reg *p; reg *q] such that [q/p]
+
+
 let spec = specification [
     (* unescaped_sql append_n; *)
     (* unescaped_sql append_s; *)
     maybe_checked "malloc";
     (* maybe_checked "calloc"; *)
     untrusted_input "strcpy" "system";
+    untrusted_input "sprintf" "system";
+    recv_to "strcpy"  [_';q];
     (* data_sanitized "fgets" "realpath" "fopen"; *)
     (* magic "read" is_black; *)
     (* magic "readv" is_black; *)
