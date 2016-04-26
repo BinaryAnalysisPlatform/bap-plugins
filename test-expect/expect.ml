@@ -44,7 +44,7 @@ module G = struct
           f @@ E.make V.Source (V.Person i))
     | V.Sink,Pred ->
       Array.iteri jobs ~f:(fun i _ ->
-          f @@ E.make (V.Person i) V.Sink)
+          f @@ E.make (V.Task i) V.Sink)
     | V.Sink,Succ -> ()
     | V.Person i as p,Pred -> f @@ E.make V.Source p
     | V.Person i as p,Succ ->
