@@ -154,8 +154,13 @@ let pp_sat   d = pp pp_examples d
 let pp_unsat d = pp pp_counters d
 
 let annotate_term defn sat rule anns (pat,tid) =
-  let comment = asprintf "%s:%s_%s:%a" sat defn rule Pat.pp pat in
-  Map.add_multi anns ~key:tid ~data:comment
+  let pref = sprintf "%s:%s_%s" sat defn rule in
+  let patt = String.Set.singleton (Pat.to_string pat) in
+  Map.change anns tid ~f:(function
+      | None -> Some (String.Map.singleton pref patt)
+      | Some patts -> Some (Map.change patts pref ~f:(function
+          | None -> Some patt
+          | Some patts -> Some (Set.union patts patt))))
 
 let annotate_model defn sat anns m =
   List.fold ~init:anns (m.prem @ m.conc)
@@ -179,7 +184,10 @@ let annotate (t : t) prog =
       match Map.find anns (Term.tid t) with
       | None -> t
       | Some comms ->
-        let comm = String.concat ~sep:"; " comms in
+        Map.iteri comms ~f:(fun ~key:pref ~data:patts ->
+            Set.iter patts ~f:(fun patt ->
+                fprintf str_formatter "%s> %s; " pref patt));
+        let comm = flush_str_formatter () in
         Term.set_attr t comment comm
   end in
   mapper#run prog
