@@ -36,7 +36,7 @@ type solution = {
 } [@@deriving bin_io, compare, sexp]
 
 type solutions = solution String.Map.t
-[@@deriving bin_io, compare, sexp]
+  [@@deriving bin_io, compare, sexp]
 
 type t = solutions [@@deriving bin_io, compare, sexp]
 
@@ -152,3 +152,34 @@ let pp pp d ppf t =
 
 let pp_sat   d = pp pp_examples d
 let pp_unsat d = pp pp_counters d
+
+let annotate_term defn sat rule anns (pat,tid) =
+  let comment = asprintf "%s:%s_%s:%a" sat defn rule Pat.pp pat in
+  Map.add_multi anns ~key:tid ~data:comment
+
+let annotate_model defn sat anns m =
+  List.fold ~init:anns (m.prem @ m.conc)
+    ~f:(annotate_term defn sat m.rule)
+
+let annotate_models defn sat anns models=
+  List.fold ~init:anns models ~f:(annotate_model defn sat)
+
+let annotate_solution defn anns sol =
+  let anns = annotate_models defn "SAT" anns sol.examples in
+  annotate_models defn "UNS" anns sol.counters
+
+let annotate (t : t) prog =
+  let anns = Map.fold t ~init:Tid.Map.empty
+      ~f:(fun ~key:defn ~data:sol anns ->
+          annotate_solution defn anns sol) in
+  let mapper = object
+    inherit Term.mapper as super
+    method! map_term cls t =
+      let t = super#map_term cls t in
+      match Map.find anns (Term.tid t) with
+      | None -> t
+      | Some comms ->
+        let comm = String.concat ~sep:"; " comms in
+        Term.set_attr t comment comm
+  end in
+  mapper#run prog
