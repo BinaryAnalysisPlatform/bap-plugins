@@ -22,11 +22,12 @@ let solve spec proj =
       printf "@]";
       printf "@[** assert %s@." (Defn.name defn);
       printf "%a" (Solution.pp_unsat defn) sol;
-      printf "@]@]@.")
+      printf "@]@]@.");
+  Project.with_program proj (Solution.annotate sol prog)
 
 let () =
   let spec = Specification.spec in
   Project.register_pass ~deps:["callsites"] ~name:"taint"  (taint spec);
-  Project.register_pass' ~name:"solve" (solve spec);
+  Project.register_pass ~name:"solve" (solve spec);
   Project.register_pass' ignore
     ~deps:[name^"-taint"; "propagate-taint"; name^"-solve"]

@@ -10,6 +10,8 @@ type hypothesis = tid Pat.Map.t
 
 val create : spec -> (defn * hypothesis) seq -> t
 
+val annotate : t -> program term -> program term
+
 val sat : t -> defn -> bool option
 
 val pp_sat : defn -> formatter -> t -> unit

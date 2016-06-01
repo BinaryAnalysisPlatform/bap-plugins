@@ -36,7 +36,7 @@ type solution = {
 } [@@deriving bin_io, compare, sexp]
 
 type solutions = solution String.Map.t
-[@@deriving bin_io, compare, sexp]
+  [@@deriving bin_io, compare, sexp]
 
 type t = solutions [@@deriving bin_io, compare, sexp]
 
@@ -152,3 +152,42 @@ let pp pp d ppf t =
 
 let pp_sat   d = pp pp_examples d
 let pp_unsat d = pp pp_counters d
+
+let annotate_term defn sat rule anns (pat,tid) =
+  let pref = sprintf "%s:%s_%s" sat defn rule in
+  let patt = String.Set.singleton (Pat.to_string pat) in
+  Map.change anns tid ~f:(function
+      | None -> Some (String.Map.singleton pref patt)
+      | Some patts -> Some (Map.change patts pref ~f:(function
+          | None -> Some patt
+          | Some patts -> Some (Set.union patts patt))))
+
+let annotate_model defn sat anns m =
+  List.fold ~init:anns (m.prem @ m.conc)
+    ~f:(annotate_term defn sat m.rule)
+
+let annotate_models defn sat anns models=
+  List.fold ~init:anns models ~f:(annotate_model defn sat)
+
+let annotate_solution defn anns sol =
+  let anns = annotate_models defn "SAT" anns sol.examples in
+  annotate_models defn "UNS" anns sol.counters
+
+let annotate (t : t) prog =
+  let anns = Map.fold t ~init:Tid.Map.empty
+      ~f:(fun ~key:defn ~data:sol anns ->
+          annotate_solution defn anns sol) in
+  let mapper = object
+    inherit Term.mapper as super
+    method! map_term cls t =
+      let t = super#map_term cls t in
+      match Map.find anns (Term.tid t) with
+      | None -> t
+      | Some comms ->
+        Map.iteri comms ~f:(fun ~key:pref ~data:patts ->
+            Set.iter patts ~f:(fun patt ->
+                fprintf str_formatter "%s> %s; " pref patt));
+        let comm = flush_str_formatter () in
+        Term.set_attr t comment comm
+  end in
+  mapper#run prog
