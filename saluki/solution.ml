@@ -7,18 +7,17 @@ open Option.Monad_infix
 type hypothesis = tid Pat.Map.t
 type hypotheses = hypothesis list
 type input = (defn * hypothesis) seq
+type proof = (pat * tid)  [@@deriving bin_io, compare, sexp]
+type proofs = proof list * pat list
+  [@@deriving bin_io, compare, sexp]
 
-type proved = Nil [@@deriving bin_io, compare, sexp]
-type unproved = Cons of pat * pat list [@@deriving bin_io, compare, sexp]
-type undecided = pat list
 
 
 (** a particular valuation of a given rule  *)
-type 'a model = {
+type model = {
   rule : string;
-  prem : (pat * tid) list;        (** all premises must hold  *)
-  conc : (pat * tid) list;        (** proved conclusions      *)
-  miss : 'a;                       (** unproved patterns       *)
+  prem : proofs;        (** all premises must hold  *)
+  conc : proofs;        (** proved conclusions      *)
 } [@@deriving bin_io, compare, sexp]
 
 (** Solution for a given definition. It contains a set of examples
@@ -31,8 +30,8 @@ type 'a model = {
     both sets are empty, then that means that we didn't find a
     matching model in the given program.*)
 type solution = {
-  examples : proved model list;   (** all formulae are proved       *)
-  counters : unproved model list; (** some conclusions are missing  *)
+  examples : model list; (** all formulae are proved       *)
+  counters : model list; (** some conclusions are missing  *)
 } [@@deriving bin_io, compare, sexp]
 
 type solutions = solution String.Map.t
@@ -43,26 +42,25 @@ type t = solutions [@@deriving bin_io, compare, sexp]
 let line = "--------------------------------"
 
 let pp_unpat ppf pat =
-  fprintf ppf "%s: %a" "unproved" Pat.pp pat
+  fprintf ppf "%s: %a@;" "unproved" Pat.pp pat
 
 let pp_unpats ppf pats = List.iter pats ~f:(pp_unpat ppf)
 
 let pp_pat ppf (pat,t) =
   fprintf ppf "%a: %a@;" Tid.pp t Pat.pp pat
 
-let pp_pats ppf pats = List.iter pats ~f:(pp_pat ppf)
+let pp_pats ppf (p,u) =
+  List.iter p ~f:(pp_pat ppf);
+  List.iter u ~f:(pp_unpat ppf)
 
-let pp_model pp_miss defn ppf m =
-  fprintf ppf "@[<v2>rule %s_%s ::=@ %a%s@;%a%a@]@;@;"
+let pp_model defn ppf m =
+  fprintf ppf "@[<v2>rule %s_%s ::=@ %a%s@;%a@]@;@;"
     defn m.rule
-    pp_pats m.prem line pp_pats m.conc pp_miss m.miss
+    pp_pats m.prem line pp_pats m.conc
 
-let pp_nil ppf Nil = ()
-let pp_cons ppf (Cons (x,xs)) =
-  fprintf ppf "%a%a" pp_unpat x pp_unpats xs
 
-let pp_proved d = pp_model pp_nil d
-let pp_unproved d = pp_model pp_cons d
+let pp_proved d = pp_model d
+let pp_unproved d = pp_model d
 let pp_models pp ppf ms = List.iter ms ~f:(pp ppf)
 let pp_examples d ppf s = pp_models (pp_proved d) ppf s.examples
 let pp_counters d ppf s = pp_models (pp_unproved d) ppf s.counters
@@ -88,24 +86,26 @@ let remove_subsets hyps : hypotheses =
           i <> j && is h1 subset_of h2)))
 
 
-let model_of_hypothesis rule hyp : undecided model option =
+let prove f rule hyp =
   let prove pat = Map.find hyp pat >>| fun t -> (pat,t) in
-  List.map (Rule.premises rule) ~f:prove |> Option.all >>= fun prem ->
-  let conc,miss =
-    List.partition_map (Rule.conclusions rule) ~f:(fun pat ->
-        match prove pat with
-        | Some proof -> `Fst proof
-        | None -> `Snd pat) in
-  Some {rule = Rule.name rule; conc; prem; miss}
+  List.partition_map (f rule) ~f:(fun pat ->
+      match prove pat with
+      | Some proof -> `Fst proof
+      | None -> `Snd pat)
 
-let decide_model (m : undecided model) = match m with
-  | {miss = []} -> `Fst {m with miss=Nil}
-  | {miss = x :: xs} -> `Snd {m with miss = Cons (x,xs)}
+let model_of_hypothesis rule hyp : model =
+  let prem = prove Rule.premises rule hyp in
+  let conc = prove Rule.conclusions rule hyp in
+  {rule = Rule.name rule; conc; prem}
+
+let decide_model (m : model) = match m with
+  | {prem = (_,_ :: _)} -> `Fst m
+  | {conc = (_,[])} -> `Fst m
+  | _ -> `Snd m
 
 let make_solution (hyps : hypotheses) rule =
   let examples,counters =
-    remove_subsets hyps |>
-    List.filter_map ~f:(model_of_hypothesis rule) |>
+    List.map hyps ~f:(model_of_hypothesis rule) |>
     List.partition_map ~f:decide_model in
   {examples;counters}
 
@@ -159,8 +159,8 @@ let annotate_term defn anns (pat,tid) =
     | _ -> defn in
   Map.add_multi anns ~key:tid ~data
 
-let annotate_model defn anns m =
-  List.fold ~init:anns (m.prem @ m.conc) ~f:(annotate_term defn)
+let annotate_model defn anns ({prem=(prem,_); conc=(conc,_)}) =
+  List.fold ~init:anns (prem @ conc) ~f:(annotate_term defn)
 
 let annotate_models defn anns models=
   List.fold ~init:anns models ~f:(annotate_model defn)
@@ -175,7 +175,7 @@ let term_sat = Value.Tag.register (module String)
     ~uuid:"122f4fb8-80f3-4e92-b254-def6e52d4f40"
 
 let term_uns = Value.Tag.register (module String)
-    ~name:"saluki-uns"
+    ~name:"saluki"
     ~uuid:"dfdd406d-8c19-4c4f-9227-b4e625282f7a"
 
 let tag = function

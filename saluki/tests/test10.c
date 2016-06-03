@@ -14,7 +14,7 @@ int main(void) {
     if (!realpath(input,fixed)) {
         exit(1);
     } else {
-        FILE *f = fopen(fixed, "r");
+        FILE *f = fopen(input, "r");
         while (fgets(input,size,f))
             puts(input);
     }

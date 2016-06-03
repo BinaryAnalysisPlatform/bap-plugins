@@ -15,8 +15,8 @@ let data_sanitized src san sink =
     rule ("if_data_passthrough_"^san)
       [sub src[p]; sub sink[t]]
       [sub san[s;r]]
-  ] vars [reg *p; reg *q; reg *t; reg *r; reg *s] such
-    that [s/p; t/r]
+  ] vars [reg *p; reg *t; reg *r; reg *s] such
+    that [s/p; t/r; t/p]
 
 let untrusted_input src sink =
   define ("TAINT/"^src^"_may_leak_into_"^sink) [

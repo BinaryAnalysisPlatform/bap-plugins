@@ -20,6 +20,7 @@ type hyp = {
   proofs  : tid Pat.Map.t;   (** map from a patter to matched t  *)
   ivars   : eq V.Map.t;      (** equivalence classes for inputs  *)
   constrs : constr list;     (** constraints that we mus satisfy *)
+  pending : Pat.Set.t;
 } [@@deriving fields]
 
 
@@ -37,23 +38,34 @@ type solution = Solution.t
 
 type matcher = Match.matcher
 
+
+
 let hyp_of_defn defn : hyp =
   let constrs = Defn.constrs defn in
   let proofs = Pat.Map.empty in
   let ivars =
     Set.fold (Defn.ivars defn) ~init:V.Map.empty ~f:(fun ivars v ->
         Map.add ivars ~key:v ~data:Top) in
-  let patts =
-    List.fold (Defn.rules defn) ~init:Pat.Set.empty ~f:(fun pats r ->
-        List.rev_append (Rule.conclusions r) (Rule.premises r) |>
-        List.fold ~init:pats ~f:(fun pats pat ->
-            Set.add pats pat)) in
-  {defn; patts; ivars; proofs; constrs;}
+  let (++) pats r = Set.union pats (Pat.Set.of_list r) in
+  let patts,pending =
+    List.fold (Defn.rules defn)
+      ~init:(Pat.Set.empty,Pat.Set.empty) ~f:(fun (pats,pending) r ->
+          pats ++ Rule.premises r,
+          pending ++ Rule.conclusions r) in
+  {defn; patts; ivars; proofs; constrs; pending}
 
 let create s t = {
   init = Spec.defns s |> List.map ~f:hyp_of_defn;
   hyps = [];
   ts = t;
+}
+
+let start_conclusions s = {
+  init = [];
+  hyps = List.map s.hyps ~f:(fun hyp -> {
+        hyp with patts = Set.union hyp.patts hyp.pending
+      });
+  ts = s.ts;
 }
 
 let taint_of_sort = function
@@ -82,6 +94,7 @@ let sat ts term hyp kind v bil : hyp option =
           ivars = Map.add hyp.ivars ~key:x ~data:(Set ss)
         }
       | Set xs ->
+        (* this is an error! it is \/ instead of /\ *)
         let ss = Set.inter ss xs in
         if Set.is_empty ss then None
         else Some {
