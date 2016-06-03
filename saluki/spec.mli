@@ -110,6 +110,7 @@ module Language : sig
   val (:=) : V.t -> rhs -> pat
   val use : V.t -> rhs
   val any : V.t -> pat
+  val never : pat
 
   (** {3 Calls}  *)
   val call : id -> V.t list -> rhs
