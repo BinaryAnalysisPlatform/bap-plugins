@@ -154,7 +154,10 @@ let pp_sat   d = pp pp_examples d
 let pp_unsat d = pp pp_counters d
 
 let annotate_term defn anns (pat,tid) =
-  Map.add_multi anns ~key:tid ~data:defn
+  let data = match String.split defn ~on:'/' with
+    | x :: _ -> x
+    | _ -> defn in
+  Map.add_multi anns ~key:tid ~data
 
 let annotate_model defn anns m =
   List.fold ~init:anns (m.prem @ m.conc) ~f:(annotate_term defn)
@@ -191,7 +194,7 @@ let annotate_with  sns (t : t) prog =
       | None -> t
       | Some comms ->
         Term.set_attr t (tag sns) @@
-        String.concat ~sep:"," comms
+        String.concat ~sep:" " comms
 
   end in
   mapper#run prog
