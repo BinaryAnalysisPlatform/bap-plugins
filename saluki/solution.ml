@@ -4,7 +4,7 @@ open Spec
 open Format
 open Option.Monad_infix
 
-type hypothesis = tid Pat.Map.t
+type hypothesis = tid Pat.Map.t [@@deriving bin_io, compare, sexp]
 type hypotheses = hypothesis list
 type input = (defn * hypothesis) seq
 type proof = (pat * tid)  [@@deriving bin_io, compare, sexp]
@@ -68,23 +68,8 @@ let pp_hypothesis ppf hyp =
   Map.iteri hyp ~f:(fun ~key ~data ->
       fprintf ppf "@;%a:%a" Tid.pp data Pat.pp key)
 
-let subset_of x y =
-  let set m = Map.data m |> Tid.Set.of_list in
-  Set.subset (set x) (set y)
-
-let is x p y = p x y
-let isn't x p y = not (p x y)
-
-(** since a term can proof more than one proposition, (i.e., it can
-    participate in more than one valuations) we optimistically produce
-    more hypotheses than needed. At this step we remove all hypotheses
-    that are proper subsets of some other hypotheses (of the same
-    definition), since they don't add any more information.*)
-let remove_subsets hyps : hypotheses =
-  List.filteri hyps ~f:(fun i h1 ->
-      is_none (List.findi hyps ~f:(fun j h2 ->
-          i <> j && is h1 subset_of h2)))
-
+let dedup hyps : hypotheses =
+  List.dedup ~compare:(Pat.Map.compare Tid.compare) hyps
 
 let prove f rule hyp =
   let prove pat = Map.find hyp pat >>| fun t -> (pat,t) in
@@ -105,7 +90,7 @@ let decide_model (m : model) = match m with
 
 let make_solution (hyps : hypotheses) rule =
   let examples,counters =
-    List.map hyps ~f:(model_of_hypothesis rule) |>
+    List.map (dedup hyps) ~f:(model_of_hypothesis rule) |>
     List.partition_map ~f:decide_model in
   {examples;counters}
 
