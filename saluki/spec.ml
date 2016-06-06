@@ -6,7 +6,7 @@ open Format
 
 module Id = String
 type id = Id.t
-[@@deriving bin_io, compare, sexp]
+  [@@deriving bin_io, compare, sexp]
 
 let pp_list pp_sep pp_elem ppf xs =
   let rec pp ppf = function
@@ -59,6 +59,7 @@ module Pat = struct
   let nullify cvars pat =
     let f v = if Set.mem cvars v then v else V.null in
     match pat with
+    | Pat.Never -> Pat.Never
     | Pat.Jump  (k,x,y) -> Pat.Jump (k, f x, f y)
     | Pat.Load  (x,y) -> Pat.Load (f x, f y)
     | Pat.Store (x,y) -> Pat.Store (f x, f y)
@@ -70,6 +71,7 @@ module Pat = struct
       type nonrec t = t [@@deriving bin_io, compare, sexp]
       let version = "0.1"
       let hash = function
+        | Never -> Hashtbl.hash Never
         | Call (id,_,_) -> Id.hash id
         | Jump (_,v1,v2) | Move (v1,v2) | Load (v1,v2) | Store (v1,v2) ->
           V.hash v1 lxor V.hash v2
@@ -90,6 +92,7 @@ module Pat = struct
         | e -> fprintf ppf "%a := " V.pp v
 
       let pp ppf = function
+        | Never -> fprintf ppf "never"
         | Call (id,def,uses) ->
           fprintf ppf "%a%a(%a)" pp_ret def Id.pp id pp_args uses
         | Jump (k,c,d) ->
@@ -166,7 +169,7 @@ module Defn = struct
               | Pat.Store (_,v) -> undef p v
               | Pat.Jump (_,x,y) ->
                 Option.first_some (undef p x) (undef p y)
-              | Pat.Call _ -> None)) |> function
+              | Pat.Never | Pat.Call _ -> None)) |> function
     | None -> ()
     | Some (p,v) ->
       invalid_argf "Variable %a bound in %a can't be used as input"
@@ -217,7 +220,7 @@ type defn = Defn.t [@@deriving bin_io, compare, sexp]
 
 module Spec = struct
   type t = defn list
-  [@@deriving bin_io, compare, sexp]
+    [@@deriving bin_io, compare, sexp]
 
   let create defs =
     let compare x y = String.compare (Defn.name x) (Defn.name y) in
@@ -334,4 +337,6 @@ module Language = struct
     | 0 -> sub id args
     | _ -> Pat.call id ret args
   let (:=) lhs term = term lhs
+
+  let never = Pat.never
 end

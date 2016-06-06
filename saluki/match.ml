@@ -112,22 +112,19 @@ let call prog =
     with_args call (fun args ->
         Seq.zip (Seq.of_list vars) args |>
         Seq.map ~f:(fun (v,a) ->
-            any [
-              eql v (Arg.lhs a);
-              any_var v (Arg.rhs a |> Exp.free_vars)
-            ]) |> Seq.to_list_rev |> all) in
+            any_var v (Arg.rhs a |> Exp.free_vars)) |>
+        Seq.to_list |> all) in
 
   let match_call_def call v : t =
     if v = 0 then top
     else
       with_args call (fun args ->
-          Seq.filter args ~f:(fun a -> Arg.intent a = Some Out) |>
-          Seq.map ~f:(fun a ->
-              let rhs = match Arg.rhs a with
-                | Bil.Var var -> eql v var
-                | _ -> bot in
-              any [eql v (Arg.lhs a); rhs]) |>
-          Seq.to_list |> any) in
+          Seq.filter args ~f:(fun a ->
+              Arg.intent a <> Some In) |>
+          Seq.map ~f:(fun a -> match Arg.rhs a with
+              | Bil.Var var -> eql v var
+              | _ -> bot) |>
+          Seq.to_list |> all) in
 
   object
     inherit matcher

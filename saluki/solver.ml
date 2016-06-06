@@ -45,7 +45,10 @@ let search_sub vis sub =
       foreach jmp_t blk ~f:vis#jmp)
 
 let search (vis : 'a vis) prog =
+  foreach sub_t prog ~f:(search_sub vis) >>= fun () ->
+  SM.update State.start_conclusions >>= fun () ->
   foreach sub_t prog ~f:(search_sub vis)
+
 
 let do_nothing _ = ()
 

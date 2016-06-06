@@ -1,5 +1,9 @@
 /* example of sanitization via call (CWE-22) */
 
+//! 00000...: fgets.p,_,_,_.
+//! 00000...: fopen.t.
+//! unproved: realpath.s,r.
+
 #include <limits.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -14,7 +18,7 @@ int main(void) {
     if (!realpath(input,fixed)) {
         exit(1);
     } else {
-        FILE *f = fopen(fixed, "r");
+        FILE *f = fopen(input, "r");
         while (fgets(input,size,f))
             puts(input);
     }

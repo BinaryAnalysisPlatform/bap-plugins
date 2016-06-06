@@ -122,10 +122,10 @@ let update_seed prog term taint map =
   | Some seed -> match Program.lookup def_t prog tid with
     | None -> map
     | Some def ->
-      let var = Def.lhs def in
-      Map.change map seed (function
-          | None -> Some (Var.Set.singleton var)
-          | Some vars -> Some (Set.add vars var))
+      let vars = Set.add (Def.free_vars def) (Def.lhs def) in
+      Map.update map seed ~f:(function
+          | None -> vars
+          | Some vars' -> Set.union vars vars)
 
 let reap prog =
   let update_seed t = update_seed prog t in
