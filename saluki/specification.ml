@@ -13,7 +13,7 @@ let maybe_checked name =
 let data_sanitized src san sink =
   define ("BYPASS/data_may_passthrough_"^san^"_before_"^sink) [
     rule ("if_data_passthrough_"^san)
-      [sub src[p]; sub sink[t]]
+      [sub src[p;_';_';_']; sub sink[t]]
       [sub san[s;r]]
   ] vars [reg *p; reg *t; reg *r; reg *s] such
     that [s/p; t/r; t/p]

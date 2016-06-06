@@ -1,5 +1,9 @@
 /* example of sanitization via call (CWE-22) */
 
+//! 00000...: fgets.p,_,_,_.
+//! 00000...: fopen.t.
+//! unproved: realpath.s,r.
+
 #include <limits.h>
 #include <stdlib.h>
 #include <stdio.h>
