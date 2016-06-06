@@ -10,10 +10,13 @@ module Dep = Comparable.Make(struct
     type t = v * v [@@deriving bin_io, compare, sexp]
   end)
 
-(** a lattice for dependency equality class.*)
+(** a complete lattice for dependency equality class.
+
+    Note: the buttom is [Set empty]
+*)
 type eq =
   | Top              (* superset *)
-  | Set of Tid.Set.t (* invariant: set is not empty *)
+  | Set of Tid.Set.t
 
 (** Hypothesis.
     If a term matches some pattern in some definition we start to check a
@@ -92,7 +95,6 @@ let sat ts term hypo kind v bil : hyp option =
     List.Assoc.find (Defn.vars hyp.defn) v >>|
     taint_of_sort >>= fun taints ->
     match taints ts (Term.tid term) y with
-    | ss when Set.is_empty ss -> None
     | ss -> match Map.find_exn hyp.deps (v,x) with
       | Top -> Some {
           hyp with
@@ -106,17 +108,21 @@ let sat ts term hypo kind v bil : hyp option =
             deps = Map.add hyp.deps ~key:(v,x) ~data:(Set ss)
           } in
   let dep_def hyp bil y =
-    List.Assoc.find (Defn.vars hyp.defn) v >>|
-    seed_of_sort >>= fun get_seed ->
-    get_seed ts (Term.tid term) bil >>= fun seed ->
-    match Map.find_exn hyp.deps (y,v) with
-    | Top ->
-      Some {
+    List.Assoc.find (Defn.vars hyp.defn) v >>| seed_of_sort >>=
+    fun get_seed ->
+    match get_seed ts (Term.tid term) bil, Map.find_exn hyp.deps (y,v) with
+    | None,Top -> Some {
+        hyp with
+        deps = Map.add hyp.deps ~key:(y,v)
+            ~data:(Set Tid.Set.empty)
+      }
+    | None,_ -> None
+    | Some seed,Top -> Some {
         hyp with
         deps = Map.add hyp.deps ~key:(y,v)
             ~data:(Set (Tid.Set.singleton seed))
       }
-    | Set seeds ->
+    | Some seed, Set seeds ->
       if Set.mem seeds seed then (Some hyp) else None in
   let open Constr in
   List.fold hypo.constrs ~init:(Some hypo) ~f:(fun hyp cs ->
