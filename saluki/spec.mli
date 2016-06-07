@@ -71,6 +71,7 @@ type defn = Defn.t [@@deriving bin_io, compare, sexp]
 module Spec : sig
   type t [@@deriving bin_io, compare, sexp]
   val defns : t -> defn list
+  val filter : t -> f:(defn -> bool) -> t
   include Regular with type t := t
 end
 
