@@ -231,6 +231,8 @@ module Spec = struct
 
   let defns = ident
 
+  let filter = List.filter
+
   include Regular.Make(struct
       type nonrec t = t [@@deriving bin_io, compare, sexp]
       let version = "0.1"

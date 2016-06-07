@@ -1,4 +1,4 @@
-OPTS = --symbolizer=ida ${options} --saluki
+OPTS = --symbolizer=ida ${options} --saluki --saluki-print-models
 case = *
 TEST = tests/test${case}.c
 
@@ -6,7 +6,7 @@ all : build install
 build : saluki
 
 saluki : *.ml
-		bapbuild -tag 'ppx(ppx-bap)' saluki.plugin
+		bapbuild -tag 'ppx(ppx-bap)' -package cmdliner saluki.plugin
 
 install: saluki
 		bapbundle install saluki.plugin
