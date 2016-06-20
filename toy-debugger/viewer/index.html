@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<style>
+.rsable {
+    resize: both;
+    overflow: auto;
+}
+</style>
+
+<script>
+
+function pad(num) {
+var str = "" + num;
+var pad = "0000";
+var ans = pad.substring(0, pad.length - str.length) + str;
+return ans;
+}
+
+function update_object(id_name, file_name, file_extension, idx) {
+  var next = file_name+pad(idx)+file_extension;
+  var o = document.getElementById(id_name);
+  o.src=document.URL+'/../'+next;
+  return false;
+}
+
+function update(inc_or_dec) {
+ var idx = inc_or_dec(parseInt(document.getElementById("count").innerHTML));
+ update_object("image", "cfg_frame", ".dot.svg", idx);
+ update_object("regs", "enter_term_regs", ".txt", idx);
+ update_object("memory", "enter_term_memory", ".txt", idx);
+ update_object("current", "enter_term_self", ".txt", idx);
+ update_object("checkpoints", "enter_term_checkpoints", ".txt", idx);
+ document.getElementById("count").innerHTML = pad(idx);
+ return;
+}
+
+function next() {
+ update(function (idx) { return idx+1 });
+ return;
+}
+
+function prev() {
+ update(function (idx) { return idx-1 });
+ return;
+}
+
+document.addEventListener("keydown", KeyCheck);  //or however you are calling your method
+
+function KeyCheck(event)
+{
+   var KeyID = event.keyCode;
+   switch(KeyID)
+   {
+      case 37:
+      prev();
+      break;
+      case 39:
+      next();
+      break;
+      default:
+      break;
+   }
+}
+
+</script>
+</head>
+
+<body>
+<h1 id="count">0000</h1>
+<button id="p" onclick="prev();">prev</button>
+<button id="n" onclick="next();">next</button>
+<hr>
+
+<div style="width: 100%;overflow:auto;">
+  <div style="float:left; width: 40%"> <!-- graph takes 40% -->
+      <img class="rsable" id="image" src="frame0000.dot.svg" width=500px>
+    </div>
+    <div style="float:left;"> <!-- regs,memory float to left next to graph -->
+      <h3>Current</h3>
+      <iframe class="rsable" id="current" src="self0000.txt" width=600px height=40px></iframe>
+
+      <div style="width: 100%;overflow:auto;">
+        <div style="float:left;">
+          <h3>Regs</h3>
+          <iframe class="rsable" id="regs" src="regs0000.txt" height=300px></iframe>
+          <h3>Checkpoints</h3>
+          <iframe class="rsable" id="checkpoints" src="checkpoints0000.txt" height=300px></iframe>
+        </div>
+
+        <div style="float:left;">
+          <h3>Memory</h3>
+          <iframe class="rsable" id="memory" src="memory0000.txt" height=668px></iframe>
+        </div>
+      </div>
+    </div>
+</div>
+
+
+</body>
+</html>
