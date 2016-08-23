@@ -82,6 +82,7 @@ let spec = specification [
     maybe_checked "calloc";
     untrusted_input "strcpy" "system";
     untrusted_input "sprintf" "system";
+    untrusted_input "snprintf" "system";
     recv_to "strcpy"  [_';q];
     data_sanitized "fgets" "realpath" "fopen";
   ]
