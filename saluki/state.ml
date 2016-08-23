@@ -186,10 +186,11 @@ let check ts t matches h =
     if Map.is_empty h.proofs then None
     else (Some h)
 
-let step s t matches = {
-  s with
-  hyps = List.filter_map (s.init @ s.hyps) ~f:(check s.ts t matches)
-}
+let step s t matches =
+  if Term.has_attr t Term.visited then {
+    s with
+    hyps = List.filter_map (s.init @ s.hyps) ~f:(check s.ts t matches)
+  } else s
 
 let solution s spec =
   Seq.of_list s.hyps |> Seq.map ~f:(fun {defn;proofs} -> defn,proofs) |>
