@@ -20,6 +20,9 @@ The demo and tests will not function as expected unless you apply `microx.patch`
 to your bap installation. This issue will be resolved once the microx code is
 rewritten to support the required option (all paths exploration).
 
+This plugin was built against commit
+[33e9e2ec66496e06dc1d0a280d21c86c43b75c6f](https://github.com/BinaryAnalysisPlatform/bap/commit/33e9e2ec66496e06dc1d0a280d21c86c43b75c6f)
+
 # Demo
 
 * `cd demo`
