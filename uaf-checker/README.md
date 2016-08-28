@@ -1,6 +1,8 @@
 # Build
 
 * `make`
+
+Optional:
 * `./gen_test`
 * `make test`
 
@@ -11,6 +13,12 @@ An example command-line for running is:
 
 `bap tests/all/gnome-nettool --no-byteweight --symbolizer=ida -lmain --main
 --main-precision=2 --main-fname=info_get_nic_information`
+
+## Warning:
+
+The demo and tests will not function as expected unless you apply `microx.patch`
+to your bap installation. This issue will be resolved once the microx code is
+rewritten to support the required option (all paths exploration).
 
 # Demo
 
