@@ -15,23 +15,27 @@ Have `dot` installed (Needed for svg conversion).
 The viewer is rudimentary. Use arrow keys (left, right) to navigate forward and
 backwards.
 
+Example:
+
+<img src=pngs/debugger.png></img>
+
 ## Commandline
 
 See the reference in `run.sh`:
 
 ```
-bap tests/$binary --symbolizer=ida \                                                
-  --callsites \                                                                     
-  -lbirasm --birasm \                                                               
-  -ldebugger --debugger \                                                           
-  --debugger-fname=main \                                                           
-  --debugger-memory="enter_term" \                                                  
-  --debugger-regs="enter_term" \                                                    
-  --debugger-dot="enter_term" \                                                     
-  --debugger-path-count="enter_term" \                                              
-  --debugger-myself="enter_term" \                                                  
-  --debugger-checkpoints="enter_term" \                                             
-  --debugger-dir="viewer"  
+bap tests/$binary --symbolizer=ida \
+  --callsites \
+  -lbirasm --birasm \
+  -ldebugger --debugger \
+  --debugger-fname=main \
+  --debugger-memory="enter_term" \
+  --debugger-regs="enter_term" \
+  --debugger-dot="enter_term" \
+  --debugger-path-count="enter_term" \
+  --debugger-myself="enter_term" \
+  --debugger-checkpoints="enter_term" \
+  --debugger-dir="viewer"
 ```
 
 The grammar is
