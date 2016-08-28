@@ -20,7 +20,7 @@ let go (type t) (module T: Regular with type t = t) get_addr proj  =
     T.set_default_printer name
 
 let main proj =
-  let get_addr t = Term.get_attr t Disasm.insn_addr in
+  let get_addr t = Term.get_attr t address in
   go (module Def) get_addr proj;
   go (module Jmp) get_addr proj;
   proj
