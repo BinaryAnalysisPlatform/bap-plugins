@@ -26,28 +26,36 @@ let suite =
   [
     "dead-simpl-1" >:: test "tests/all/dead-simpl-uaf-arm"
       (expected "expected/dead-simpl-uaf-arm.output")
-      ~extra:["--main-fname=main"];
+      ~extra:["--main-fname=main";
+              "--main-precision=2";];
     "dead-simple-2" >:: test "tests/all/dead-simpl-uaf-arm-2"
       (expected "expected/dead-simpl-uaf-arm-2.output")
-      ~extra:["--main-fname=main"];
+      ~extra:["--main-fname=main";
+              "--main-precision=2";];
     "super-simpl" >:: test "tests/all/super-simpl-uaf-arm"
       (expected "expected/super-simpl-uaf-arm.output")
-      ~extra:["--main-fname=main"];
+      ~extra:["--main-fname=main";
+              "--main-precision=2";];
     "simpl" >:: test "tests/all/simpl-uaf-arm"
       (expected "expected/simpl-uaf-arm.output")
-      ~extra:["--main-fname=main"];
+      ~extra:["--main-fname=main";
+              "--main-precision=2";];
     "simpl-2" >:: test "tests/all/simpl-uaf-arm-2"
       (expected "expected/simpl-uaf-arm-2.output")
-      ~extra:["--main-fname=main"];
+      ~extra:["--main-fname=main";
+              "--main-precision=2";];
     "no-assign" >:: test "tests/all/uaf-no-assign-arm"
       (expected "expected/uaf-no-assign-arm.output")
-      ~extra:["--main-fname=main"];
+      ~extra:["--main-fname=main";
+              "--main-precision=2";];
     "gueb-example" >:: test "tests/all/gueb-example-uaf-arm-O0"
       (expected "expected/gueb-example-uaf-arm-O0.output")
-      ~extra:["--main-fname=main"];
+      ~extra:["--main-fname=main";
+              "--main-precision=2";];
     "gueb-example-ite" >:: test "tests/all/gueb-example-ite-uaf-arm-O0"
       (expected "expected/gueb-example-ite-uaf-arm-O0.output")
-      ~extra:["--main-fname=main"];
+      ~extra:["--main-fname=main";
+              "--main-precision=2";];
     "gnome-nettool" >:: test "tests/all/gnome-nettool"
       (expected "expected/gnome-nettool.output")
       ~extra:["--main-precision=2";
