@@ -1,0 +1,14 @@
+EXT nonrec
+EXT ounit
+
+S .
+S debugger
+B _build
+B _build/debugger
+
+S /home/vagrant/core_kernel.113.33.03/src
+
+PKG bap bap-arm core_kernel cmdliner ocamlgraph re.posix ocamlbuild oUnit FrontC bap-microx
+
+FLG -short-paths
+FLG -w -4-33-40-41-42-43-34-44

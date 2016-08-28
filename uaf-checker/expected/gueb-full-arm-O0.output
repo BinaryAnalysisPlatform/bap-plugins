@@ -1,0 +1,96 @@
+=-=-=-=-=-=-=-= UAF! -=-=-=-=-=-=-=-
+UAF detected!
+Address: 0xDEAD6622:32
+Used at: 000001cc
+Free'd at: 0000026c
+Alloc'd at: 00000269
+
+
+=-=-=-=-=-=-=-= UAF! -=-=-=-=-=-=-=-
+UAF detected!
+Address: 0xDEAD6621:32
+Used at: 000001cc
+Free'd at: 0000026c
+Alloc'd at: 00000269
+
+
+=-=-=-=-=-=-=-= UAF! -=-=-=-=-=-=-=-
+UAF detected!
+Address: 0xDEAD6620:32
+Used at: 000001cc
+Free'd at: 0000026c
+Alloc'd at: 00000269
+
+
+=-=-=-=-=-=-=-= UAF! -=-=-=-=-=-=-=-
+UAF detected!
+Address: 0xDEAD661F:32
+Used at: 000001cc
+Free'd at: 0000026c
+Alloc'd at: 00000269
+
+
+=-=-=-=-=-=-=-= UAF! -=-=-=-=-=-=-=-
+UAF detected!
+Address: 0xDEAD6622:32
+Used at: 000001db
+Free'd at: 0000026c
+Alloc'd at: 00000269
+
+
+=-=-=-=-=-=-=-= UAF! -=-=-=-=-=-=-=-
+UAF detected!
+Address: 0xDEAD6621:32
+Used at: 000001db
+Free'd at: 0000026c
+Alloc'd at: 00000269
+
+
+=-=-=-=-=-=-=-= UAF! -=-=-=-=-=-=-=-
+UAF detected!
+Address: 0xDEAD6620:32
+Used at: 000001db
+Free'd at: 0000026c
+Alloc'd at: 00000269
+
+
+=-=-=-=-=-=-=-= UAF! -=-=-=-=-=-=-=-
+UAF detected!
+Address: 0xDEAD661F:32
+Used at: 000001db
+Free'd at: 0000026c
+Alloc'd at: 00000269
+
+
+=-=-=-=-=-=-=-= UAF! -=-=-=-=-=-=-=-
+UAF detected!
+Address: 0xDEAD6622:32
+Used at: 000001e5
+Free'd at: 0000026c
+Alloc'd at: 00000269
+
+
+=-=-=-=-=-=-=-= UAF! -=-=-=-=-=-=-=-
+UAF detected!
+Address: 0xDEAD6621:32
+Used at: 000001e5
+Free'd at: 0000026c
+Alloc'd at: 00000269
+
+
+=-=-=-=-=-=-=-= UAF! -=-=-=-=-=-=-=-
+UAF detected!
+Address: 0xDEAD6620:32
+Used at: 000001e5
+Free'd at: 0000026c
+Alloc'd at: 00000269
+
+
+=-=-=-=-=-=-=-= UAF! -=-=-=-=-=-=-=-
+UAF detected!
+Address: 0xDEAD661F:32
+Used at: 000001e5
+Free'd at: 0000026c
+Alloc'd at: 00000269
+
+
