@@ -75,6 +75,23 @@ let recv_to x x_args =
       [never]
   ] vars [reg *p; reg *q] such that [q/p]
 
+
+let unsafe_to_strcpy cat untrusted =
+  define (cat^"/"^untrusted^"_to_strcpy") [
+    rule "if_leaks"
+      [p := call untrusted []; sub "strcpy"[q]] [never]
+  ] vars [reg *p; reg *q] such that [q/p]
+
+(* a function that returns a string without any bound
+   so the only safe way to handle it, is to use strlen.*)
+let returns_dynamic_string cat untrusted =
+  define (cat^"/"^untrusted^"-must-be-strlened") [
+    rule "if_leaks"
+      [p := call untrusted []] [sub "strlen"[q]]
+  ] vars [reg p; reg q] such that [q/p]
+
+
+
 let spec = specification [
     unescaped_sql append_n;
     unescaped_sql append_s;

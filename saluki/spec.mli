@@ -6,7 +6,7 @@ open Spec_types
 
 module Constr : sig
   include module type of Constr with type t = Constr.t
-  include Regular with type t := t
+  include Regular.S with type t := t
 end
 
 
@@ -31,12 +31,12 @@ end
 *)
 module S : sig
   include module type of S with type t = S.t
-  include Regular with type t := t
+  include Regular.S with type t := t
 end
 
 module Pat : sig
   include module type of Pat with type t = Pat.t
-  include Regular with type t := t
+  include Regular.S with type t := t
 end
 
 type constr = Constr.t [@@deriving bin_io, compare, sexp]
@@ -51,7 +51,7 @@ module Rule : sig
   val name : t -> string
   val premises : t -> pat list
   val conclusions : t -> pat list
-  include Regular with type t := t
+  include Regular.S with type t := t
 end
 
 type rule = Rule.t [@@deriving bin_io, compare, sexp]
@@ -63,7 +63,7 @@ module Defn : sig
   val ivars : t -> V.Set.t
   val constrs : t -> constr list
   val rules : t -> rule list
-  include Regular with type t := t
+  include Regular.S with type t := t
 end
 
 type defn = Defn.t [@@deriving bin_io, compare, sexp]
@@ -72,7 +72,7 @@ module Spec : sig
   type t [@@deriving bin_io, compare, sexp]
   val defns : t -> defn list
   val filter : t -> f:(defn -> bool) -> t
-  include Regular with type t := t
+  include Regular.S with type t := t
 end
 
 type spec = Spec.t [@@deriving bin_io, compare, sexp]

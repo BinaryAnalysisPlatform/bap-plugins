@@ -5,4 +5,4 @@ open Bap.Std
 type t = int
 val null   : t
 val create : string -> t
-include Regular with type t := t
+include Regular.S with type t := t
