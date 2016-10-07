@@ -1,0 +1,32 @@
+=-=-=-=-=-=-=-= UAF! -=-=-=-=-=-=-=-
+UAF detected!
+Address: 0xDEAD965F:32
+Used at: 00000141
+Free'd at: 0000019d
+Alloc'd at: 0000019c
+
+
+=-=-=-=-=-=-=-= UAF! -=-=-=-=-=-=-=-
+UAF detected!
+Address: 0xDEAD965E:32
+Used at: 00000141
+Free'd at: 0000019d
+Alloc'd at: 0000019c
+
+
+=-=-=-=-=-=-=-= UAF! -=-=-=-=-=-=-=-
+UAF detected!
+Address: 0xDEAD965D:32
+Used at: 00000141
+Free'd at: 0000019d
+Alloc'd at: 0000019c
+
+
+=-=-=-=-=-=-=-= UAF! -=-=-=-=-=-=-=-
+UAF detected!
+Address: 0xDEAD965C:32
+Used at: 00000141
+Free'd at: 0000019d
+Alloc'd at: 0000019c
+
+

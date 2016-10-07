@@ -4,7 +4,9 @@ trap convert_svg INT
 
 binary=test1
 
-bap tests/$binary --symbolizer=ida \
+bap tests/$binary \
+  --no-byteweight \
+  --symbolizer=ida \
   --callsites \
   -lbirasm --birasm \
   -ldebugger --debugger \
