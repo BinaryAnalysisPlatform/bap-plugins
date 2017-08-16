@@ -62,13 +62,13 @@ let string_of_site syms cs =
 
 let sym_of_site syms cs =
   let addr = Block.addr cs in
-  match Symtab.find_by_start syms addr with
-  | Some (sym,entry,cfg) ->
+  match Symtab.dominators syms (Block.memory cs) with
+  | (sym,entry,cfg) :: _ ->
     let mem = Block.memory entry in
     let off = Addr.(addr - Memory.min_addr mem) in
     if Addr.is_zero off then sym
     else sprintf "%s" sym
-  | None -> sprintf "spontaneous"
+  | _ -> sprintf "spontaneous(%s)" (Addr.string_of_value addr)
 
 let find_starting_with css c' =
   Set.fold css ~init:(0,[]) ~f:(fun (n',cs') cs ->
