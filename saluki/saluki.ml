@@ -13,8 +13,8 @@ let pp_models sol defn =
   printf "%a" (Solution.pp_sat defn) sol
 
 let filter checks defs =
-  Spec.filter defs ~f:(fun defn -> 
-      List.exists checks ~f:(fun pattern -> 
+  Spec.filter defs ~f:(fun defn ->
+      List.exists checks ~f:(fun pattern ->
           String.substr_index (Defn.name defn) ~pattern <> None))
 
 let solve models spec proj =
@@ -31,47 +31,47 @@ let solve models spec proj =
       if models then pp_models sol defn);
   Project.with_program proj (Solution.annotate sol prog)
 
-let main models checks () = 
+let main models checks () =
   let spec = match checks with
-    | None -> Specification.spec 
+    | None -> Specification.spec
     | Some checks -> filter checks (Specification.spec) in
   Option.is_some checks, spec,models
 
 
 module Cmdline = struct
   open Cmdliner
-  let taint = 
+  let taint =
     let doc = "Run taint pass" in
     Arg.(value & flag & info ["taint"] ~doc)
-  let solver = 
+  let solver =
     let doc = "Run saluki solver" in
-    Arg.(value & flag & info ["taint"] ~doc)
-  let saluki = 
+    Arg.(value & flag & info ["solver"] ~doc)
+  let saluki =
     let doc = "Taint, then propagate taint, then run the solver" in
     Arg.(value & flag & info ["saluki"] ~doc)
 
-  let passes = 
+  let passes =
     Term.(const (fun _ _ _ -> ()) $taint $solver $saluki)
 
-  let check = 
-    let doc = "Check the specified list of properties. The list 
-    may contain a full property name, or just some substring. For 
+  let check =
+    let doc = "Check the specified list of properties. The list
+    may contain a full property name, or just some substring. For
     example,if $(b,malloc) is specified, then all properties that
     contain $(b,malloc) in their name will be checked." in
     Arg.(value & opt (some (list string)) None &
          info ["check"] ~doc)
 
-  let models = 
+  let models =
     let doc =
-      "Output found models for each property. Usefull for testing 
+      "Output found models for each property. Usefull for testing
        and debugging." in
     Arg.(value & flag & info ["print-models"] ~doc)
 
   let man = [
     `S "DESCRIPTION";
-    `P "Saluki is a proof base property verification engine. It uses 
-        a simple DSL that allows to specify program properties. The 
-        solver will verify that dataflow facts proves or disproves the 
+    `P "Saluki is a proof base property verification engine. It uses
+        a simple DSL that allows to specify program properties. The
+        solver will verify that dataflow facts proves or disproves the
         given set of properties."
   ]
 
