@@ -424,3 +424,7 @@ free variable in the term to a set of taints, annotated with `must` or
 
 In reaping phase the solver uses the data dependency information,
 provided by a dataflow engine, to proof or disproof all rules.
+
+# VM Instance
+
+Instructions for obtaining an older version of Saluki in a VM is available [here](https://github.com/BinaryAnalysisPlatform/bap-plugins/wiki).
