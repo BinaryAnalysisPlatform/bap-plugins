@@ -6,7 +6,7 @@ all : build install
 build : saluki
 
 saluki : *.ml
-		bapbuild -tag 'ppx(ppx-bap)' -package cmdliner saluki.plugin
+		bapbuild -package cmdliner saluki.plugin
 
 install: saluki
 		bapbundle install saluki.plugin
