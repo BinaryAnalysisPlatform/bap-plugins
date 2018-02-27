@@ -6,7 +6,7 @@
 #include <stdio.h>
 
 int print_result(FILE *output, const char *msg) {
-    fprintf(output,msg);
+    fputs(msg,output);
 }
 
 int main() {
