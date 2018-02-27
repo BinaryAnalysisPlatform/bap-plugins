@@ -92,7 +92,7 @@ let debug id term fmt =
 
 let sat ts term hypo kind v bil : hyp option =
   let dep_use hyp y x =
-    List.Assoc.find (Defn.vars hyp.defn) v >>|
+    V.Assoc.find (Defn.vars hyp.defn) v >>|
     taint_of_sort >>= fun taints ->
     match taints ts (Term.tid term) y with
     | ss -> match Map.find_exn hyp.deps (v,x) with
@@ -108,7 +108,7 @@ let sat ts term hypo kind v bil : hyp option =
             deps = Map.add hyp.deps ~key:(v,x) ~data:(Set ss)
           } in
   let dep_def hyp bil y =
-    List.Assoc.find (Defn.vars hyp.defn) v >>| seed_of_sort >>=
+    V.Assoc.find (Defn.vars hyp.defn) v >>| seed_of_sort >>=
     fun get_seed ->
     match get_seed ts (Term.tid term) bil, Map.find_exn hyp.deps (y,v) with
     | None,Top -> Some {

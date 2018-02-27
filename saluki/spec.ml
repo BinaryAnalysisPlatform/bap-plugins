@@ -6,7 +6,7 @@ open Format
 
 module Id = String
 type id = Id.t
-  [@@deriving bin_io, compare, sexp]
+[@@deriving bin_io, compare, sexp]
 
 let pp_list pp_sep pp_elem ppf xs =
   let rec pp ppf = function
@@ -154,7 +154,7 @@ module Defn = struct
         | _ -> ivars)
 
   let assert_all_defined cvars vars =
-    Set.find cvars ~f:(fun v -> not (List.Assoc.mem vars v)) |> function
+    Set.find cvars ~f:(fun v -> not (V.Assoc.mem vars v)) |> function
     | None -> ()
     | Some v -> invalid_argf "Undefined variable %a" V.pps v ()
 
@@ -220,7 +220,7 @@ type defn = Defn.t [@@deriving bin_io, compare, sexp]
 
 module Spec = struct
   type t = defn list
-    [@@deriving bin_io, compare, sexp]
+  [@@deriving bin_io, compare, sexp]
 
   let create defs =
     let compare x y = String.compare (Defn.name x) (Defn.name y) in

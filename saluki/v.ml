@@ -23,6 +23,11 @@ end
 
 type t = int [@@deriving bin_io, compare, sexp]
 
+module Assoc = struct
+  let find = List.Assoc.find ~equal:Int.equal
+  let mem = List.Assoc.mem ~equal:Int.equal
+end
+
 let null = 0
 let create = Vars.register
 include Regular.Make(struct
