@@ -1,4 +1,4 @@
-OPTS = --symbolizer=ida ${options} --saluki --saluki-print-models
+OPTS = ${options} --no-byteweight --saluki --saluki-print-models --propagate-taint-print-coverage
 case = *
 TEST = tests/test${case}.c
 
