@@ -15,7 +15,7 @@ let subst = [
   "arch", "arm";
   "abi",  "linux-gnueabi";
   "cc", "gcc";
-  "ver", "4.7";
+  "ver", "5";
   "opt", "";
   "dir", test_folder;
   "options", "";
@@ -47,10 +47,16 @@ let expand pat map =
     pat;
   Buffer.contents buf
 
-let pipe cmd =
-  let inp = Unix.open_process_in cmd in
-  let r = In_channel.input_lines inp in
-  In_channel.close inp; r
+let pipe cmd : string list =
+  let env = Unix.environment () in
+  let out,inp,err = Unix.open_process_full cmd env in
+  Out_channel.close inp;
+  let res = List.concat [
+      In_channel.input_lines out;
+      In_channel.input_lines err;
+    ] in
+  List.iter ~f:In_channel.close [out;err];
+  res
 
 let sh cmd =
   if Sys.command cmd <> 0 then
