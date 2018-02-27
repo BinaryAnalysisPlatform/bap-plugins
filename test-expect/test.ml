@@ -27,6 +27,8 @@ let verbose () = try Sys.getenv "VERBOSE" with Not_found -> "0"
 
 exception Command_failed of string [@@deriving sexp]
 
+let assoc = List.Assoc.find_exn ~equal:String.equal
+
 
 let result_of_string line =
   try Scanf.sscanf line "//! %s@\n" Option.some with exn -> None
@@ -40,7 +42,7 @@ let expand pat map =
   let buf = Buffer.create 64 in
   Buffer.add_substitute buf (fun key ->
       try Sys.getenv ("TEST_"^String.uppercase key) with
-        Not_found -> try List.Assoc.find_exn map key with
+        Not_found -> try assoc map key with
           Not_found -> failwithf "no subst for %s" key ())
     pat;
   Buffer.contents buf
