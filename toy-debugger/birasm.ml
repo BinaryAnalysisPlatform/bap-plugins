@@ -4,7 +4,7 @@ include Self ()
 open Format
 open Regular.Std
 
-let go (type t) (module T: Regular with type t = t) get_addr proj  =
+let go (type t) (module T: Regular.S with type t = t) get_addr proj  =
   let f x elt =
     match get_addr elt with
     | Some addr ->

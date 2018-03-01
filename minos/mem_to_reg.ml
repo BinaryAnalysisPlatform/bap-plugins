@@ -13,7 +13,7 @@ let print_store_map =
 (* We might see:
    000000f4: t_167 := mem64[0x601050:64, el]:u8*)
 let mem_read_to_var exp =
-  (object inherit Bil.mapper
+  (object inherit Stmt.mapper
     method! map_load ~mem ~addr endian size =
       match addr with
       | Bil.Int addr ->
@@ -22,7 +22,7 @@ let mem_read_to_var exp =
       | exp ->
         (* binop mapper so we hit every instance of a mem read in an
            expression *)
-        (object inherit Bil.mapper
+        (object inherit Stmt.mapper
           method! map_binop op o1 o2 =
             let orig = Bil.binop op o1 o2 in
             match (op,o1,o2) with

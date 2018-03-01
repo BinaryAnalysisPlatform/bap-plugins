@@ -46,6 +46,8 @@ let is_alloc_result = alloc_result_pat |> compile
 let is_alloc_size = alloc_size_pat |> compile
 let is_free = free_pat |> compile
 
+let equal = Polymorphic_compare.equal
+
 class context ?dir ?(directives=[]) ?max_steps ?max_loop prog =
   object(self : 's)
 
@@ -92,7 +94,7 @@ class context ?dir ?(directives=[]) ?max_steps ?max_loop prog =
     method! log ~extras (invoker : Flag.hook) =
       let open Flag in
       super#log ~extras invoker;
-      let if_active hl f = if List.mem hl invoker then Lazy.force f in
+      let if_active hl f = if List.mem ~equal hl invoker then Lazy.force f in
       List.iter directives ~f:(fun (Flag (d,hl)) ->
           match d with
           | `Alloced_addrs -> if_active hl (lazy (self#dump_alloced_addrs ~invoker))

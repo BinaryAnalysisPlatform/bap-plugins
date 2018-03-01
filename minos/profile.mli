@@ -11,7 +11,7 @@ type t = {
 }
 
 val sub_profile_with_view :
-  (module Graphlib.Graph with type edge = Graphs.Tid.edge and
+  (module Graph with type edge = Graphs.Tid.edge and
   type node =  tid and type t = Graphs.Tid.t) ->
   Sub.t -> t
 

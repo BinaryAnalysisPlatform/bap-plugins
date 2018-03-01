@@ -69,7 +69,7 @@ let debug succs blk =
   Format.printf "\n%!"
 
 let rec fold_paths_graph ?(rev=false)
-    (module G : Graphlib.Graph with
+    (module G : Graph with
       type edge = Graphs.Tid.edge and
     type node = tid and
     type t = Graphs.Tid.t)

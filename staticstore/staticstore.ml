@@ -116,14 +116,14 @@ let stub_names = [".plt"; "__symbol_stub"; "__picsymbol_stub"]
 let entry_of_sub proj sub =
   let syms = Project.symbols proj in
   Term.first blk_t sub >>= fun entry ->
-  Term.get_attr entry Disasm.block >>= fun addr ->
+  Term.get_attr entry address >>= fun addr ->
   Symtab.find_by_start syms addr >>| snd3
 
 
 let stubs proj : unit memmap =
   Project.memory proj |> Memmap.to_sequence |>
   Seq.filter_map ~f:(fun (mem,tag) -> match Value.get Image.section tag with
-      | Some name when List.mem stub_names name -> Some mem
+      | Some name when List.mem ~equal:String.equal stub_names name -> Some mem
       | _ -> None) |>
   Seq.fold ~init:Memmap.empty ~f:(fun map mem -> Memmap.add map mem ())
 

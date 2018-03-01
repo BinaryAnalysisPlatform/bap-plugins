@@ -11,6 +11,8 @@ open SM.Monad_infix
 open Options
 open State_data
 
+let equal = Polymorphic_compare.equal
+
 class memory : Bil.storage =
   object(self : 's)
     val storage = Bitvector.Map.empty
@@ -103,7 +105,7 @@ class base_context p options = object(self : 's)
 
   method log ~extras (invoker : Flag.hook) =
     let open Flag in
-    let if_active hl f = if List.mem hl invoker then Lazy.force f in
+    let if_active hl f = if List.mem ~equal hl invoker then Lazy.force f in
     List.iter options.directives ~f:(fun (Flag (d,hl)) ->
         match d with
         | `Memory -> if_active hl (lazy (self#dump_memory ~invoker))
@@ -153,7 +155,7 @@ class debugger_context ?max_steps ?max_loop p options = object(self : 's)
   method! log ~extras (invoker : Flag.hook) =
     let open Flag in
     base#log ~extras invoker;
-    let if_active hl f = if List.mem hl invoker then Lazy.force f in
+    let if_active hl f = if List.mem ~equal hl invoker then Lazy.force f in
     List.iter options.directives ~f:(fun (Flag (d,hl)) ->
         match d with
         | `Checkpoints -> if_active hl (lazy (self#dump_checkpoints ~invoker))

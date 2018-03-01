@@ -10,7 +10,7 @@ let find_section_by_name project name =
               Option.some_if (n = name) m))
 
 let read_string mem w =
-  let open Or_error in
+  let open Or_error.Monad_infix in
   let (!) = Char.to_string in
   Memory.view ~word_size:`r8 ~from:w mem >>= fun mem' ->
   Memory.foldi ~word_size:`r8 mem' ~init:(false,"")
@@ -19,7 +19,7 @@ let read_string mem w =
         match fin,char with
         | (false,'\x00') -> (true,acc)
         | (false,c) -> (false,acc^(!c))
-        | (true,c) -> (true,acc)) |> snd |> return
+        | (true,c) -> (true,acc)) |> snd |> Or_error.return
 
 let get_rodata_str project w =
   find_section_by_name project ".rodata" >>= fun mem ->

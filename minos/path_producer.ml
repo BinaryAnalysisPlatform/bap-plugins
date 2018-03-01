@@ -272,7 +272,7 @@ let produce project options path_dir trim_dir trim check =
   *)
   let sub' = view_to_sub filtered_graph graph sub |> kill_non_existing_jmps in
 
-  let module G' = (val filtered_graph : Graphlib.Graph with
+  let module G' = (val filtered_graph : Graph with
                     type edge = Graphs.Tid.edge and
                   type node = tid and
                   type t = Graphs.Tid.t) in

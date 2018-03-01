@@ -31,9 +31,6 @@ let to_terminal = function
   | Purple -> "\x1b[35m"
   | White -> "\x1b[37m"
 
-let make_color_map l c =
-  List.fold l ~init:[] ~f:(fun acc name ->
-      List.Assoc.add acc name c)
 
 let (!) = to_int
 let (!!) = to_terminal

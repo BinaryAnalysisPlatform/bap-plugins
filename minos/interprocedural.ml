@@ -99,7 +99,7 @@ let inline_sub_called_by_blk project ccall callsite_tid blk sub =
 (** For a blk with a call, inline the call and return an updated
     global sub. Skip recursive. *)
 let inline_update_blk project sub blk_name (filtr: Filter.t) =
-  let blk = Util.blk_of_tid sub @@ Tid.(!blk_name) in
+  let blk = Util.blk_of_tid sub @@ Tid.(!!blk_name) in
   match Util.calls_of_blk_with_tid blk with
   | [] -> sub,[]
   | [(callsite_tid,ccall)] when not (filtered_call ~f:filtr ccall) ->
@@ -119,7 +119,7 @@ let inline project sub (filtr : Filter.t) =
 
 let make_color_map l c =
   List.fold l ~init:[] ~f:(fun acc name ->
-      List.Assoc.add acc name c)
+      List.Assoc.add ~equal:Polymorphic_compare.equal acc name c)
 
 (** Inline n times. Note we don't have to fail if we detect mutually
     recursive calls. Just warn. *)
