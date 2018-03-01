@@ -7,7 +7,7 @@ let stack_offset = 0x40000000L
 
 let simpl_load lookup =
   Exp.map (object(self)
-    inherit Bil.mapper as super
+    inherit Stmt.mapper as super
     method! map_load ~mem ~addr endian size =
       match lookup ~mem ~addr endian size with
       | None -> super#map_load ~mem ~addr endian size

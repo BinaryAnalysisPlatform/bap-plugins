@@ -2,6 +2,8 @@ open Core_kernel.Std
 open Bap.Std
 open Graphlib.Std
 open Color
+open Polymorphic_compare
+
 
 let left_justify =
   String.concat_map ~f:(fun c ->
@@ -39,9 +41,9 @@ let dot_cfg ?pc ?(highlight_node=[]) sub ~filename =
     let node_str =
       sprintf "%s" @@ Blk.to_string @@ Cfg.Node.label node
     in
-    if List.Assoc.mem highlight_node node_tid then
+    if List.Assoc.mem ~equal highlight_node node_tid then
       [`Shape `Box; `Style `Filled; `Fontcolor !White;
-       `Fillcolor (List.Assoc.find_exn highlight_node node_tid);
+       `Fillcolor (List.Assoc.find_exn ~equal highlight_node node_tid);
        `HtmlLabel (node_str |> format |> color_pc ?pc);
        `Fontname "Monospace"]
     else

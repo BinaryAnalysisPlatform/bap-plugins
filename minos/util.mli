@@ -75,7 +75,7 @@ val make_call_returns_explicit : Sub.t -> Sub.t
 (** Find number of paths in a dag. Uses DP on dfs. MUST be a DAG with
     a single exit node. Undefined behavior for multiple exit nodes. *)
 val num_paths_dag :
-  (module Graphlib.Graph with type edge = Graphs.Tid.edge and
+  (module Graph with type edge = Graphs.Tid.edge and
   type node = tid and type t = Graphs.Tid.t) ->
   Graphs.Tid.t -> tid -> int
 

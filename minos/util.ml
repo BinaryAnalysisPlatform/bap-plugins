@@ -191,7 +191,7 @@ let contains_call blk call_name =
 let calls_self sub =
   let blk_tids = blks_with_calls sub in
   List.exists blk_tids ~f:(fun t ->
-      let blk = blk_of_tid sub @@ Tid.(!t) in
+      let blk = blk_of_tid sub @@ Tid.(!!t) in
       match calls_of_blk_with_tid blk with
       | [] -> false
       | [(lhs_tid, call)] ->
@@ -238,7 +238,7 @@ let callgraph_of_sub project sub_tid =
 (** Bil mapper. Takes a stmt list and gives you back a stmt list.
     This one resolves memory. *)
 let resolve_indirects project =
-  Bil.map (object inherit Bil.mapper as super
+  Stmt.map (object inherit Stmt.mapper as super
     method! map_load ~mem ~addr endian scale =
       let exp = super#map_load ~mem ~addr endian scale in
       match addr with
@@ -256,7 +256,7 @@ let resolve_indirects project =
 (** Exp mapper. Everything is the same as the above, but we use
     Exp.map! *)
 let resolve_indirects project =
-  Bil.map (object inherit Bil.mapper as super
+  Stmt.map (object inherit Stmt.mapper as super
     method! map_load ~mem ~addr endian scale =
       let exp = super#map_load ~mem ~addr endian scale in
       match addr with
@@ -458,7 +458,7 @@ let resolve_symbols_of_calls project () =
 
 (** TODO add check that confirms no back-edges are traversed *)
 let num_paths_dag
-    (module G : Graphlib.Graph with type edge = Graphs.Tid.edge and
+    (module G : Graph with type edge = Graphs.Tid.edge and
     type node = tid and type t = Graphs.Tid.t)
     graph start_tid =
   let dp = Tid.Table.create () in

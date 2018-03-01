@@ -11,8 +11,10 @@ type t = {
   cyc_comp : int;
 }
 
+let equal = Polymorphic_compare.equal
+
 let sub_profile_with_view
-    (module G : Graphlib.Graph with type edge = Graphs.Tid.edge and
+    (module G : Graph with type edge = Graphs.Tid.edge and
     type node = tid and type t = Graphs.Tid.t) sub =
   let name = Sub.name sub in
   let num_blks = Seq.length (Term.enum blk_t sub) in
@@ -106,9 +108,9 @@ let output_dot_cfg
 
   let node_attrs node =
     let base =
-      if List.Assoc.mem highlight @@ Term.name (Cfg.Node.label node) then
+      if List.Assoc.mem ~equal highlight @@ Term.name (Cfg.Node.label node) then
         [`Shape `Box; `Style `Filled; `Fillcolor
-           (List.Assoc.find_exn highlight (Term.name (Cfg.Node.label node)))]
+           (List.Assoc.find_exn ~equal highlight (Term.name (Cfg.Node.label node)))]
       else
         [`Shape `Box; `Style `Filled; `Fillcolor !White] in
     base
@@ -156,14 +158,14 @@ let output_dot_cfg_path ?(special=[]) ?(highlight=[]) ?(v=false)
 
   let node_attrs node =
     let blk_name = Term.name (Cfg.Node.label node) in
-    if List.Assoc.mem special blk_name then
+    if List.Assoc.mem ~equal special blk_name then
       [`Shape `Box; `Style `Filled; `Fillcolor
-         (List.Assoc.find_exn special blk_name)]
+         (List.Assoc.find_exn ~equal special blk_name)]
     else if Seq.exists path ~f:(fun tid -> Tid.name tid = blk_name) then
       [`Shape `Box; `Style `Filled; `Fillcolor !Green; `Fontcolor !White]
-    else if List.Assoc.mem highlight blk_name then
+    else if List.Assoc.mem ~equal highlight blk_name then
       [`Shape `Box; `Style `Filled; `Fillcolor
-         (List.Assoc.find_exn highlight blk_name)]
+         (List.Assoc.find_exn ~equal highlight blk_name)]
     else
       [`Shape `Box; `Style `Filled; `Fillcolor !White]
   in

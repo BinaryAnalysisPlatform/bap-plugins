@@ -2,6 +2,7 @@ open Core_kernel.Std
 open Bap.Std
 open Format
 open Regular.Std
+open Polymorphic_compare
 
 open Microx.Std
 module SM = Monad.State
@@ -104,7 +105,7 @@ class base_context ?dir ?(directives=[]) prog = object(self : 's)
 
   method log ~extras (invoker : Flag.hook) =
     let open Flag in
-    let if_active hl f = if List.mem hl invoker then Lazy.force f in
+    let if_active hl f = if List.mem ~equal hl invoker then Lazy.force f in
     List.iter directives ~f:(fun (Flag (d,hl)) ->
         match d with
         | `Memory -> if_active hl (lazy (self#dump_memory ~invoker))
@@ -156,7 +157,7 @@ class conqueror_debugger_context ?dir ?(directives=[]) ?max_steps ?max_loop
   method! log ~extras (invoker : Flag.hook) =
     let open Flag in
     base#log ~extras invoker;
-    let if_active hl f = if List.mem hl invoker then Lazy.force f in
+    let if_active hl f = if List.mem ~equal hl invoker then Lazy.force f in
     List.iter directives ~f:(fun (Flag (d,hl)) ->
         match d with
         | `Checkpoints -> if_active hl (lazy (self#dump_checkpoints ~invoker))

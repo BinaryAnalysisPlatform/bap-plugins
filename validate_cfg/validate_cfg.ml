@@ -1,4 +1,5 @@
 open Core_kernel.Std
+open Graphlib.Std
 open Bap.Std
 
 let main proj =
@@ -10,7 +11,7 @@ let main proj =
       | None ->
         eprintf "sub %s is empty\n%!" name;
       | Some blk ->
-        let n = Graphlib.fold_reachable (module Graphlib.Tid.Tid)
+        let n = Graphlib.fold_reachable (module Graphs.Tid)
             ~init:0 ~f:(fun s _ -> s + 1) cfg (Term.tid blk) in
         if n <> Term.length blk_t sub
         then eprintf "sub %s has unreachable blocks\n%!" name)

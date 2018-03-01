@@ -7,7 +7,7 @@ class marker (error : Uaf_error.t) = object(self)
   method! map_term cls t =
     super#map_term cls t |> fun t ->
     (* Highlight everything visited in the trace *)
-    (if List.mem error.trace (Term.tid t)
+    (if List.mem ~equal:Tid.equal error.trace (Term.tid t)
      then Term.set_attr t foreground `cyan
      else t) |> fun t ->
     (* Highlight use site *)

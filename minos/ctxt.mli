@@ -15,6 +15,6 @@ type t = {
   trim : trim;
   max_depth : int; (** depth to go to before terminating path *)
   sample: int; (** number of paths to sample *)
-  g : (module Graphlib.Graph with type edge = Graphs.Tid.edge and
+  g : (module Graph with type edge = Graphs.Tid.edge and
       type node = tid and type t = Graphs.Tid.t)
 }

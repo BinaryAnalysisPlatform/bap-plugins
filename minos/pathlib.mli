@@ -31,7 +31,7 @@ val fold_paths:
     representation. Supports reverse traversal. *)
 val fold_paths_graph :
   ?rev:bool ->
-  (module Graphlib.Graph
+  (module Graph
     with type edge = Graphs.Tid.edge and
     type node = tid and
     type t = Graphs.Tid.t) ->

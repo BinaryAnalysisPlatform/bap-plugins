@@ -104,6 +104,8 @@ let inter_dep deps1 deps2 =
   Tid.Set.inter (Tid.Set.of_list (Seq.to_list deps2)) |>
   Tid.Set.to_sequence
 
+let equal = Polymorphic_compare.equal
+
 let highlight_cli ?(highlight=[]) (ctxt : Check.ctxt) sub dependence =
   let open Color in
   let output = "" in
@@ -127,7 +129,7 @@ let highlight_cli ?(highlight=[]) (ctxt : Check.ctxt) sub dependence =
           Seq.fold ~init:output ~f:(fun output elt ->
               match elt with
               | `Def def ->
-                (match List.Assoc.find highlight (Term.tid def) with
+                (match List.Assoc.find ~equal highlight (Term.tid def) with
                  | Some color ->
                    let s = Format.sprintf "%s\n" (color^to_string_def def^no) in
                    output^s
@@ -135,7 +137,7 @@ let highlight_cli ?(highlight=[]) (ctxt : Check.ctxt) sub dependence =
                    let s = Format.sprintf "%s\n" @@ to_string_def def in
                    output^s)
               | `Jmp jmp ->
-                (match List.Assoc.find highlight (Term.tid jmp) with
+                (match List.Assoc.find ~equal highlight (Term.tid jmp) with
                  | Some color ->
                    let s =  Format.sprintf "%s\n" (color^to_string_jmp jmp^no) in
                    output^s
@@ -150,7 +152,7 @@ let highlight_cli ?(highlight=[]) (ctxt : Check.ctxt) sub dependence =
 let output sub' arg_dependence jmp_dependence sink_intersect_dependence jmp_tids
     (ctxt : Check.ctxt) =
   let open Color in
-  let add_color = List.Assoc.add in
+  let add_color = List.Assoc.add ~equal in
   let add_aqua l tid = add_color l tid !!Aqua in
   let add_red l tid = add_color l tid !!Red in
   let add_green l tid = add_color l tid !!Green in
