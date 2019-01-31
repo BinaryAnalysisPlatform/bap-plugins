@@ -9,7 +9,7 @@
 *)
 
 
-open Core_kernel.Std
+open Core_kernel
 open Bap.Std
 
 (* note, this function will return all variables, including

@@ -1,5 +1,5 @@
 open Bap.Std
-open Core_kernel.Std
+open Core_kernel
 
 let to_reg_x86_64 = function
   | "arg1" -> "RDI"

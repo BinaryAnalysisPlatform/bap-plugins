@@ -1,4 +1,4 @@
-open Core_kernel.Std
+open Core_kernel
 
 type t =
   | Pink | Aqua | Red | Green | Blue | Orange | Brown | Gray | Purple

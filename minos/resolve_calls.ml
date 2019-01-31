@@ -1,4 +1,4 @@
-open Core_kernel.Std
+open Core_kernel
 open Bap.Std
 
 (** If sub is a path with constants folded to goto term constants,

@@ -1,4 +1,4 @@
-open Core_kernel.Std
+open Core_kernel
 open Bap.Std
 open Format
 open Graphlib.Std
@@ -212,7 +212,7 @@ let rec recursively_add project builder sub_tid existing =
   let sub = sub_of_tid project sub_tid |> val_exn in
   Program.Builder.add_sub builder sub;
   let existing = Tid.Set.add existing sub_tid in
-  let calls_of_sub = calls_of_sub sub |> List.dedup in
+  let calls_of_sub = calls_of_sub sub |> List.dedup_and_sort ~compare:Tid.compare in
   let new_tids =
     List.filter calls_of_sub ~f:(fun tid ->
         not (Tid.Set.mem existing tid)) in

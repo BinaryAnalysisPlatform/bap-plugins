@@ -1,5 +1,5 @@
 open Bap.Std
-open Core_kernel.Std
+open Core_kernel
 
 let time tag f =
   let t = Unix.gettimeofday () in

@@ -1,4 +1,4 @@
-open Core_kernel.Std
+open Core_kernel
 open Bap.Std
 include Self ()
 open Format
@@ -8,7 +8,7 @@ let go (type t) (module T: Regular.S with type t = t) get_addr proj  =
   let f x elt =
     match get_addr elt with
     | Some addr ->
-      let s = sprintf "%a: " Word.pps addr in s^x
+       Bytes.cat (Bytes.of_string @@ sprintf "%a: " Word.pps addr) x
     | None -> x in
   match T.default_printer () with
   | None -> ()

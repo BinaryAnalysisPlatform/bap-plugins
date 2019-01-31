@@ -1,5 +1,5 @@
+open Core_kernel
 open Bap.Std
-open Core_kernel.Std
 open Uaf_error
 
 class marker (error : Uaf_error.t) = object(self)

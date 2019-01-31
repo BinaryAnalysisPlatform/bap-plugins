@@ -1,4 +1,4 @@
-open Core_kernel.Std
+open Core_kernel
 open Filename
 
 (* any $(var) can be changed with TEST_VAR environment variable,
