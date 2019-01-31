@@ -1,4 +1,4 @@
-open Core_kernel.Std
+open Core_kernel
 open Bap.Std
 open Spec
 open Format
@@ -50,7 +50,7 @@ let hyp_of_defn defn : hyp =
   let proofs = Pat.Map.empty in
   let deps =
     List.fold constrs ~init:Dep.Map.empty ~f:(fun deps -> function
-        | Constr.Dep (v',v) -> Map.add deps ~key:(v',v) ~data:Top
+        | Constr.Dep (v',v) -> Map.set deps ~key:(v',v) ~data:Top
         | _ -> deps) in
   let (++) pats r = Set.union pats (Pat.Set.of_list r) in
   let patts,pending =
@@ -98,14 +98,14 @@ let sat ts term hypo kind v bil : hyp option =
     | ss -> match Map.find_exn hyp.deps (v,x) with
       | Top -> Some {
           hyp with
-          deps = Map.add hyp.deps ~key:(v,x) ~data:(Set ss)
+          deps = Map.set hyp.deps ~key:(v,x) ~data:(Set ss)
         }
       | Set xs ->
         let ss = Set.inter ss xs in
         if Set.is_empty ss then None
         else Some {
             hyp with
-            deps = Map.add hyp.deps ~key:(v,x) ~data:(Set ss)
+            deps = Map.set hyp.deps ~key:(v,x) ~data:(Set ss)
           } in
   let dep_def hyp bil y =
     V.Assoc.find (Defn.vars hyp.defn) v >>| seed_of_sort >>=
@@ -113,13 +113,13 @@ let sat ts term hypo kind v bil : hyp option =
     match get_seed ts (Term.tid term) bil, Map.find_exn hyp.deps (y,v) with
     | None,Top -> Some {
         hyp with
-        deps = Map.add hyp.deps ~key:(y,v)
+        deps = Map.set hyp.deps ~key:(y,v)
             ~data:(Set Tid.Set.empty)
       }
     | None,_ -> None
     | Some seed,Top -> Some {
         hyp with
-        deps = Map.add hyp.deps ~key:(y,v)
+        deps = Map.set hyp.deps ~key:(y,v)
             ~data:(Set (Tid.Set.singleton seed))
       }
     | Some seed, Set seeds ->
@@ -174,7 +174,7 @@ let decide_hyp ts term hyp matches =
         | None -> hyp
         | Some hyp -> {
             hyp with
-            proofs = Map.add hyp.proofs ~key:pat ~data:(Term.tid term);
+            proofs = Map.set hyp.proofs ~key:pat ~data:(Term.tid term);
           })
 
 let is_done h = Map.length h.proofs = Set.length h.patts

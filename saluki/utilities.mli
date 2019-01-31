@@ -1,7 +1,7 @@
 (** Useful utility functions
 
     Mostly on terms. Candidates for library promotion.*)
-open Core_kernel.Std
+open Core_kernel
 open Bap.Std
 
 
