@@ -1,4 +1,4 @@
-open Core_kernel.Std
+open Core_kernel
 open Option
 open Bap.Std
 open Microx.Std
@@ -118,7 +118,7 @@ class context ?dir ?(directives=[]) ?max_steps ?max_loop prog =
         Option.value self#lookup_alloc_size ~default:(Word.zero 32) in
       let data = {min = a; max = Word.(a+alloc_size);
                   size = alloc_size} in
-      {< alloced_addrs = Map.add alloced_addrs ~key:tid ~data >}
+      {< alloced_addrs = Map.set alloced_addrs ~key:tid ~data >}
 
     (** When we see a alloc, do the right things with def *)
     method hook_alloc (def : Def.t) =
@@ -156,7 +156,7 @@ class context ?dir ?(directives=[]) ?max_steps ?max_loop prog =
         {min = a;
          max = Word.(a+alloc_size);
          size = alloc_size} in
-      {< freed_addrs = Map.add freed_addrs ~key:tid ~data:free_data >}
+      {< freed_addrs = Map.set freed_addrs ~key:tid ~data:free_data >}
 
     method hook_free (def : Def.t) =
       match (Def.rhs def) with

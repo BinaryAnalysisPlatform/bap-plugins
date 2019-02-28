@@ -1,6 +1,6 @@
 open Bap.Std
 open Check
-open Core_kernel.Std
+open Core_kernel
 
 let (^::) = Seq.cons
 

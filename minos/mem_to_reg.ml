@@ -1,4 +1,4 @@
-open Core_kernel.Std
+open Core_kernel
 open Bap.Std
 open X86_cpu
 
@@ -80,7 +80,7 @@ let make_store_map ?(v=false) sub =
               then if v then
                   Format.printf "EXISTS: %s!\n Def: %s"
                     (Exp.to_string src) (Def.to_string def);
-              Def.Map.add map ~key:def ~data:(src,addr)
+              Def.Map.set map ~key:def ~data:(src,addr)
             | _ -> map))
 
 let replace_stores ?(v=false) sub =

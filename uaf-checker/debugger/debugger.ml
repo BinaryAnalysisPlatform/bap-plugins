@@ -1,4 +1,4 @@
-open Core_kernel.Std
+open Core_kernel
 open Bap.Std
 open Format
 open Regular.Std
@@ -15,7 +15,7 @@ class memory : Bil.storage =
     val storage = Bitvector.Map.empty
 
     method save x u =
-      {< storage = Map.add storage ~key:x ~data:u >}
+      {< storage = Map.set storage ~key:x ~data:u >}
 
     method load x =
       Map.find storage x

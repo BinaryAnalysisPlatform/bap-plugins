@@ -1,4 +1,4 @@
-open Core_kernel.Std
+open Core_kernel
 open Format
 
 let to_csv ?filename data =

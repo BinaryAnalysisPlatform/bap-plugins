@@ -2,7 +2,7 @@
 #require "bap.top";;
 #require "oUnit";;
 
-open Core_kernel.Std
+open Core_kernel
 open Bap.Std
 open Or_error
 open OUnit2

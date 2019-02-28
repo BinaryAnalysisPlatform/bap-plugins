@@ -1,5 +1,5 @@
 open Bap.Std
-open Core_kernel.Std
+open Core_kernel
 open Cut
 open Options
 open Graphlib.Std

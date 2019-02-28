@@ -1,5 +1,5 @@
 open Bap.Std
-open Core_kernel.Std
+open Core_kernel
 open Graphlib.Std
 
 let (^::) = Seq.cons
@@ -217,7 +217,8 @@ let lca_nth_of_sink project nth sink callgraph =
 
   (** Callstring order: @memcpy @foo @bar *)
 
-  let callstrings_sinks = List.dedup callstrings_sinks_l |>
+  let callstrings_sinks = List.dedup_and_sort callstrings_sinks_l
+                            ~compare:compare |>
                           List.map ~f:Seq.of_list |> Seq.of_list in
 
   (** Callstring order: @foo @bar @memcpy *)

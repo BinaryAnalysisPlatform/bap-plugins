@@ -1,4 +1,4 @@
-open Core_kernel.Std
+open Core_kernel
 open Regular.Std
 open Graphlib.Std
 open Bap.Std
@@ -135,7 +135,7 @@ let main p =
   Seq.fold ~init:CSS.Set.empty  ~f:(fun css (sym,entry,cfg) ->
       if is_interesting sym then
         let css' = callstrings css 0 [] entry  in
-        Set.map (Set.diff css' css) ~comparator:String.comparator
+        Set.map (module String) (Set.diff css' css)
           ~f:(fun css ->
               sprintf "%s" @@
               String.concat ~sep:" " @@
