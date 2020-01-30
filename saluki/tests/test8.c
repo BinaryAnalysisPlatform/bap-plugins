@@ -7,7 +7,7 @@
 int main(int argc, const char* argv[]) {
     char *ptr = NULL;
     int i;
-    for (i; i < argc + 1; i++) {
+    for (i = 0; i < argc + 1; i++) {
         if (argv[i][0] == '1') {
             ptr = malloc(1);
         } else {
