@@ -1,8 +1,25 @@
+let doc = {|
+# DESCRIPTION
+
+Saluki is a proof-based verificiation engine that uses a
+simple embedded DSL for property specification. Saluki relies on an
+external taint propagation engine for data flow facts. Based on these
+facts Saluki will search for models for each specified property.
+
+For more information about Saluki please refer to its homepage [1] and
+paper [2].
+
+
+[1]: https://github.com/BinaryAnalysisPlatform/bap-plugins/tree/master/saluki
+[2]: https://www.ndss-symposium.org/wp-content/uploads/2018/07/bar2018_19_Gotovchits_paper.pdf
+
+|}
+
 open Core_kernel
 open Bap.Std
+open Bap_main
 open Format
 open Spec
-include Self()
 
 let taint spec proj =
   let prog = Project.program proj in
@@ -17,7 +34,28 @@ let filter checks defs =
       List.exists checks ~f:(fun pattern ->
           String.substr_index (Defn.name defn) ~pattern <> None))
 
-let solve models spec proj =
+let has_visited blk =
+  Term.has_attr blk Term.visited
+
+let compute_coverage prog =
+  Term.enum sub_t prog |>
+  Seq.fold ~init:(0,0) ~f:(fun state sub ->
+      Term.enum blk_t sub |>
+      Seq.fold ~init:state ~f:(fun (visited,total) blk ->
+          if not (has_visited blk)
+          then printf "%a" Blk.pp blk;
+          if has_visited blk then (visited+1,total+1)
+          else (visited,total+1))) |> function
+  | (0,0) -> 0,0,0
+  | (v,t) ->
+    v,t,Float.(to_int @@ round @@ (of_int v /. of_int t) *. 100.)
+
+let pp_coverage ppf prog =
+  let visited,total,percentage = compute_coverage prog in
+  Format.fprintf ppf "[%d/%d] %3d%%" visited total percentage
+
+
+let solve models spec coverage proj =
   let prog = Project.program proj in
   let tainter = Tainter.reap prog in
   let state = State.create spec tainter in
@@ -29,64 +67,35 @@ let solve models spec proj =
       printf "%a" (Solution.pp_unsat defn) sol;
       printf "@]";
       if models then pp_models sol defn);
+  if coverage then printf "Coverage: %a@\n" pp_coverage prog;
   Project.with_program proj (Solution.annotate sol prog)
 
-let main models checks () =
-  let spec = match checks with
-    | None -> Specification.spec
-    | Some checks -> filter checks (Specification.spec) in
-  Option.is_some checks, spec,models
+(* Command line interface *)
 
+open Extension.Configuration
+open Extension.Type
 
-module Cmdline = struct
-  open Cmdliner
-  let taint =
-    let doc = "Run taint pass" in
-    Arg.(value & flag & info ["taint"] ~doc)
-  let solver =
-    let doc = "Run saluki solver" in
-    Arg.(value & flag & info ["solver"] ~doc)
-  let saluki =
-    let doc = "Taint, then propagate taint, then run the solver" in
-    Arg.(value & flag & info ["saluki"] ~doc)
-
-  let passes =
-    Term.(const (fun _ _ _ -> ()) $taint $solver $saluki)
-
-  let check =
-    let doc = "Check the specified list of properties. The list
+let check = parameter (some (list string)) "check"
+    ~doc:"Check the specified list of properties. The list
     may contain a full property name, or just some substring. For
     example,if $(b,malloc) is specified, then all properties that
-    contain $(b,malloc) in their name will be checked." in
-    Arg.(value & opt (some (list string)) None &
-         info ["check"] ~doc)
+    contain $(b,malloc) in their name will be checked."
 
-  let models =
-    let doc =
-      "Output found models for each property. Usefull for testing
-       and debugging." in
-    Arg.(value & flag & info ["print-models"] ~doc)
+let models = flag "print-models"
+    ~doc:"Output found models for each property. Usefull for testing
+       and debugging."
 
-  let man = [
-    `S "DESCRIPTION";
-    `P "Saluki is a proof base property verification engine. It uses
-        a simple DSL that allows to specify program properties. The
-        solver will verify that dataflow facts proves or disproves the
-        given set of properties."
-  ]
+let print_coverage = flag "print-coverage"
+    ~doc:"Prints the percentage of visited blocks"
 
-  let doc = "fast and stupid property checker"
-
-  let info = Term.info name ~doc ~man
-  let args = Term.(const main $models $check $passes),info
-end
-
-
-let () = match Cmdliner.Term.eval ~argv Cmdline.args with
-  | `Help | `Version -> exit 0
-  | `Error _ -> exit 1
-  | `Ok (autorun, spec,models) ->
-    Project.register_pass ~name:"solve" (solve models spec);
-    Project.register_pass ~deps:["callsites"] ~name:"taint"  (taint spec);
-    Project.register_pass' ignore ~autorun
-      ~deps:[name^"-taint"; "propagate-taint"; name^"-solve"]
+let () = Extension.declare ~doc @@ fun ctxt ->
+  let spec = match get ctxt check with
+    | None -> Specification.spec
+    | Some checks -> filter checks (Specification.spec) in
+  let coverage = get ctxt print_coverage in
+  let models = get ctxt models in
+  Project.register_pass ~name:"solve" (solve models spec coverage);
+  Project.register_pass ~deps:["callsites"] ~name:"taint"  (taint spec);
+  Project.register_pass' ignore
+    ~deps:["saluki-taint"; "propagate-taint"; "saluki-solve"];
+  Ok ()
