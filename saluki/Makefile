@@ -1,12 +1,17 @@
 ifeq (is_${TAINT_ENGINE}, is_primus)
 OPTS = ${options} \
-	--no-byteweight --saluki-print-models --propagate-taint-print-coverage \
+	--saluki-print-models --propagate-taint-print-coverage \
 	--passes=trivial-condition-form,saluki-taint,run,saluki-solve \
 	--primus-propagate-taint-from-attr --primus-propagate-taint-to-attr \
 	--primus-promiscuous-mode --primus-greedy-scheduler \
-	--primus-limit-max-visited=64 --primus-limit-max-length=4096
+	--primus-limit-max-visited=64 --primus-limit-max-length=4096 \
+	--run-entry-points=all-subroutines \
+	--run-with-repetitions \
+	--saluki-print-coverage \
+	--primus-lisp-load=init
 else
-OPTS = ${options} --no-byteweight --saluki --saluki-print-models --propagate-taint-print-coverage
+OPTS = ${options} --saluki --saluki-print-models \
+	--propagate-taint-print-coverage
 endif
 
 case = *
