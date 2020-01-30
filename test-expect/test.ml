@@ -2,6 +2,8 @@ open Core_kernel
 open Filename
 open Format
 
+module Buffer = Caml.Buffer
+
 (* any $(var) can be changed with TEST_VAR environment variable,
    for example, TEST_ARCH=x86, for $(arch).*)
 let compile =
