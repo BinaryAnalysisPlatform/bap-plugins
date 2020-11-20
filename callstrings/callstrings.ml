@@ -2,6 +2,7 @@ open Core_kernel
 open Regular.Std
 open Graphlib.Std
 open Bap.Std
+open Poly
 include Self()
 
 module Cfg = Graphs.Cfg
@@ -19,7 +20,7 @@ module Cmdline = struct
     Arg.(value & opt int 10 & info ["length"] ~doc)
 
   let process_args sinks length =
-    let is_interesting = List.map sinks ~f:Re_posix.re
+    let is_interesting = List.map sinks ~f:Re.Posix.re
                          |> Re.alt
                          |> Re.compile
                          |> Re.execp in

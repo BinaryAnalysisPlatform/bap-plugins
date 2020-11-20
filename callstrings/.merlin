@@ -1,5 +1,6 @@
 REC
 PKG bap
+PKG ppx_bap
 PKG regular
 PKG graphlib
 PKG re.posix
