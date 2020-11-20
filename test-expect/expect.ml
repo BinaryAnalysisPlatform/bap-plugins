@@ -13,7 +13,7 @@ type t = expect
 
 let create =
   Array.of_list_map ~f:(fun s -> {
-        regexp = Re.compile (Re_posix.re s);
+        regexp = Re.compile (Re.Posix.re s);
         string = s;
       })
 

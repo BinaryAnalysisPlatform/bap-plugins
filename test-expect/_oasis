@@ -12,4 +12,4 @@ Executable "bap-test-expect"
   Path: .
   MainIs: test.ml
   Install: true
-  BuildDepends: ppx_jane, core_kernel, ocamlgraph, re.posix
+  BuildDepends: ppx_bap, core_kernel, ocamlgraph, re.posix, core_kernel.caml_unix

@@ -1,8 +1,10 @@
 open Core_kernel
 open Filename
 open Format
+open Poly
 
 module Buffer = Caml.Buffer
+module Unix = Caml_unix
 
 (* any $(var) can be changed with TEST_VAR environment variable,
    for example, TEST_ARCH=x86, for $(arch).*)
@@ -25,11 +27,13 @@ let subst = [
 
 type expect = Expect.t
 
-let verbose () = try Sys.getenv "VERBOSE" with Not_found -> "0"
+let verbose () = match Sys.getenv_opt "VERBOSE" with
+  | Some x -> x
+  | None -> "0"
 
 exception Command_failed of string [@@deriving sexp]
 
-let assoc = List.Assoc.find_exn ~equal:String.equal
+let assoc = List.Assoc.find ~equal:String.equal
 
 
 let result_of_string line =
@@ -43,9 +47,11 @@ let expected_results file : expect =
 let expand pat map =
   let buf = Buffer.create 64 in
   Buffer.add_substitute buf (fun key ->
-      try Sys.getenv ("TEST_"^String.uppercase key) with
-        Not_found -> try assoc map key with
-          Not_found -> failwithf "no subst for %s" key ())
+      match Sys.getenv_opt ("TEST_"^String.uppercase key) with
+      | Some x -> x
+      | None -> match assoc map key with
+        | Some x -> x
+        | None -> failwithf "no subst for %s" key ())
     pat;
   Buffer.contents buf
 
