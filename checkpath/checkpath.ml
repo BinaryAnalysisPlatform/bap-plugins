@@ -3,6 +3,7 @@ open Graphlib.Std
 open Bap.Std
 open Format
 open Or_error
+open Poly
 
 let separators = [';' ]
 
@@ -103,7 +104,7 @@ let make_points p s =
   if s.[0] = '0'
   then return ([addr (Project.arch p) (Int64.of_string s)])
   else
-    let matches = Re.execp (Re.compile (Re_posix.re s)) in
+    let matches = Re.execp (Re.compile (Re.Posix.re s)) in
     let symbols = Project.symbols p in
     Symtab.to_sequence symbols |> Seq.filter_map ~f:(fun (sym,blk,cfg) ->
         Option.some_if (matches sym) (Block.addr blk))
