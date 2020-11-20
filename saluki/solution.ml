@@ -3,13 +3,14 @@ open Bap.Std
 open Spec
 open Format
 open Option.Monad_infix
+open Poly
 
 type hypothesis = tid Pat.Map.t [@@deriving bin_io, compare, sexp]
 type hypotheses = hypothesis list
 type input = (defn * hypothesis) seq
 type proof = (pat * tid)  [@@deriving bin_io, compare, sexp]
 type proofs = proof list * pat list
-  [@@deriving bin_io, compare, sexp]
+[@@deriving bin_io, compare, sexp]
 
 
 
@@ -35,7 +36,7 @@ type solution = {
 } [@@deriving bin_io, compare, sexp]
 
 type solutions = solution String.Map.t
-  [@@deriving bin_io, compare, sexp]
+[@@deriving bin_io, compare, sexp]
 
 type t = solutions [@@deriving bin_io, compare, sexp]
 
@@ -69,14 +70,14 @@ let pp_hypothesis ppf hyp =
       fprintf ppf "@;%a:%a" Tid.pp data Pat.pp key)
 
 let dedup hyps : hypotheses =
-  List.dedup ~compare:(Pat.Map.compare Tid.compare) hyps
+  List.dedup_and_sort ~compare:(Pat.Map.compare Tid.compare) hyps
 
 let prove f rule hyp =
   let prove pat = Map.find hyp pat >>| fun t -> (pat,t) in
   List.partition_map (f rule) ~f:(fun pat ->
       match prove pat with
-      | Some proof -> `Fst proof
-      | None -> `Snd pat)
+      | Some proof -> First proof
+      | None -> Second pat)
 
 let model_of_hypothesis rule hyp : model =
   let prem = prove Rule.premises rule hyp in
@@ -84,9 +85,9 @@ let model_of_hypothesis rule hyp : model =
   {rule = Rule.name rule; conc; prem}
 
 let decide_model (m : model) = match m with
-  | {prem = (_,_ :: _)} -> `Fst m
-  | {conc = (_,[])} -> `Fst m
-  | _ -> `Snd m
+  | {prem = (_,_ :: _)} -> First m
+  | {conc = (_,[])} -> First m
+  | _ -> Second m
 
 let make_solution (hyps : hypotheses) rule =
   let examples,counters =

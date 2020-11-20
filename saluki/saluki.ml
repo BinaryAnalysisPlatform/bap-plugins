@@ -20,6 +20,7 @@ open Bap.Std
 open Bap_main
 open Format
 open Spec
+open Poly
 
 let taint spec proj =
   let prog = Project.program proj in

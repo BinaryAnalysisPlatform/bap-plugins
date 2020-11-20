@@ -3,6 +3,7 @@ open Bap.Std
 open Spec
 open Format
 open Utilities
+open Poly
 
 open Option.Monad_infix
 

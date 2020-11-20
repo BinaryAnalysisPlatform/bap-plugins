@@ -1,5 +1,6 @@
 open Core_kernel
 open Bap.Std
+open Poly
 
 let label_matches l id = match l with
   | Indirect _ -> false
