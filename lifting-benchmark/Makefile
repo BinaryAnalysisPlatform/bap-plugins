@@ -1,7 +1,7 @@
 .PHONY : all
 
 all:
-	ocamlbuild -package bap -package findlib.dynload  bench.native
+	bapbuild -package core_kernel.caml_unix -package findlib.dynload bench.native
 
 clean:
-	ocamlbuild -clean
+	bapbuild -clean

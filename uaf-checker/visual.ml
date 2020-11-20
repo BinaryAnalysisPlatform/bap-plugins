@@ -1,6 +1,7 @@
 open Core_kernel
 open Bap.Std
 open Uaf_error
+open Poly
 
 class marker (error : Uaf_error.t) = object(self)
   inherit Term.mapper as super

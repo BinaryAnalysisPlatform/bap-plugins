@@ -1,5 +1,6 @@
 open Core_kernel
 open Bap.Std
+open Poly
 
 type priority = int
 

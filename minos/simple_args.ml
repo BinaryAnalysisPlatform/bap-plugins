@@ -2,6 +2,7 @@ open Bap.Std
 open Core_kernel
 open X86_cpu
 open ARM
+open Poly
 
 let (^::) = Seq.cons
 

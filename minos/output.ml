@@ -1,5 +1,6 @@
 open Bap.Std
 open Core_kernel
+module Unix = Caml_unix
 
 let (^::) = Seq.cons
 

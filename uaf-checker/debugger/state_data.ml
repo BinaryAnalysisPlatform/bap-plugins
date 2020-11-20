@@ -10,16 +10,17 @@ let to_csv ?dirname ~invoker data_type step_count data =
     |> String.uncapitalize in
   match dirname with
   | Some dirname ->
+    let (!!) = format_of_string in
     let filename =
       (match data_type,invoker with
-       | `Regs,_ -> "%s_regs%04d.txt"
-       | `Memory,_ -> "%s_memory%04d.txt"
-       | `Path_counts,_ ->"%s_path_count%04d.txt"
-       | `Trace,_ -> "%s_trace%04d.txt"
-       | `Checkpoints,_ -> "%s_checkpoints%04d.txt"
-       | `Myself,invoker -> "%s_self%04d.txt"
-       | `Freed_addrs,_ -> "%s_freed_addrs%04d.txt"
-       | `Alloced_addrs,_ -> "%s_alloced_addrs%04d.txt")
+       | `Regs,_ -> !!"%s_regs%04d.txt"
+       | `Memory,_ -> !!"%s_memory%04d.txt"
+       | `Path_counts,_ -> !!"%s_path_count%04d.txt"
+       | `Trace,_ -> !!"%s_trace%04d.txt"
+       | `Checkpoints,_ -> !!"%s_checkpoints%04d.txt"
+       | `Myself,invoker -> !!"%s_self%04d.txt"
+       | `Freed_addrs,_ -> !!"%s_freed_addrs%04d.txt"
+       | `Alloced_addrs,_ -> !!"%s_alloced_addrs%04d.txt")
       |> fun x ->
       dirname^"/"^(sprintf x prefix step_count) in
     Output.to_csv ~filename data

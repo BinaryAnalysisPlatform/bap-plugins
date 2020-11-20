@@ -2,6 +2,7 @@ open Core_kernel
 open Bap.Std
 open Format
 open Option
+open Poly
 
 let find_section_by_name project name =
   let memory = Project.memory project in

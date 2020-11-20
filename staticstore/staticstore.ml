@@ -4,6 +4,8 @@ include Self()
 open Format
 open Option.Monad_infix
 
+module Buffer = Caml.Buffer
+
 let version = "0.2"
 let max_exp_size = ref 100
 let yellow_format = ref "$symbol YELLOW\n"

@@ -1,6 +1,7 @@
 open Core_kernel
 open Bap.Std
-open Bap_plugins.Std
+
+module Unix = Caml_unix
 
 let usage () =
   eprintf "Performs linear sweep disassembly and lifting of raw bytes\n";
@@ -95,8 +96,11 @@ let read_file s =
 
 
 let () =
-  Plugins.run ~exclude:["bil"] ();
-  match Array.length Sys.argv with
-  | 2 -> main `x86_64 (read_file Sys.argv.(1))
-  | 3 -> main (read_arch Sys.argv.(1)) (read_file Sys.argv.(2))
-  | _ -> usage ()
+  match Bap_main.init () with
+  | Error err ->
+    Format.eprintf "Failed to initialize bap: %a@\n%!"
+      Bap_main.Extension.Error.pp err;
+  | Ok () -> match Array.length Sys.argv with
+    | 2 -> main `x86_64 (read_file Sys.argv.(1))
+    | 3 -> main (read_arch Sys.argv.(1)) (read_file Sys.argv.(2))
+    | _ -> usage ()

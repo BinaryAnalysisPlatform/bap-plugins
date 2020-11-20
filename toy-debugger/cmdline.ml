@@ -19,7 +19,7 @@ module T = struct
       String.capitalize s
       |> Sexp.of_string
       |> Hook.t_of_sexp
-      |> Ok
+      |> fun x -> Ok x
     | s -> expect (grammar ()) ~got:(Sexp.to_string s)
 
   (** Parses list of sexps into hook types *)

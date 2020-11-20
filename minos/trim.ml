@@ -3,6 +3,7 @@ open Core_kernel
 open Cut
 open Options
 open Graphlib.Std
+open Poly
 
 let (^::) = Seq.cons
 

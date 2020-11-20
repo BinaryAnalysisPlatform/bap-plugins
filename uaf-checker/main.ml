@@ -4,6 +4,7 @@ open Bap.Std
 open Microx.Std
 open ARM
 include Self()
+open Poly
 
 open Format
 module SM = Monad.State

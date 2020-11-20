@@ -2,6 +2,7 @@ open Core_kernel
 open Bap.Std
 open Graphlib.Std
 open Color
+open Poly
 
 let left_justify =
   String.concat_map ~f:(fun c ->

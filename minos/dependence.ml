@@ -2,6 +2,7 @@ open Bap.Std
 open Core_kernel
 open Options
 open Check
+open Poly
 
 let (^::) = Seq.cons
 
@@ -104,7 +105,7 @@ let inter_dep deps1 deps2 =
   Tid.Set.inter (Tid.Set.of_list (Seq.to_list deps2)) |>
   Tid.Set.to_sequence
 
-let equal = Polymorphic_compare.equal
+let equal = Poly.equal
 
 let highlight_cli ?(highlight=[]) (ctxt : Check.ctxt) sub dependence =
   let open Color in

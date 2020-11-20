@@ -3,6 +3,8 @@ open Bap.Std
 open Format
 open Graphlib.Std
 open X86_cpu
+open Poly
+module Unix = Caml_unix
 
 (* MEMORY *)
 (* ------ *)

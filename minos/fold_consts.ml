@@ -1,5 +1,6 @@
 open Core_kernel
 open Bap.Std
+open Poly
 
 let fix_sp arch sub =
   let module Target = (val target_of_arch arch) in
@@ -47,7 +48,7 @@ let propagate_consts sub =
   try
     fp (Sub.ssa sub)
   with
-  | Not_found -> failwith "Sub could not be ssa'd"
+  | Caml.Not_found -> failwith "Sub could not be ssa'd"
 
 let analyze ?(fixsp=true) arch sub =
   if fixsp then

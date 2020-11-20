@@ -2,6 +2,7 @@ open Core_kernel
 open Bap.Std
 open Color
 open Graphlib.Std
+open Poly
 
 type t = {
   name : string;
@@ -10,8 +11,6 @@ type t = {
   num_loops : int;
   cyc_comp : int;
 }
-
-let equal = Polymorphic_compare.equal
 
 let sub_profile_with_view
     (module G : Graph with type edge = Graphs.Tid.edge and

@@ -1,6 +1,7 @@
 open Bap.Std
 open Core_kernel
 open Graphlib.Std
+open Poly
 
 let (^::) = Seq.cons
 
@@ -217,9 +218,10 @@ let lca_nth_of_sink project nth sink callgraph =
 
   (** Callstring order: @memcpy @foo @bar *)
 
-  let callstrings_sinks = List.dedup_and_sort callstrings_sinks_l
-                            ~compare:compare |>
-                          List.map ~f:Seq.of_list |> Seq.of_list in
+  let callstrings_sinks =
+    List.dedup_and_sort callstrings_sinks_l
+      ~compare |>
+    List.map ~f:Seq.of_list |> Seq.of_list in
 
   (** Callstring order: @foo @bar @memcpy *)
   Seq.foldi ~init:Seq.empty callstrings_sinks ~f:(fun i acc sink_cs ->

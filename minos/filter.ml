@@ -14,7 +14,7 @@ let whitelist =
     "@strcat"]
 
 let compile s =
-  s |> List.map ~f:Re_posix.re
+  s |> List.map ~f:Re.Posix.re
   |> Re.alt
   |> Re.compile
   |> Re.execp

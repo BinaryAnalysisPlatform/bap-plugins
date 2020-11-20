@@ -6,6 +6,7 @@ open Simple
 open Ctxt
 open Check
 open Trim
+open Poly
 open Graphlib.Std
 
 let (^::) = Seq.cons
@@ -88,7 +89,7 @@ let process_valid path (ctxt : Ctxt.t) =
       let check_ctxt = consumer_ctxt_of_ctxt ctxt sub_path'' in
       Path_consumer.consume sub_path'' ctxt.check check_ctxt
     with
-    | Not_found ->
+    | Caml.Not_found ->
       output_dot "path_no_simple_";
       Format.printf "Skipping this path: could not simplify\n%!" in
 

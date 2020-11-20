@@ -5,6 +5,7 @@ open Args
 open Check
 open Check_tmpl
 open Policy
+open Poly
 
 let (^::) = Seq.cons
 

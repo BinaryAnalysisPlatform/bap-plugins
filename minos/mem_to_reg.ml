@@ -1,6 +1,7 @@
 open Core_kernel
 open Bap.Std
 open X86_cpu
+open Poly
 
 let mem_summary_to_string (src,addr) =
   Format.sprintf "[%s]:[%s]" (Exp.to_string src) (Exp.to_string addr)

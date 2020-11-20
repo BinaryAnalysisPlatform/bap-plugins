@@ -1,6 +1,7 @@
 open Core_kernel
 open Bap.Std
 open Graphlib.Std
+open Poly
 
 let warn_opt = ref true
 
@@ -119,7 +120,7 @@ let inline project sub (filtr : Filter.t) =
 
 let make_color_map l c =
   List.fold l ~init:[] ~f:(fun acc name ->
-      List.Assoc.add ~equal:Polymorphic_compare.equal acc name c)
+      List.Assoc.add ~equal acc name c)
 
 (** Inline n times. Note we don't have to fail if we detect mutually
     recursive calls. Just warn. *)

@@ -6,6 +6,7 @@ open Check
 open Check_util
 open Policy
 open Format
+open Poly
 
 let (^::) = Seq.cons
 

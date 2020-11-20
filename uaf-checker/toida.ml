@@ -33,7 +33,7 @@ let output_all filename errors proj =
                       Wait()\n";
         List.iter errors ~f:(fun error ->
             (let (!) tid = Program.lookup def_t (Project.program proj) tid
-                           |> Option.value_exn in
+                           |> fun x -> Option.value_exn x in
              Term.get_attr !(error.use_tid) address >>=
              fun use_addr ->
              Term.get_attr !(error.free_tid) address >>=
